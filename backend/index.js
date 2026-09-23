@@ -1,7 +1,10 @@
 import 'dotenv/config'
 import express from 'express';
 import cors from 'cors';
-import { test } from './db.js';
+import billsRouter from './routes/bills.js';
+import customersRouter from './routes/customers.js'
+import employeesRouter from './routes/employees.js'
+import productsRouter from './routes/products.js'
 
 const app = express();
 
@@ -13,13 +16,14 @@ app.use(cors({
 
 app.use(express.json());
 
-app.get('/', (req, res) => {
-    return res.send('Hello from Express')
-})
+app.use('/bills', billsRouter);
+
+app.use('/customers', customersRouter);
+
+app.use('/employees', employeesRouter)
+
+app.use('/products', productsRouter);
 
 app.listen(3000, () => {
-    test().then((data) => {
-        console.log('Current schema:', data);
-        console.log(`${url}`)
-    });
+        console.log(`Listening on ${url}`)
 });
