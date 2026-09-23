@@ -1,0 +1,27 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Bakso Djaya Backend",
+  "homepage": "https://github.com/ravagelabs/BaksoDjaya#readme",
+  "bugs": {
+    "url": "https://github.com/ravagelabs/BaksoDjaya/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ravagelabs/BaksoDjaya.git"
+  },
+  "license": "UNLICENSED",
+  "author": "Dustin Mondegreen",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "node --inspect --watch-path=./ ./index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.2",
+    "express": "^5.2.1",
+    "pg-promise": "^12.7.1"
+  }
+}
