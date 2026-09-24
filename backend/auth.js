@@ -26,8 +26,8 @@ export const auth = betterAuth({
             void resend.emails.send({
                 from: 'RavageLabs <noreply@ravagelabs.com>',
                 to: user.email,
-                subject: 'Verify your Email Address',
-                html: `Click <a href="${url}">here</a> to verify your email.`
+                subject: 'Reset your password',
+                html: `Click <a href="${url}">here</a> to reset your password.`
             })
         }
     },
