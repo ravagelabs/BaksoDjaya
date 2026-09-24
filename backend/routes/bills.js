@@ -1,5 +1,5 @@
 import express from 'express';
-import { addBill, newBillItems } from '../db/db.js';
+import { addBill, addBillItems } from '../db/db.js';
 
 const router = express.Router();
 

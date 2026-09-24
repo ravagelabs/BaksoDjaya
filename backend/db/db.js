@@ -1,6 +1,4 @@
-import 'dotenv/config'
 import pgPromise from 'pg-promise'
-import format from 'pg-format'
 
 const pgp = pgPromise();
 
