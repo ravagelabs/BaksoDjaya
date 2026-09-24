@@ -37,3 +37,11 @@ export const addBillItems = async (billId, items) => {
     }
 }
 
+export const getProducts = async () => {
+    try {
+        const res = await db.any('SELECT * FROM product');
+        return res; 
+    } catch (err) {
+
+    }
+}

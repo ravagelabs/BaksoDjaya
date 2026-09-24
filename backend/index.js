@@ -5,14 +5,20 @@ import billsRouter from './routes/bills.js';
 import customersRouter from './routes/customers.js'
 import employeesRouter from './routes/employees.js'
 import productsRouter from './routes/products.js'
+import { auth } from './auth.js';
+import { toNodeHandler } from 'better-auth/node';
 
 const app = express();
 
 const url = process.env.DEV_MODE? process.env.DEV_URL : process.env.PROD_URL;
 
 app.use(cors({
-    origin: url
+    origin: url,
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
 }))
+
+app.all('/auth/*splat', toNodeHandler(auth));
 
 app.use(express.json());
 

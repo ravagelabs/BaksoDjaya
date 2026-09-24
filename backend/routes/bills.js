@@ -5,6 +5,14 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
     try {
+        
+    } catch (err) {
+
+    }
+});
+
+router.post('/', async (req, res) => {
+    try {
         const {customerId, employeeId, totalPrice, status, items} = req.body;
         const newBill =  await addBill(customerId, employeeId, totalPrice, status);
 
@@ -19,12 +27,6 @@ router.get('/', async (req, res) => {
     }
 });
 
-router.post('/', async (req, res) => {
-    try {
 
-    } catch (err) {
-
-    }
-});
 
 export default router; 
