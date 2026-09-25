@@ -26,7 +26,7 @@ export const auth = betterAuth({
     },
     emailAndPassword: {
         enabled: true,
-        requireEmailVerification: true,
+        // requireEmailVerification: true,
         sendResetPassword: ({user, url}) => {
             void resend.emails.send({
                 from: 'RavageLabs <noreply@ravagelabs.com>',
@@ -36,16 +36,16 @@ export const auth = betterAuth({
             })
         }
     },
-    emailVerification: {
-        sendOnSignUp: true, 
-        sendVerificationEmail: ({user, url}) => {
-            void resend.emails.send({
-                from: 'RavageLabs <noreply@ravagelabs.com>',
-                to: user.email,
-                subject: 'Verify your Email Address',
-                html: `Click <a href="${url}">here</a> to verify your email.`
-            })
-        }
-    }
+    // emailVerification: {
+    //     sendOnSignUp: true, 
+    //     sendVerificationEmail: ({user, url}) => {
+    //         void resend.emails.send({
+    //             from: 'RavageLabs <noreply@ravagelabs.com>',
+    //             to: user.email,
+    //             subject: 'Verify your Email Address',
+    //             html: `Click <a href="${url}">here</a> to verify your email.`
+    //         })
+    //     }
+    // }
 });
 

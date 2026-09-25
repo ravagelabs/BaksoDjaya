@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bakso_djaya_backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    # Runtime environment variables for Express
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      # Pass root .env variables as build arguments (needed for Vite at build time)
+      args:
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_BETTER_AUTH_URL: ${VITE_BETTER_AUTH_URL}
+    container_name: bakso_djaya_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

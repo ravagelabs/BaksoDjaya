@@ -1,4 +1,4 @@
-<script setup>
+<!-- <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { authClient } from '@/lib/auth-client'
@@ -106,4 +106,4 @@ onUnmounted(() => {
       </CardFooter>
     </Card>
   </div>
-</template>
+</template> -->

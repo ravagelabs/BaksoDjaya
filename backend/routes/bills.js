@@ -14,8 +14,8 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
     try {
-        const {customerId, employeeId, totalPrice, status, items} = req.body;
-        const newBill =  await addBill(customerId, employeeId, totalPrice, status);
+        const {customerId, employeeId, totalPrice, status, paymentMethod, items} = req.body;
+        const newBill =  await addBill(customerId, employeeId, totalPrice, status, paymentMethod);
 
         const newBillItems = await addBillItems(newBill, items);
 

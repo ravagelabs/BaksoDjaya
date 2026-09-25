@@ -6,11 +6,11 @@ const dbUrl = process.env.DEV_MODE? process.env.DB_URL_DEV : process.env.DB_URL_
 
 const db = pgp(dbUrl);
 
-export const addBill = async (customerId, employeeId, totalPrice, status) => {
+export const addBill = async (customerId, employeeId, totalPrice, status, paymentMethod) => {
     try {
         const res = await db.one({
-            text: 'INSERT INTO bill(customer_id, employee_id, total_price, status) VALUES ($1, $2, $3, $4) RETURNING id',
-            values: [customerId, employeeId, totalPrice, status]
+            text: 'INSERT INTO bill(customer_id, employee_id, total_price, status, payment_method) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            values: [customerId, employeeId, totalPrice, status, paymentMethod]
         })
 
         return res.id
@@ -26,8 +26,8 @@ export const addBillItems = async (billId, items) => {
             const queries = items.map(item => {
                 return t.none({
                     text: 'INSERT INTO bill_item (bill_id, product_id, qty, price) VALUES($1, $2, $3, $4)',
-                    values: [billId, item.id, item.qty, item.price]
-                })
+                    values: [billId, item.productId, item.quantity, item.price]
+                }) 
             })
             return t.batch(queries)
         });

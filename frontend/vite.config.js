@@ -12,16 +12,6 @@ export default defineConfig({
     vueDevTools(),
     tailwindcss()
   ],
-  server: {
-    port: 5173,
-    proxy: {
-      // Forward all /api requests to Express
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-    },
-  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

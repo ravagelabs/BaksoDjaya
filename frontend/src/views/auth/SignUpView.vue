@@ -40,8 +40,6 @@ async function handleSubmit() {
     name: name.value,
     email: email.value,
     password: password.value,
-    // FIX: Explicitly set the redirect URL to /login
-    callbackURL: 'http://localhost:5173/login?verified=true'
   })
   loading.value = false
 
@@ -50,7 +48,8 @@ async function handleSubmit() {
     return
   }
 
-  router.push({ path: '/verify-email', query: { email: email.value } })
+  // Redirect directly to login page after successful registration
+  router.push('/login')
 }
 </script>
 

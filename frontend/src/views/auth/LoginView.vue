@@ -19,12 +19,10 @@ const router = useRouter()
 const email = ref('')
 const password = ref('')
 const error = ref('')
-const unverified = ref(false)
 const loading = ref(false)
 
 async function handleSubmit() {
   error.value = ''
-  unverified.value = false
 
   loading.value = true
   const { error: signInError } = await authClient.signIn.email({
@@ -34,15 +32,11 @@ async function handleSubmit() {
   loading.value = false
 
   if (signInError) {
-    if (signInError.code === 'EMAIL_NOT_VERIFIED') {
-      unverified.value = true
-      error.value = 'Please verify your email before logging in.'
-    } else {
-      error.value = signInError.message ?? 'Invalid email or password.'
-    }
+    error.value = signInError.message ?? 'Invalid email or password.'
     return
   }
 
+  // Redirect directly to the cashier system upon successful login
   router.push('/')
 }
 </script>
@@ -82,13 +76,6 @@ async function handleSubmit() {
           </div>
 
           <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
-          <RouterLink
-            v-if="unverified"
-            :to="{ path: '/verify-email', query: { email } }"
-            class="text-sm underline underline-offset-4"
-          >
-            Resend verification email
-          </RouterLink>
         </CardContent>
 
         <CardFooter class="flex flex-col gap-4">
