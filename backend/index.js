@@ -13,7 +13,7 @@ const app = express();
 const url = process.env.DEV_MODE? process.env.DEV_URL : process.env.PROD_URL;
 
 app.use(cors({
-    origin: "http://localhost:5173",
+    origin: url,
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
 }))
@@ -37,5 +37,5 @@ app.use('/', (req, res) => {
 })
 
 app.listen(3000, () => {
-        console.log(`Listening on ${url}`)
+        console.log(`Listening on PORT 3000`)
 });

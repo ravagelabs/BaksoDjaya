@@ -3,12 +3,13 @@ import { Pool } from 'pg';
 import { Resend } from 'resend';
 
 const dbUrl = process.env.DEV_MODE? process.env.DB_URL_DEV : process.env.DB_URL_PROD; 
+const url = process.env.DEV_MODE? process.env.DEV_URL : process.env.PROD_URL;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const auth = betterAuth({
     trustedOrigins: [
-        "http://localhost:5173",
+        url
     ],
     database: new Pool({
         connectionString: dbUrl

@@ -24,7 +24,7 @@ export const addBillItems = async (billId, items) => {
         const res = await db.tx(t => {
             const queries = items.map(item => {
                 return t.none({
-                    text: 'INSERT INTO bill_item (bill_id, product_id, qty, price) VALUES($1, $2, $3, $4)',
+                    text: 'INSERT INTO bill_item (bill_id, product_id, product_id, qty, price) VALUES($1, $2, $3, $4, $5)',
                     values: [billId, item.id, item.productId, item.qty, item.price]
                 })
             })
