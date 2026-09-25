@@ -7,6 +7,9 @@ const dbUrl = process.env.DEV_MODE? process.env.DB_URL_DEV : process.env.DB_URL_
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const auth = betterAuth({
+    trustedOrigins: [
+        "http://localhost:5173",
+    ],
     database: new Pool({
         connectionString: dbUrl
     }),
@@ -22,6 +25,7 @@ export const auth = betterAuth({
     },
     emailAndPassword: {
         enabled: true,
+        requireEmailVerification: true,
         sendResetPassword: ({user, url}) => {
             void resend.emails.send({
                 from: 'RavageLabs <noreply@ravagelabs.com>',
@@ -32,6 +36,7 @@ export const auth = betterAuth({
         }
     },
     emailVerification: {
+        sendOnSignUp: true, 
         sendVerificationEmail: ({user, url}) => {
             void resend.emails.send({
                 from: 'RavageLabs <noreply@ravagelabs.com>',
