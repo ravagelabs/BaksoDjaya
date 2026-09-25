@@ -58,7 +58,7 @@ async function handleSignOut() {
 async function fetchProducts() {
   loadingProducts.value = true
   try {
-    const res = await fetch('http://localhost:3000/products', { credentials: 'include' })
+    const res = await fetch('https://posdev.ravagelabs.id/products', { credentials: 'include' })
     if (!res.ok) throw new Error('Failed to fetch products')
     products.value = await res.json()
   } catch (err) {
@@ -70,7 +70,7 @@ async function fetchProducts() {
 
 async function fetchCategories() {
   try {
-    const res = await fetch('http://localhost:3000/categories', { credentials: 'include' })
+    const res = await fetch('https://posdev.ravagelabs.id/categories', { credentials: 'include' })
     if (res.ok) {
       categories.value = await res.json()
     }
@@ -83,7 +83,7 @@ async function fetchCategories() {
 async function createCategory() {
   if (!newCategoryName.value.trim()) return
   try {
-    const res = await fetch('http://localhost:3000/categories', {
+    const res = await fetch('https://posdev.ravagelabs.id/categories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -99,7 +99,7 @@ async function createCategory() {
 
 async function updateCategory(cat) {
   try {
-    const res = await fetch(`http://localhost:3000/categories/${cat.id}`, {
+    const res = await fetch(`https://posdev.ravagelabs.id/categories/${cat.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -115,7 +115,7 @@ async function updateCategory(cat) {
 
 async function deleteCategory(id) {
   try {
-    const res = await fetch(`http://localhost:3000/categories/${id}`, {
+    const res = await fetch(`https://posdev.ravagelabs.id/categories/${id}`, {
       method: 'DELETE',
       credentials: 'include',
     })
@@ -159,7 +159,7 @@ async function handleCheckout() {
   }
 
   try {
-    const res = await fetch('http://localhost:3000/bills', {
+    const res = await fetch('https://posdev.ravagelabs.id/bills', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
