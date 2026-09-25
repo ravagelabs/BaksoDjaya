@@ -17,7 +17,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -59,7 +58,7 @@ async function handleSignOut() {
 async function fetchProducts() {
   loadingProducts.value = true
   try {
-    const res = await fetch('https://posdev.ravagelabs.id/products', { credentials: 'include' })
+    const res = await fetch('http://localhost:3000/products', { credentials: 'include' })
     if (!res.ok) throw new Error('Failed to fetch products')
     products.value = await res.json()
   } catch (err) {
@@ -71,7 +70,7 @@ async function fetchProducts() {
 
 async function fetchCategories() {
   try {
-    const res = await fetch('https://posdev.ravagelabs.id/categories', { credentials: 'include' })
+    const res = await fetch('http://localhost:3000/categories', { credentials: 'include' })
     if (res.ok) {
       categories.value = await res.json()
     }
@@ -84,7 +83,7 @@ async function fetchCategories() {
 async function createCategory() {
   if (!newCategoryName.value.trim()) return
   try {
-    const res = await fetch('https://posdev.ravagelabs.id/categories', {
+    const res = await fetch('http://localhost:3000/categories', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -100,7 +99,7 @@ async function createCategory() {
 
 async function updateCategory(cat) {
   try {
-    const res = await fetch(`https://posdev.ravagelabs.id/categories/${cat.id}`, {
+    const res = await fetch(`http://localhost:3000/categories/${cat.id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -116,7 +115,7 @@ async function updateCategory(cat) {
 
 async function deleteCategory(id) {
   try {
-    const res = await fetch(`https://posdev.ravagelabs.id/categories/${id}`, {
+    const res = await fetch(`http://localhost:3000/categories/${id}`, {
       method: 'DELETE',
       credentials: 'include',
     })
@@ -154,13 +153,13 @@ async function handleCheckout() {
     customerId: customerId.value ? Number(customerId.value) : null,
     employeeId: session.value?.data?.user?.id || null,
     totalPrice: grandTotal.value,
-    status: true, // boolean status matching DB schema
+    status: true,
     paymentMethod: paymentMethod.value,
     items: formattedItems,
   }
 
   try {
-    const res = await fetch('https://posdev.ravagelabs.id/bills', {
+    const res = await fetch('http://localhost:3000/bills', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -186,9 +185,10 @@ function addToCart(product) {
     existing.quantity += 1
   } else {
     cart.value.push({
-      id: item.id,          
-      qty: item.quantity,   
-      price: item.price,
+      id: product.id,
+      name: product.name,
+      quantity: 1,
+      price: product.price,
     })
   }
 }
@@ -215,8 +215,13 @@ function clearCart() {
 const filteredProducts = computed(() => {
   return products.value.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+    
+    // Supports both category string name (e.g. "Makanan") and numeric categoryId
     const matchesCategory =
-      selectedCategory.value === 'ALL' || p.categoryId === selectedCategory.value
+      selectedCategory.value === 'ALL' ||
+      p.category === selectedCategory.value ||
+      p.categoryId === selectedCategory.value
+
     return matchesSearch && matchesCategory
   })
 })
@@ -340,9 +345,9 @@ onMounted(() => {
         <Button
           v-for="cat in categories"
           :key="cat.id"
-          :variant="selectedCategory === cat.id ? 'default' : 'outline'"
+          :variant="selectedCategory === cat.name || selectedCategory === cat.id ? 'default' : 'outline'"
           size="sm"
-          @click="selectedCategory = cat.id"
+          @click="selectedCategory = cat.name"
         >
           {{ cat.name }}
         </Button>
