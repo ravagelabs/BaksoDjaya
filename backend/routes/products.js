@@ -8,7 +8,8 @@ router.get('/', async (req, res) => {
         const products = await getProducts();
         res.status(201).json(products)
     } catch (err) {
-
+        console.error(err);
+        throw err; 
     }
 }); 
 
@@ -16,7 +17,8 @@ router.post('/', async (req, res) => {
     try {
 
     } catch (err) {
-
+        console.error(err);
+        throw err; 
     }
 });
 

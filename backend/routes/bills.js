@@ -7,7 +7,8 @@ router.get('/', async (req, res) => {
     try {
         
     } catch (err) {
-
+        console.error(err);
+        throw err; 
     }
 });
 
@@ -23,7 +24,8 @@ router.post('/', async (req, res) => {
             id: newBill
         });
     } catch (err) {
-
+        console.error(err);
+        throw err; 
     }
 });
 

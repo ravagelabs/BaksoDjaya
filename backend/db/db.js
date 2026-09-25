@@ -9,13 +9,14 @@ const db = pgp(dbUrl);
 export const addBill = async (customerId, employeeId, totalPrice, status) => {
     try {
         const res = await db.one({
-            text: 'INSERT INTO bill(customer_id, employee_id, total_price, status) VALUES ($1, $2, $3, $4)',
+            text: 'INSERT INTO bill(customer_id, employee_id, total_price, status) VALUES ($1, $2, $3, $4) RETURNING id',
             values: [customerId, employeeId, totalPrice, status]
         })
 
         return res.id
     } catch (err) {
-
+        console.error(err);
+        throw err; 
     }
 }
 
@@ -24,8 +25,8 @@ export const addBillItems = async (billId, items) => {
         const res = await db.tx(t => {
             const queries = items.map(item => {
                 return t.none({
-                    text: 'INSERT INTO bill_item (bill_id, product_id, product_id, qty, price) VALUES($1, $2, $3, $4, $5)',
-                    values: [billId, item.id, item.productId, item.qty, item.price]
+                    text: 'INSERT INTO bill_item (bill_id, product_id, qty, price) VALUES($1, $2, $3, $4)',
+                    values: [billId, item.id, item.qty, item.price]
                 })
             })
             return t.batch(queries)
@@ -33,7 +34,8 @@ export const addBillItems = async (billId, items) => {
 
         return res;
     } catch (err) {
-        
+        console.error(err);
+        throw err;    
     }
 }
 
@@ -42,6 +44,7 @@ export const getProducts = async () => {
         const res = await db.any('SELECT * FROM product');
         return res; 
     } catch (err) {
-
+        console.error(err);
+        throw err; 
     }
 }
