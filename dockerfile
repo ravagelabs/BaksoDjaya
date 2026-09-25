@@ -20,7 +20,7 @@ RUN npm ci --only=production
 COPY backend/ .
 
 # Copy built frontend assets into Express static folder
-COPY --from=frontend-builder /app/frontend/dist ./public
+COPY --from=frontend-builder /app/frontend/dist ./dist
 
 EXPOSE 3000
 

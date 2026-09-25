@@ -31,8 +31,6 @@ app.use('/bills', billsRouter);
 
 app.use('/products', productsRouter);
 
-
-
 app.get('{*splat}', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
