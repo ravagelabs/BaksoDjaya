@@ -2,8 +2,6 @@ import 'dotenv/config'
 import express from 'express';
 import cors from 'cors';
 import billsRouter from './routes/bills.js';
-import customersRouter from './routes/customers.js'
-import employeesRouter from './routes/employees.js'
 import productsRouter from './routes/products.js'
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
@@ -23,10 +21,6 @@ app.all('/api/auth/*splat', toNodeHandler(auth));
 app.use(express.json());
 
 app.use('/bills', billsRouter);
-
-app.use('/customers', customersRouter);
-
-app.use('/employees', employeesRouter)
 
 app.use('/products', productsRouter);
 
