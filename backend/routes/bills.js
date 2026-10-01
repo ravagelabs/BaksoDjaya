@@ -19,8 +19,10 @@ router.post('/', async (req, res) => {
 
         // 1. If paymentMethod is provided, finalize the bill
         if (paymentMethod) {
+            const finalBillId = billId || (await addBill(customerId, employeeId, grandTotal, billItems)).id;
+
             result = await finalizeBill(
-                billId,
+                finalBillId,
                 customerId,
                 employeeId,
                 grandTotal,

@@ -6,4 +6,6 @@ const dbUrl = process.env.DEV_MODE? process.env.DB_URL_DEV : process.env.DB_URL_
 
 const db = pgp(dbUrl);
 
+export { pgp };
+
 export default db; 
