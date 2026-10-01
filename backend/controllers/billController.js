@@ -17,6 +17,25 @@ const buildInsertItemsQuery = (billId, billItems) => {
     return pgp.helpers.insert(itemsData, billItemColumns);
 };
 
+export const getBills = async () => {
+    const query = `
+        SELECT 
+            b.id AS "billId",
+            b.grand_total,
+            b.employee_id,
+            b.customer_id,
+            b.status,
+            b.created_at,
+            bi.*
+        FROM bill b
+        JOIN bill_item bi ON b.id = bi.bill_id
+        WHERE b.status = 'pending'
+        ORDER BY b.id DESC;
+    `;
+
+    return await db.any(query);
+};
+
 export const addBill = async (customerId, employeeId, grandTotal, billItems) => {
     if (!employeeId || grandTotal === undefined) {
         throw new Error('employeeId and grandTotal are required.');

@@ -1,13 +1,21 @@
 import express from 'express';
-import { addBill, saveBill, finalizeBill } from '../controllers/billController.js';
+import { addBill, saveBill, finalizeBill, getBills } from '../controllers/billController.js';
 
 const router = express.Router();
 
 router.get('/', async (req, res) => {
     try {
-        
-    } catch (err) {
+        const bills = await getBills();
 
+        return res.status(200).json({
+            message: 'Bills retrieved successfully',
+            data: bills
+        });
+    } catch (err) {
+        console.error('Error fetching bills:', err);
+        return res.status(500).json({
+            error: err.message || 'Failed to fetch bills'
+        });
     }
 });
 
