@@ -24,7 +24,7 @@ app.use(cors({
 
 // app.use(express.static(path.join(__dirname, 'dist')));
 
-// app.all('/api/auth/*splat', toNodeHandler(auth));
+app.all('/api/auth/*splat', toNodeHandler(auth));
 
 app.use(express.json());
 
