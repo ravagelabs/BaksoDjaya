@@ -1,0 +1,147 @@
+<script setup>
+import { ref, computed, watch, onMounted } from "vue";
+import { Button } from "@/components/ui/button";
+import ProductCard from "@/components/ProductCard.vue";
+import ProductSlot from "@/components/ProductSlot.vue";
+
+const props = defineProps({
+  employeeId: { type: [Number, String], required: true },
+});
+
+const products = ref([]); // from API: { id, name, picture, price }
+const productsList = ref([]); // cart: { product_id, name, price, qty }
+const billId = ref(null); // set once the bill exists on the server
+const loading = ref(true);
+const error = ref("");
+const saving = ref(false);
+const saveMessage = ref("");
+const saveFailed = ref(false);
+
+const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
+
+async function getProducts() {
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/products`, {
+      credentials: "include", // sends the better-auth session cookie
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    products.value = await res.json();
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    loading.value = false;
+  }
+}
+
+onMounted(getProducts);
+
+function addProduct({ id, name, price }) {
+  const existing = productsList.value.find((p) => p.product_id === id);
+  if (existing) existing.qty += 1;
+  else productsList.value.push({ product_id: id, name, price, qty: 1 });
+}
+
+function removeProduct(id) {
+  productsList.value = productsList.value.filter((p) => p.product_id !== id);
+}
+
+// Recomputes whenever productsList changes (items added or qty changed)
+const grandTotal = computed(() =>
+  productsList.value.reduce((sum, p) => sum + p.price * p.qty, 0)
+);
+
+async function saveBill() {
+  saving.value = true;
+  saveMessage.value = "";
+  saveFailed.value = false;
+
+  const payload = {
+    ...(billId.value ? { billId: billId.value } : {}), // only if existing
+    employeeId: props.employeeId,
+    grandTotal: grandTotal.value,
+    billItems: productsList.value.map(({ product_id, price, qty }) => ({ product_id, price, qty })),
+  };
+
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/bills`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const bill = await res.json();
+    billId.value = bill.id; // assumes API responds with the saved bill's id
+    saveMessage.value = "Bill saved";
+  } catch (e) {
+    saveFailed.value = true;
+    saveMessage.value = e.message;
+  } finally {
+    saving.value = false;
+  }
+}
+
+// Watcher alternative / side effects (deep so qty changes are caught)
+watch(productsList, (list) => console.log("productsList changed", list), { deep: true });
+</script>
+
+<template>
+  <div class="flex flex-1">
+    <!-- Left: 2/5 productSlot container -->
+    <aside class="flex w-2/5 flex-col gap-2 border-r p-4">
+      <h2 class="text-lg font-semibold">Order</h2>
+      <p v-if="!productsList.length" class="text-sm text-muted-foreground">
+        No items yet. Add a product from the list.
+      </p>
+      <ProductSlot
+        v-for="item in productsList"
+        :key="item.product_id"
+        :id="item.product_id"
+        :name="item.name"
+        :price="item.price"
+        :quantity="item.qty"
+        @remove-product="removeProduct"
+      />
+      <p v-if="productsList.length" class="mt-2 text-right font-semibold">
+        Total: {{ rupiah.format(grandTotal) }}
+      </p>
+      <Button :disabled="saving || !productsList.length" @click="saveBill">
+        {{ saving ? "Saving..." : "Save bill" }}
+      </Button>
+      <p v-if="saveMessage" class="text-sm" :class="saveFailed ? 'text-destructive' : 'text-muted-foreground'">
+        {{ saveMessage }}
+      </p>
+    </aside>
+
+    <!-- Right: 3/5 products container -->
+    <main class="w-3/5 p-4">
+      <p v-if="loading" class="text-sm text-muted-foreground">Loading products...</p>
+      <p v-else-if="error" class="text-sm text-destructive">{{ error }}</p>
+      <div v-else class="products-grid">
+        <ProductCard
+          v-for="p in products"
+          :key="p.id"
+          :id="p.id"
+          :name="p.name"
+          :picture="p.picture"
+          :price="p.price"
+          @add-product="addProduct"
+        />
+      </div>
+    </main>
+  </div>
+</template>
+
+<style scoped>
+/* flex row + wrap, max 4 per row */
+.products-grid {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.products-grid > * {
+  flex: 0 0 calc((100% - 3 * 0.75rem) / 4);
+  max-width: calc((100% - 3 * 0.75rem) / 4);
+}
+</style>
