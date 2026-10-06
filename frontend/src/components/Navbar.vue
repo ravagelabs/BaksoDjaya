@@ -1,5 +1,4 @@
 <script setup>
-import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 
 defineProps({
@@ -7,10 +6,7 @@ defineProps({
   role: { type: String, default: "user" },
 });
 
-async function logout() {
-  // useSession() in App.vue updates, which renders Login again
-  await authClient.signOut();
-}
+const emit = defineEmits(["orders", "logout"]);
 </script>
 
 <template>
@@ -20,7 +16,8 @@ async function logout() {
 
     <!-- 1/3: menu (items always visible) -->
     <nav class="flex items-center justify-center gap-1">
-      <Button variant="ghost" size="sm" @click="logout">Logout</Button>
+      <Button variant="ghost" size="sm" @click="emit('orders')">Orders</Button>
+      <Button variant="ghost" size="sm" @click="emit('logout')">Logout</Button>
     </nav>
 
     <!-- 1/3: user -->

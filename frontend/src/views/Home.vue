@@ -1,11 +1,15 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import Navbar from "@/components/Navbar.vue";
+import BillPopup from "@/components/BillPopup.vue";
+import CustomerPopup from "@/components/Customerpopup.vue";
 import ProductCard from "@/components/ProductCard.vue";
 import ProductSlot from "@/components/ProductSlot.vue";
 
 const props = defineProps({
-  employeeId: { type: [Number, String], required: true },
+  user: { type: Object, required: true }, // { id, name, role }
 });
 
 const products = ref([]); // from API: { id, name, picture, price }
@@ -16,6 +20,16 @@ const error = ref("");
 const saving = ref(false);
 const saveMessage = ref("");
 const saveFailed = ref(false);
+const bills = ref([]); // ongoing bills from GET /bills
+const showBills = ref(false);
+const billsLoading = ref(false);
+const billsError = ref("");
+const customers = ref([]); // from GET /customers
+const customer = ref(null); // currently selected customer
+const showCustomer = ref(false);
+const customersLoading = ref(false);
+const customerSaving = ref(false);
+const customerError = ref("");
 
 const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 
@@ -34,6 +48,101 @@ async function getProducts() {
 }
 
 onMounted(getProducts);
+
+async function getBills() {
+  billsLoading.value = true;
+  billsError.value = "";
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/bills`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const json = await res.json();
+    bills.value = json.data;
+  } catch (e) {
+    billsError.value = e.message;
+  } finally {
+    billsLoading.value = false;
+  }
+}
+
+function openOrders() {
+  showBills.value = true;
+  getBills(); // fetch fresh data every time the popup opens
+}
+
+async function getCustomers() {
+  customersLoading.value = true;
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/customers`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const json = await res.json();
+    customers.value = json.data; // { message, data: [...] }
+  } catch (e) {
+    customerError.value = e.message;
+  } finally {
+    customersLoading.value = false;
+  }
+}
+
+function openCustomer() {
+  customerError.value = "";
+  showCustomer.value = true;
+  getCustomers(); // populate the popup first
+}
+
+async function saveCustomer({ name, telp, type }) {
+  customerSaving.value = true;
+  customerError.value = "";
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/customers`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, telp, type }),
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const json = await res.json();
+    customer.value = json.data ?? { name, telp, type }; // assumes { data: { id, ... } }
+    showCustomer.value = false;
+  } catch (e) {
+    customerError.value = e.message;
+  } finally {
+    customerSaving.value = false;
+  }
+}
+
+function selectCustomer(c) {
+  customer.value = c;
+  showCustomer.value = false;
+}
+
+async function logout() {
+  // useSession() in App.vue updates, which renders Login again
+  await authClient.signOut();
+}
+
+function replaceBill(bill) {
+  // billItems only has product_id, price, qty, so look up names from the loaded products.
+  // Merge duplicate product_ids: productsList keys must be unique (used as :key in v-for).
+  const merged = new Map();
+  for (const { product_id, price, qty } of bill.billItems) {
+    const existing = merged.get(product_id);
+    if (existing) existing.qty += qty;
+    else
+      merged.set(product_id, {
+        product_id,
+        name: products.value.find((p) => p.id === product_id)?.name ?? `Product #${product_id}`,
+        price,
+        qty,
+      });
+  }
+  productsList.value = [...merged.values()];
+  billId.value = bill.billId; // next save updates this bill
+  showBills.value = false;
+}
 
 function addProduct({ id, name, price }) {
   const existing = productsList.value.find((p) => p.product_id === id);
@@ -57,7 +166,7 @@ async function saveBill() {
 
   const payload = {
     ...(billId.value ? { billId: billId.value } : {}), // only if existing
-    employeeId: props.employeeId,
+    employeeId: props.user.id,
     grandTotal: grandTotal.value,
     billItems: productsList.value.map(({ product_id, price, qty }) => ({ product_id, price, qty })),
   };
@@ -87,49 +196,69 @@ watch(productsList, (list) => console.log("productsList changed", list), { deep:
 </script>
 
 <template>
-  <div class="flex flex-1">
-    <!-- Left: 2/5 productSlot container -->
-    <aside class="flex w-2/5 flex-col gap-2 border-r p-4">
-      <h2 class="text-lg font-semibold">Order</h2>
-      <p v-if="!productsList.length" class="text-sm text-muted-foreground">
-        No items yet. Add a product from the list.
-      </p>
-      <ProductSlot
-        v-for="item in productsList"
-        :key="item.product_id"
-        :id="item.product_id"
-        :name="item.name"
-        :price="item.price"
-        :quantity="item.qty"
-        @remove-product="removeProduct"
-      />
-      <p v-if="productsList.length" class="mt-2 text-right font-semibold">
-        Total: {{ rupiah.format(grandTotal) }}
-      </p>
-      <Button :disabled="saving || !productsList.length" @click="saveBill">
-        {{ saving ? "Saving..." : "Save bill" }}
-      </Button>
-      <p v-if="saveMessage" class="text-sm" :class="saveFailed ? 'text-destructive' : 'text-muted-foreground'">
-        {{ saveMessage }}
-      </p>
-    </aside>
+  <div class="flex min-h-screen flex-col">
+    <Navbar :username="user.name" :role="user.role" @orders="openOrders" @logout="logout" />
 
-    <!-- Right: 3/5 products container -->
-    <main class="w-3/5 p-4">
-      <p v-if="loading" class="text-sm text-muted-foreground">Loading products...</p>
-      <p v-else-if="error" class="text-sm text-destructive">{{ error }}</p>
-      <div v-else class="products-grid">
-        <ProductCard
-          v-for="p in products"
-          :key="p.id"
-          :id="p.id"
-          :name="p.name"
-          :picture="p.picture"
-          :price="p.price"
-          @add-product="addProduct"
+    <div class="flex flex-1">
+      <!-- Left: 2/5 productSlot container -->
+      <aside class="flex w-2/5 flex-col gap-2 border-r p-4">
+        <h2 class="text-lg font-semibold">Order</h2>
+        <Button variant="outline" size="sm" @click="openCustomer">
+          {{ customer ? `Customer: ${customer.name}` : "Add customer" }}
+        </Button>
+        <p v-if="!productsList.length" class="text-sm text-muted-foreground">
+          No items yet. Add a product from the list.
+        </p>
+        <ProductSlot
+          v-for="item in productsList"
+          :key="item.product_id"
+          :id="item.product_id"
+          :name="item.name"
+          :price="item.price"
+          :quantity="item.qty"
+          @remove-product="removeProduct"
         />
-      </div>
-    </main>
+        <p v-if="productsList.length" class="mt-2 text-right font-semibold">
+          Total: {{ rupiah.format(grandTotal) }}
+        </p>
+        <Button :disabled="saving || !productsList.length" @click="saveBill">
+          {{ saving ? "Saving..." : "Save bill" }}
+        </Button>
+        <p v-if="saveMessage" class="text-sm" :class="saveFailed ? 'text-destructive' : 'text-muted-foreground'">
+          {{ saveMessage }}
+        </p>
+
+      </aside>
+
+      <!-- Right: 3/5 products container -->
+      <main class="w-3/5 p-4">
+        <p v-if="loading" class="text-sm text-muted-foreground">Loading products...</p>
+        <p v-else-if="error" class="text-sm text-destructive">{{ error }}</p>
+        <div v-else class="products-grid">
+          <ProductCard
+            v-for="p in products"
+            :key="p.id"
+            :id="p.id"
+            :name="p.name"
+            :picture="p.picture"
+            :price="p.price"
+            @add-product="addProduct"
+          />
+        </div>
+      </main>
+    </div>
+
+    <CustomerPopup
+      v-model:open="showCustomer"
+      :customers="customers"
+      :loading="customersLoading"
+      :saving="customerSaving"
+      :error="customerError"
+      @save-customer="saveCustomer"
+      @select-customer="selectCustomer"
+    />
+
+    <BillPopup v-model:open="showBills" :bills="bills" :loading="billsLoading" :error="billsError" @replace-bill="replaceBill" />
   </div>
 </template>
 

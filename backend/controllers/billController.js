@@ -1,5 +1,6 @@
 import db, { pgp } from "../db/db.js";
 
+
 // Created once at module level (reusable, recommended by pg-promise)
 const billItemColumns = new pgp.helpers.ColumnSet(
     ['product_id', 'bill_id', 'qty', 'price'],
@@ -19,17 +20,32 @@ const buildInsertItemsQuery = (billId, billItems) => {
 
 export const getBills = async () => {
     const query = `
-        SELECT 
+        SELECT
             b.id AS "billId",
-            b.grand_total,
+            b.grand_total::float AS grand_total,
             b.employee_id,
             b.customer_id,
+            u.name AS employee_name,
+            c.name AS customer_name,
             b.status,
             b.created_at,
-            bi.*
+            json_agg(
+                json_build_object(
+                    'id', bi.id,
+                    'product_id', bi.product_id,
+                    'name', p.name,
+                    'qty', bi.qty,
+                    'price', bi.price
+                )
+                ORDER BY bi.id
+            ) AS "billItems"
         FROM bill b
         JOIN bill_item bi ON b.id = bi.bill_id
+        JOIN "user" u ON b.employee_id = u.id
+        LEFT JOIN customer c ON b.customer_id = c.id
+        JOIN product p ON bi.product_id = p.id 
         WHERE b.status = 'pending'
+        GROUP BY b.id, u.id, c.id
         ORDER BY b.id DESC;
     `;
 
