@@ -70,8 +70,9 @@ async function saveBill() {
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`Request failed (${res.status})`);
-    const bill = await res.json();
-    billId.value = bill.id; // assumes API responds with the saved bill's id
+    // Success: reset state so the next order starts fresh
+    productsList.value = [];
+    billId.value = null;
     saveMessage.value = "Bill saved";
   } catch (e) {
     saveFailed.value = true;
