@@ -4,7 +4,7 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar.vue";
 import BillPopup from "@/components/BillPopup.vue";
-import CustomerPopup from "@/components/Customerpopup.vue";
+import CustomerPopup from "@/components/CustomerPopup.vue";
 import ProductCard from "@/components/ProductCard.vue";
 import ProductSlot from "@/components/ProductSlot.vue";
 

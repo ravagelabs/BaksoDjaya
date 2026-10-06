@@ -7,12 +7,15 @@ const router = express.Router();
 router.get('/', async (req, res) => {
     try {
         const customers = await getCustomers();
-        res.status(200).json(customers);
+        res.status(200).json({
+            message: 'Customers retrieved successfully',
+            data: customers,
+        });
     } catch (err) {
         console.error('Error in GET /customers:', err);
-        res.status(500).json({ 
+        res.status(500).json({
             error: 'Failed to retrieve customers',
-            details: err.message 
+            details: err.message,
         });
     }
 });
