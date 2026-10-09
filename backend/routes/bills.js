@@ -19,6 +19,30 @@ router.get('/', async (req, res) => {
     }
 });
 
+router.get('/:billId', async (req, res) => {
+    try {
+        const billId = Number(req.params.billId);
+        if (!Number.isInteger(billId)) {
+            return res.status(400).json({ error: 'Invalid bill id' });
+        }
+
+        const [bill] = await getBills(billId);
+        if (!bill) {
+            return res.status(404).json({ error: 'Bill not found' });
+        }
+
+        return res.status(200).json({
+            message: 'Bill retrieved successfully',
+            data: bill // a single object, not an array
+        });
+    } catch (err) {
+        console.error('Error fetching bill:', err);
+        return res.status(500).json({
+            error: err.message || 'Failed to fetch bill'
+        });
+    }
+});
+
 router.post('/', async (req, res) => {
     try {
         const { billId, customerId, employeeId, grandTotal, paymentMethod, billItems } = req.body;

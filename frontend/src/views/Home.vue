@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar.vue";
 import BillPopup from "@/components/BillPopup.vue";
 import CustomerPopup from "@/components/CustomerPopup.vue";
+import PaymentPopup from "@/components/PaymentPopup.vue";
+import PrintPopup from "@/components/PrintPopup.vue";
 import ProductCard from "@/components/ProductCard.vue";
 import ProductSlot from "@/components/ProductSlot.vue";
 
@@ -30,6 +32,11 @@ const showCustomer = ref(false);
 const customersLoading = ref(false);
 const customerSaving = ref(false);
 const customerError = ref("");
+const showPayment = ref(false);
+const showPrint = ref(false);
+const printLoading = ref(false);
+const printError = ref("");
+const printData = ref(null); // bill shown in the print popup (GET /bills/:billId)
 
 const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 
@@ -159,15 +166,96 @@ const grandTotal = computed(() =>
   productsList.value.reduce((sum, p) => sum + p.price * p.qty, 0)
 );
 
-async function saveBill() {
+// Fetch the saved bill and open the print popup
+async function showReceipt(id) {
+  printData.value = null;
+  printError.value = "";
+  printLoading.value = true;
+  showPrint.value = true;
+  try {
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/bills/${id}`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const json = await res.json();
+    printData.value = json.data; // single bill object
+  } catch (e) {
+    printError.value = e.message;
+  } finally {
+    printLoading.value = false;
+  }
+}
+
+// Emitted by PrintPopup: build the receipt PDF with pdfmake and print it
+async function printBill() {
+  const bill = printData.value;
+  if (!bill) return;
+
+  // Load pdfmake only when printing (it is large)
+  const [{ default: pdfMake }, pdfFonts] = await Promise.all([
+    import("pdfmake/build/pdfmake"),
+    import("pdfmake/build/vfs_fonts"),
+  ]);
+  // vfs_fonts exports differ between pdfmake versions, so find the object that holds the font files
+  const vfs = [
+    pdfFonts.default?.pdfMake?.vfs, // 0.2.x
+    pdfFonts.pdfMake?.vfs,
+    pdfFonts.default?.vfs,
+    pdfFonts.vfs,
+    pdfFonts.default, // 0.3.x: the module itself is the vfs
+    pdfFonts,
+  ].find((v) => v && v["Roboto-Medium.ttf"]);
+  if (!vfs) throw new Error("pdfmake fonts not found");
+
+  if (typeof pdfMake.addVirtualFileSystem === "function") pdfMake.addVirtualFileSystem(vfs); // 0.3.x
+  else pdfMake.vfs = vfs; // 0.2.x
+
+  const date = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(bill.created_at));
+
+  const docDefinition = {
+    pageSize: { width: 226, height: "auto" }, // ~80mm receipt paper
+    pageMargins: [12, 12, 12, 12],
+    defaultStyle: { fontSize: 9 },
+    content: [
+      { text: "BAKSO DJAYA", style: "title", alignment: "center" },
+      { text: `Bill #${bill.billId}`, alignment: "center", margin: [0, 0, 0, 6] },
+      { text: `Date: ${date}` },
+      { text: `Customer: ${bill.customer_name ?? "-"}` },
+      { text: `Customer ID: ${bill.customer_id ?? "-"}`, margin: [0, 0, 0, 6] },
+      {
+        table: {
+          widths: ["*", "auto", "auto"],
+          body: [
+            [{ text: "Item", bold: true }, { text: "Qty", bold: true, alignment: "right" }, { text: "Subtotal", bold: true, alignment: "right" }],
+            ...bill.billItems.map((i) => [
+              i.name,
+              { text: String(i.qty), alignment: "right" },
+              { text: rupiah.format(i.price * i.qty), alignment: "right" },
+            ]),
+          ],
+        },
+        layout: "lightHorizontalLines",
+      },
+      { text: `Total: ${rupiah.format(bill.grand_total)}`, bold: true, alignment: "right", margin: [0, 8, 0, 0] },
+      { text: "Thank you!", alignment: "center", margin: [0, 10, 0, 0] },
+    ],
+    styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 4] } },
+  };
+
+  await pdfMake.createPdf(docDefinition).print(); // opens the print dialog (use .open() to preview instead)
+}
+
+async function saveBill(paymentMethod = null) {
   saving.value = true;
   saveMessage.value = "";
   saveFailed.value = false;
 
   const payload = {
     ...(billId.value ? { billId: billId.value } : {}), // only if existing
+    customerId: customer.value?.id ?? null,
     employeeId: props.user.id,
     grandTotal: grandTotal.value,
+    paymentMethod, // null when saved as pending, otherwise "qris" | "card" | "cash"
     billItems: productsList.value.map(({ product_id, price, qty }) => ({ product_id, price, qty })),
   };
 
@@ -179,10 +267,20 @@ async function saveBill() {
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const json = await res.json();
+
+    // existing bill keeps its id; for a new one it comes from the response
+    const savedBillId = billId.value ?? json.data?.id ?? json.data?.billId;
+
     // Success: reset state so the next order starts fresh
     productsList.value = [];
     billId.value = null;
+    customer.value = null;
+    showPayment.value = false;
     saveMessage.value = "Bill saved";
+
+    // Only paid bills (with a payment method) get a printable receipt
+    if (paymentMethod && savedBillId) showReceipt(savedBillId);
   } catch (e) {
     saveFailed.value = true;
     saveMessage.value = e.message;
@@ -221,13 +319,17 @@ watch(productsList, (list) => console.log("productsList changed", list), { deep:
         <p v-if="productsList.length" class="mt-2 text-right font-semibold">
           Total: {{ rupiah.format(grandTotal) }}
         </p>
-        <Button :disabled="saving || !productsList.length" @click="saveBill">
-          {{ saving ? "Saving..." : "Save bill" }}
-        </Button>
+        <div class="flex gap-2">
+          <Button class="flex-1" variant="outline" :disabled="saving || !productsList.length" @click="saveBill()">
+            {{ saving ? "Saving..." : "Save bill" }}
+          </Button>
+          <Button class="flex-1" :disabled="saving || !productsList.length" @click="showPayment = true">
+            Pay
+          </Button>
+        </div>
         <p v-if="saveMessage" class="text-sm" :class="saveFailed ? 'text-destructive' : 'text-muted-foreground'">
           {{ saveMessage }}
         </p>
-
       </aside>
 
       <!-- Right: 3/5 products container -->
@@ -247,6 +349,22 @@ watch(productsList, (list) => console.log("productsList changed", list), { deep:
         </div>
       </main>
     </div>
+
+    <PaymentPopup
+      v-model:open="showPayment"
+      :total-bill="grandTotal"
+      :saving="saving"
+      :error="saveFailed ? saveMessage : ''"
+      @save-bill="saveBill"
+    />
+
+    <PrintPopup
+      v-model:open="showPrint"
+      :bill="printData"
+      :loading="printLoading"
+      :error="printError"
+      @print-bill="printBill"
+    />
 
     <CustomerPopup
       v-model:open="showCustomer"
