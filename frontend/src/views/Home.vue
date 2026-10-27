@@ -1,7 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { authClient } from "@/lib/auth-client";
-import { API_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar.vue";
 import BillPopup from "@/components/BillPopup.vue";
@@ -38,6 +37,8 @@ const showPrint = ref(false);
 const printLoading = ref(false);
 const printError = ref("");
 const printData = ref(null); // bill shown in the print popup (GET /bills/:billId)
+
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 
