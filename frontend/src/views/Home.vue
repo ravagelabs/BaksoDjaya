@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from "vue";
 import { authClient } from "@/lib/auth-client";
+import { API_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import Navbar from "@/components/Navbar.vue";
 import BillPopup from "@/components/BillPopup.vue";
@@ -42,7 +43,7 @@ const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "ID
 
 async function getProducts() {
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/products`, {
+    const res = await fetch(`${API_URL}/products`, {
       credentials: "include", // sends the better-auth session cookie
     });
     if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -60,7 +61,7 @@ async function getBills() {
   billsLoading.value = true;
   billsError.value = "";
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/bills`, {
+    const res = await fetch(`${API_URL}/bills`, {
       credentials: "include",
     });
     if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -81,7 +82,7 @@ function openOrders() {
 async function getCustomers() {
   customersLoading.value = true;
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/customers`, {
+    const res = await fetch(`${API_URL}/customers`, {
       credentials: "include",
     });
     if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -104,7 +105,7 @@ async function saveCustomer({ name, telp, type }) {
   customerSaving.value = true;
   customerError.value = "";
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/customers`, {
+    const res = await fetch(`${API_URL}/customers`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -173,7 +174,7 @@ async function showReceipt(id) {
   printLoading.value = true;
   showPrint.value = true;
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/bills/${id}`, {
+    const res = await fetch(`${API_URL}/bills/${id}`, {
       credentials: "include",
     });
     if (!res.ok) throw new Error(`Request failed (${res.status})`);
@@ -260,7 +261,7 @@ async function saveBill(paymentMethod = null) {
   };
 
   try {
-    const res = await fetch(`${import.meta.env.VITE_API_URL}/bills`, {
+    const res = await fetch(`${API_URL}/bills`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
