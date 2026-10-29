@@ -5,7 +5,8 @@ const router = express.Router();
 
 router.get('/', async (req, res) => {
     try {
-        const bills = await getBills();
+        const { status } = req.query;
+        const bills = await getBills(null, status || null);
 
         return res.status(200).json({
             message: 'Bills retrieved successfully',

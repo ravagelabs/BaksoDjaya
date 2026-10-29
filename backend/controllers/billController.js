@@ -18,7 +18,7 @@ const buildInsertItemsQuery = (billId, billItems) => {
     return pgp.helpers.insert(itemsData, billItemColumns);
 };
 
-export const getBills = async (billId = null) => {
+export const getBills = async (billId = null, status = null) => {
     const query = `
         SELECT
             b.id AS "billId",
@@ -45,11 +45,12 @@ export const getBills = async (billId = null) => {
         LEFT JOIN customer c ON b.customer_id = c.id
         JOIN product p ON bi.product_id = p.id
         WHERE ($1::int IS NULL OR b.id = $1)
+          AND ($2::text IS NULL OR b.status = $2)
         GROUP BY b.id, u.id, c.id
         ORDER BY b.id DESC;
     `;
 
-    return await db.any(query, [billId]);
+    return await db.any(query, [billId, status]);
 };
 
 export const addBill = async (customerId, employeeId, grandTotal, billItems) => {

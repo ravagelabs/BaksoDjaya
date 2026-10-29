@@ -62,7 +62,7 @@ async function getBills() {
   billsLoading.value = true;
   billsError.value = "";
   try {
-    const res = await fetch(`${API_URL}/bills`, {
+    const res = await fetch(`${API_URL}/bills?status=pending`, {
       credentials: "include",
     });
     if (!res.ok) throw new Error(`Request failed (${res.status})`);
