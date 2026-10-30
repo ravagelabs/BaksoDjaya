@@ -4,6 +4,7 @@ import cors from 'cors';
 import billsRouter from './routes/bills.js';
 import productsRouter from './routes/products.js'
 import customersRouter from './routes/customers.js'
+import shiftsRouter from './routes/shifts.js'
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 import path from "path";
@@ -32,7 +33,9 @@ app.use('/products', productsRouter);
 
 app.use('/bills', billsRouter);
 
-app.use('/customers', customersRouter)
+app.use('/customers', customersRouter);
+
+app.use('/shifts', shiftsRouter);
 
 app.get('{*splat}', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));

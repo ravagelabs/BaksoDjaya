@@ -1,5 +1,5 @@
 import express from 'express';
-import { addBill, saveBill, finalizeBill, getBills } from '../controllers/billController.js';
+import { addBill, saveBill, finalizeBill, getBills, getSalesSummary } from '../controllers/billController.js';
 
 const router = express.Router();
 
@@ -16,6 +16,28 @@ router.get('/', async (req, res) => {
         console.error('Error fetching bills:', err);
         return res.status(500).json({
             error: err.message || 'Failed to fetch bills'
+        });
+    }
+});
+
+router.get('/summary', async (req, res) => {
+    try {
+        const from = new Date(req.query.from);
+        const to = new Date(req.query.to);
+        if (isNaN(from) || isNaN(to)) {
+            return res.status(400).json({ error: 'Invalid from/to date' });
+        }
+
+        const summary = await getSalesSummary(from.toISOString(), to.toISOString());
+
+        return res.status(200).json({
+            message: 'Sales summary retrieved successfully',
+            data: summary // { cash, card, qris, total }
+        });
+    } catch (err) {
+        console.error('Error fetching sales summary:', err);
+        return res.status(500).json({
+            error: err.message || 'Failed to fetch sales summary'
         });
     }
 });
@@ -103,6 +125,7 @@ router.post('/', async (req, res) => {
         });
     }
 });
+
 
 
 

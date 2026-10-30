@@ -7,6 +7,8 @@ import BillPopup from "@/components/BillPopup.vue";
 import CustomerPopup from "@/components/CustomerPopup.vue";
 import PaymentPopup from "@/components/PaymentPopup.vue";
 import PrintPopup from "@/components/PrintPopup.vue";
+import ShiftPopup from "@/components/ShiftPopup.vue";
+import Shifts from "@/components/Shifts.vue"; // NEW
 import ProductCard from "@/components/ProductCard.vue";
 import ProductSlot from "@/components/ProductSlot.vue";
 
@@ -37,6 +39,19 @@ const showPrint = ref(false);
 const printLoading = ref(false);
 const printError = ref("");
 const printData = ref(null); // bill shown in the print popup (GET /bills/:billId)
+
+// logout shift popup state
+const showShift = ref(false);
+const shiftLoading = ref(false);
+const shiftError = ref("");
+const shift = ref({ createdAt: null, endedAt: null });
+const salesSummary = ref({ cash: 0, card: 0, qris: 0, total: 0 });
+
+// NEW: shifts list popup state (like orders)
+const shifts = ref([]); // from GET /shifts
+const showShifts = ref(false);
+const shiftsLoading = ref(false);
+const shiftsError = ref("");
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
@@ -78,6 +93,30 @@ async function getBills() {
 function openOrders() {
   showBills.value = true;
   getBills(); // fetch fresh data every time the popup opens
+}
+
+// NEW
+async function getShifts() {
+  shiftsLoading.value = true;
+  shiftsError.value = "";
+  try {
+    const res = await fetch(`${API_URL}/shifts`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const json = await res.json();
+    shifts.value = json.data; // [{ id, created_at, ended_at, cash, card, qris, total }]
+  } catch (e) {
+    shiftsError.value = e.message;
+  } finally {
+    shiftsLoading.value = false;
+  }
+}
+
+// NEW
+function openShifts() {
+  showShifts.value = true;
+  getShifts(); // fetch fresh data every time the popup opens
 }
 
 async function getCustomers() {
@@ -128,9 +167,63 @@ function selectCustomer(c) {
   showCustomer.value = false;
 }
 
+// REVERTED: only the current shift's summary, no previous shifts here
 async function logout() {
-  // useSession() in App.vue updates, which renders Login again
-  await authClient.signOut();
+  shiftError.value = "";
+  shiftLoading.value = true;
+  showShift.value = true;
+  try {
+    const { data, error: err } = await authClient.getSession();
+    if (err || !data?.session) throw new Error(err?.message ?? "Session not found");
+
+    const createdAt = new Date(data.session.createdAt);
+    const endedAt = new Date(); // current time
+    shift.value = { createdAt, endedAt };
+
+    const params = new URLSearchParams({
+      from: createdAt.toISOString(),
+      to: endedAt.toISOString(),
+    });
+    const res = await fetch(`${API_URL}/bills/summary?${params}`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Request failed (${res.status})`);
+    const json = await res.json();
+    salesSummary.value = json.data; // { cash, card, qris, total }
+  } catch (e) {
+    shiftError.value = e.message;
+  } finally {
+    shiftLoading.value = false;
+  }
+}
+
+async function confirmLogout() {
+  shiftError.value = "";
+  shiftLoading.value = true;
+  try {
+    const res = await fetch(`${API_URL}/shifts`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        created_at: shift.value.createdAt.toISOString(),
+        ended_at: shift.value.endedAt.toISOString(),
+      }),
+    });
+
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json.error ?? `Request failed (${res.status})`);
+    }
+
+    showShift.value = false;
+    // useSession() in App.vue updates, which renders Login again
+    await authClient.signOut();
+  } catch (e) {
+    shiftError.value = e.message; // popup stays open so they can retry
+  } finally {
+    shiftLoading.value = false;
+  }
 }
 
 function replaceBill(bill) {
@@ -297,7 +390,7 @@ watch(productsList, (list) => console.log("productsList changed", list), { deep:
 
 <template>
   <div class="flex min-h-screen flex-col">
-    <Navbar :username="user.name" :role="user.role" @orders="openOrders" @logout="logout" />
+    <Navbar :username="user.name" :role="user.role" @orders="openOrders" @shifts="openShifts" @logout="logout" />
 
     <div class="flex flex-1">
       <!-- Left: 2/5 productSlot container -->
@@ -379,6 +472,21 @@ watch(productsList, (list) => console.log("productsList changed", list), { deep:
     />
 
     <BillPopup v-model:open="showBills" :bills="bills" :loading="billsLoading" :error="billsError" @replace-bill="replaceBill" />
+
+    <!-- NEW: shifts list, like orders -->
+    <Shifts v-model:open="showShifts" :shifts="shifts" :loading="shiftsLoading" :error="shiftsError" />
+
+    <!-- logout popup -->
+    <ShiftPopup
+      v-model:open="showShift"
+      :created-at="shift.createdAt"
+      :ended-at="shift.endedAt"
+      :summary="salesSummary"
+      :loading="shiftLoading"
+      :error="shiftError"
+      :unsaved-items="productsList.length"
+      @confirm-logout="confirmLogout"
+    />
   </div>
 </template>
 

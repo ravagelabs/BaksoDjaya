@@ -6,7 +6,7 @@ defineProps({
   role: { type: String, default: "user" },
 });
 
-const emit = defineEmits(["orders", "logout"]);
+const emit = defineEmits(["orders", "shifts", "logout"]);
 </script>
 
 <template>
@@ -17,6 +17,7 @@ const emit = defineEmits(["orders", "logout"]);
     <!-- 1/3: menu (items always visible) -->
     <nav class="flex items-center justify-center gap-1">
       <Button variant="ghost" size="sm" @click="emit('orders')">Orders</Button>
+      <Button variant="ghost" size="sm" @click="emit('shifts')">Shifts</Button>
       <Button variant="ghost" size="sm" @click="emit('logout')">Logout</Button>
     </nav>
 

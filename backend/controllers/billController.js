@@ -177,3 +177,19 @@ export const finalizeBill = async (billId, customerId, employeeId, grandTotal, p
         };
     });
 };
+
+export const getSalesSummary = async (from, to) => {
+    const query = `
+        SELECT
+            COALESCE(SUM(grand_total) FILTER (WHERE LOWER(payment_method::text) = 'cash'), 0)::float AS cash,
+            COALESCE(SUM(grand_total) FILTER (WHERE LOWER(payment_method::text) = 'card'), 0)::float AS card,
+            COALESCE(SUM(grand_total) FILTER (WHERE LOWER(payment_method::text) = 'qris'), 0)::float AS qris,
+            COALESCE(SUM(grand_total), 0)::float AS total
+        FROM bill
+        WHERE payment_method IS NOT NULL
+          AND created_at >= $1::timestamptz
+          AND created_at <= $2::timestamptz;
+    `;
+
+    return await db.one(query, [from, to]);
+};
