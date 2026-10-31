@@ -11,6 +11,7 @@ import ShiftPopup from "@/components/ShiftPopup.vue";
 import Shifts from "@/components/Shifts.vue";
 import ProductCard from "@/components/ProductCard.vue";
 import ProductSlot from "@/components/ProductSlot.vue";
+import PaketPopup from "@/components/PaketPopup.vue";
 
 const props = defineProps({
   user: { type: Object, required: true }, // { id, name, role }
@@ -39,6 +40,10 @@ const showPrint = ref(false);
 const printLoading = ref(false);
 const printError = ref("");
 const printData = ref(null); // bill shown in the print popup (GET /bills/:billId)
+
+// paket popup state
+const showPaket = ref(false);
+const selectedPaketBase = ref("");
 
 // logout shift popup state
 const showShift = ref(false);
@@ -72,6 +77,51 @@ async function getProducts() {
 }
 
 onMounted(getProducts);
+
+// ---- Paket handling ----
+const isPaket = (p) => p.name.startsWith("PAKET ");
+const paketBase = (name) => name.split(" - ")[0]; // "PAKET SIJI - BAKSO BULAT + MIE" -> "PAKET SIJI"
+
+// Grid shows regular products as-is, and one card per base paket instead of every combination
+const gridProducts = computed(() => {
+  const seen = new Set();
+  const result = [];
+  for (const p of products.value) {
+    if (!isPaket(p)) {
+      result.push(p);
+      continue;
+    }
+    const base = paketBase(p.name);
+    if (seen.has(base)) continue;
+    seen.add(base);
+    result.push({ id: p.id, name: base, picture: p.picture, price: p.price });
+  }
+  return result;
+});
+
+// Called by the grid. Paket cards open the popup, others add directly.
+function handleGridAdd(item) {
+  const product = products.value.find((p) => p.id === item.id);
+  if (product && isPaket(product)) {
+    selectedPaketBase.value = paketBase(product.name);
+    showPaket.value = true;
+    return;
+  }
+  addProduct(item);
+}
+
+// Called from PaketPopup. Finds the matching combination row and adds it to the cart.
+function addPaket({ base, bakso, mie }) {
+  const name = `${base} - BAKSO ${bakso} + ${mie}`;
+  const product = products.value.find((p) => p.name === name);
+  if (!product) {
+    saveFailed.value = true;
+    saveMessage.value = `Product not found: ${name}`;
+    return;
+  }
+  addProduct({ id: product.id, name: product.name, price: product.price });
+  showPaket.value = false;
+}
 
 async function getBills() {
   billsLoading.value = true;
@@ -300,6 +350,23 @@ function buildEscposReceipt(bill) {
     return l + " ".repeat(W - l.length - r.length) + r + "\n";
   };
 
+  // Word-wrap a name to the receipt width instead of cutting it off
+  const wrap = (text) => {
+    const words = clean(text).split(" ");
+    const lines = [];
+    let cur = "";
+    for (const w of words) {
+      if (!cur) cur = w;
+      else if ((cur + " " + w).length <= W) cur += " " + w;
+      else {
+        lines.push(cur);
+        cur = w;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.map((l) => l + "\n").join("");
+  };
+
   const date = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" })
     .format(new Date(bill.created_at));
 
@@ -317,7 +384,7 @@ function buildEscposReceipt(bill) {
   write(line());
 
   for (const i of bill.billItems) {
-    write(`${clean(i.name).slice(0, W)}\n`); // truncate so the name never wraps
+    write(wrap(i.name));
     write(row(`  ${i.qty} x ${rupiah.format(i.price)}`, rupiah.format(i.price * i.qty)));
   }
 
@@ -440,13 +507,13 @@ watch(productsList, (list) => console.log("productsList changed", list), { deep:
         <p v-else-if="error" class="text-sm text-destructive">{{ error }}</p>
         <div v-else class="products-grid">
           <ProductCard
-            v-for="p in products"
+            v-for="p in gridProducts"
             :key="p.id"
             :id="p.id"
             :name="p.name"
             :picture="p.picture"
             :price="p.price"
-            @add-product="addProduct"
+            @add-product="handleGridAdd"
           />
         </div>
       </main>
@@ -466,6 +533,12 @@ watch(productsList, (list) => console.log("productsList changed", list), { deep:
       :loading="printLoading"
       :error="printError"
       @print-bill="printBill"
+    />
+
+    <PaketPopup
+      v-model:open="showPaket"
+      :base="selectedPaketBase"
+      @select="addPaket"
     />
 
     <CustomerPopup
