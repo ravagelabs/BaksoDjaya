@@ -281,7 +281,7 @@ async function showReceipt(id) {
 
 // ESC/POS builder: raw printer commands for an 80mm receipt (48 chars per line)
 function buildEscposReceipt(bill) {
-  const W = 48;
+  const W = 32;
   const bytes = [];
   const enc = new TextEncoder();
   const write = (s) => bytes.push(...enc.encode(s));
