@@ -313,6 +313,7 @@ function buildEscposReceipt(bill) {
   write(line());
   write(`Date: ${clean(date)}\n`);
   write(`Customer: ${clean(bill.customer_name)}\n`);
+  if (bill.customer_id) write(`Type: ${clean(bill.customer_type)}\n`);
   write(line());
 
   for (const i of bill.billItems) {
