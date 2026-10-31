@@ -8,7 +8,7 @@ import CustomerPopup from "@/components/CustomerPopup.vue";
 import PaymentPopup from "@/components/PaymentPopup.vue";
 import PrintPopup from "@/components/PrintPopup.vue";
 import ShiftPopup from "@/components/ShiftPopup.vue";
-import Shifts from "@/components/Shifts.vue"; // NEW
+import Shifts from "@/components/Shifts.vue";
 import ProductCard from "@/components/ProductCard.vue";
 import ProductSlot from "@/components/ProductSlot.vue";
 
@@ -47,7 +47,7 @@ const shiftError = ref("");
 const shift = ref({ createdAt: null, endedAt: null });
 const salesSummary = ref({ cash: 0, card: 0, qris: 0, total: 0 });
 
-// NEW: shifts list popup state (like orders)
+// shifts list popup state (like orders)
 const shifts = ref([]); // from GET /shifts
 const showShifts = ref(false);
 const shiftsLoading = ref(false);
@@ -95,7 +95,6 @@ function openOrders() {
   getBills(); // fetch fresh data every time the popup opens
 }
 
-// NEW
 async function getShifts() {
   shiftsLoading.value = true;
   shiftsError.value = "";
@@ -113,7 +112,6 @@ async function getShifts() {
   }
 }
 
-// NEW
 function openShifts() {
   showShifts.value = true;
   getShifts(); // fetch fresh data every time the popup opens
@@ -167,7 +165,7 @@ function selectCustomer(c) {
   showCustomer.value = false;
 }
 
-// REVERTED: only the current shift's summary, no previous shifts here
+// Only the current shift's summary, no previous shifts here
 async function logout() {
   shiftError.value = "";
   shiftLoading.value = true;
@@ -281,63 +279,62 @@ async function showReceipt(id) {
   }
 }
 
-// Emitted by PrintPopup: build the receipt PDF with pdfmake and print it
-async function printBill() {
-  const bill = printData.value;
-  if (!bill) return;
-
-  // Load pdfmake only when printing (it is large)
-  const [{ default: pdfMake }, pdfFonts] = await Promise.all([
-    import("pdfmake/build/pdfmake"),
-    import("pdfmake/build/vfs_fonts"),
-  ]);
-  // vfs_fonts exports differ between pdfmake versions, so find the object that holds the font files
-  const vfs = [
-    pdfFonts.default?.pdfMake?.vfs, // 0.2.x
-    pdfFonts.pdfMake?.vfs,
-    pdfFonts.default?.vfs,
-    pdfFonts.vfs,
-    pdfFonts.default, // 0.3.x: the module itself is the vfs
-    pdfFonts,
-  ].find((v) => v && v["Roboto-Medium.ttf"]);
-  if (!vfs) throw new Error("pdfmake fonts not found");
-
-  if (typeof pdfMake.addVirtualFileSystem === "function") pdfMake.addVirtualFileSystem(vfs); // 0.3.x
-  else pdfMake.vfs = vfs; // 0.2.x
-
+// ESC/POS builder: raw printer commands for an 80mm receipt (48 chars per line)
+function buildEscposReceipt(bill) {
+  const W = 48;
+  const bytes = [];
+  const enc = new TextEncoder();
+  const write = (s) => bytes.push(...enc.encode(s));
+  const cmd = (...b) => bytes.push(...b);
+  const clean = (s) => String(s ?? "-").replace(/\u00a0/g, " "); // Intl adds NBSP before "Rp"
+  const row = (left, right) => {
+    const l = clean(left), r = clean(right);
+    return l + " ".repeat(Math.max(1, W - l.length - r.length)) + r + "\n";
+  };
   const date = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(bill.created_at));
 
-  const docDefinition = {
-    pageSize: { width: 226, height: "auto" }, // ~80mm receipt paper
-    pageMargins: [12, 12, 12, 12],
-    defaultStyle: { fontSize: 9 },
-    content: [
-      { text: "BAKSO DJAYA", style: "title", alignment: "center" },
-      { text: `Bill #${bill.billId}`, alignment: "center", margin: [0, 0, 0, 6] },
-      { text: `Date: ${date}` },
-      { text: `Customer: ${bill.customer_name ?? "-"}` },
-      { text: `Customer ID: ${bill.customer_id ?? "-"}`, margin: [0, 0, 0, 6] },
-      {
-        table: {
-          widths: ["*", "auto", "auto"],
-          body: [
-            [{ text: "Item", bold: true }, { text: "Qty", bold: true, alignment: "right" }, { text: "Subtotal", bold: true, alignment: "right" }],
-            ...bill.billItems.map((i) => [
-              i.name,
-              { text: String(i.qty), alignment: "right" },
-              { text: rupiah.format(i.price * i.qty), alignment: "right" },
-            ]),
-          ],
-        },
-        layout: "lightHorizontalLines",
-      },
-      { text: `Total: ${rupiah.format(bill.grand_total)}`, bold: true, alignment: "right", margin: [0, 8, 0, 0] },
-      { text: "Thank you!", alignment: "center", margin: [0, 10, 0, 0] },
-    ],
-    styles: { title: { fontSize: 14, bold: true, margin: [0, 0, 0, 4] } },
-  };
+  cmd(0x1b, 0x40);             // ESC @  init printer
+  cmd(0x1b, 0x61, 0x01);       // ESC a 1  center
+  cmd(0x1b, 0x45, 0x01);       // ESC E 1  bold on
+  write("BAKSO DJAYA\n");
+  cmd(0x1b, 0x45, 0x00);       // bold off
+  write(`Bill #${bill.billId}\n`);
+  cmd(0x1b, 0x61, 0x00);       // ESC a 0  left
+  write("-".repeat(W) + "\n");
+  write(`Date: ${clean(date)}\n`);
+  write(`Customer: ${clean(bill.customer_name)}\n`);
+  write("-".repeat(W) + "\n");
 
-  await pdfMake.createPdf(docDefinition).print(); // opens the print dialog (use .open() to preview instead)
+  for (const i of bill.billItems) {
+    write(`${clean(i.name)}\n`);
+    write(row(`  ${i.qty} x ${rupiah.format(i.price)}`, rupiah.format(i.price * i.qty)));
+  }
+
+  write("-".repeat(W) + "\n");
+  cmd(0x1b, 0x45, 0x01);
+  write(row("TOTAL", rupiah.format(bill.grand_total)));
+  cmd(0x1b, 0x45, 0x00);
+  cmd(0x1b, 0x61, 0x01);
+  write("\nThank you!\n");
+  cmd(0x1b, 0x64, 0x04);       // ESC d 4  feed 4 lines
+  cmd(0x1d, 0x56, 0x42, 0x00); // GS V B 0  partial cut (ignored by printers without a cutter)
+
+  return new Uint8Array(bytes);
+}
+
+// Hands the ESC/POS bytes to RawBT, which sends them to the USB printer
+function openInRawBT(bytes) {
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  const b64 = btoa(binary);
+  window.location.href =
+    `intent:base64,${b64}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end`;
+}
+
+// Called from the PrintPopup button. Synchronous, so it runs inside the user's click.
+function printBill() {
+  if (!printData.value) return;
+  openInRawBT(buildEscposReceipt(printData.value));
 }
 
 async function saveBill(paymentMethod = null) {
@@ -384,7 +381,6 @@ async function saveBill(paymentMethod = null) {
   }
 }
 
-// Watcher alternative / side effects (deep so qty changes are caught)
 watch(productsList, (list) => console.log("productsList changed", list), { deep: true });
 </script>
 
@@ -473,10 +469,8 @@ watch(productsList, (list) => console.log("productsList changed", list), { deep:
 
     <BillPopup v-model:open="showBills" :bills="bills" :loading="billsLoading" :error="billsError" @replace-bill="replaceBill" />
 
-    <!-- NEW: shifts list, like orders -->
     <Shifts v-model:open="showShifts" :shifts="shifts" :loading="shiftsLoading" :error="shiftsError" />
 
-    <!-- logout popup -->
     <ShiftPopup
       v-model:open="showShift"
       :created-at="shift.createdAt"
