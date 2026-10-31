@@ -279,7 +279,7 @@ async function showReceipt(id) {
   }
 }
 
-// ESC/POS builder: raw printer commands for an 80mm receipt (48 chars per line)
+// ESC/POS builder: raw printer commands for a 58mm receipt (32 chars per line, Font A)
 function buildEscposReceipt(bill) {
   const W = 32;
   const bytes = [];
@@ -287,11 +287,21 @@ function buildEscposReceipt(bill) {
   const write = (s) => bytes.push(...enc.encode(s));
   const cmd = (...b) => bytes.push(...b);
   const clean = (s) => String(s ?? "-").replace(/\u00a0/g, " "); // Intl adds NBSP before "Rp"
+  const line = (ch = "-") => ch.repeat(W) + "\n";
+
+  // Left text on the left, right text on the right. If they don't fit on one line,
+  // the right text moves to its own line, right-aligned.
   const row = (left, right) => {
-    const l = clean(left), r = clean(right);
-    return l + " ".repeat(Math.max(1, W - l.length - r.length)) + r + "\n";
+    const l = clean(left);
+    const r = clean(right);
+    if (l.length + r.length + 1 > W) {
+      return l + "\n" + " ".repeat(Math.max(0, W - r.length)) + r + "\n";
+    }
+    return l + " ".repeat(W - l.length - r.length) + r + "\n";
   };
-  const date = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(bill.created_at));
+
+  const date = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" })
+    .format(new Date(bill.created_at));
 
   cmd(0x1b, 0x40);             // ESC @  init printer
   cmd(0x1b, 0x61, 0x01);       // ESC a 1  center
@@ -300,24 +310,24 @@ function buildEscposReceipt(bill) {
   cmd(0x1b, 0x45, 0x00);       // bold off
   write(`Bill #${bill.billId}\n`);
   cmd(0x1b, 0x61, 0x00);       // ESC a 0  left
-  write("-".repeat(W) + "\n");
+  write(line());
   write(`Date: ${clean(date)}\n`);
   write(`Customer: ${clean(bill.customer_name)}\n`);
-  write("-".repeat(W) + "\n");
+  write(line());
 
   for (const i of bill.billItems) {
-    write(`${clean(i.name)}\n`);
+    write(`${clean(i.name).slice(0, W)}\n`); // truncate so the name never wraps
     write(row(`  ${i.qty} x ${rupiah.format(i.price)}`, rupiah.format(i.price * i.qty)));
   }
 
-  write("-".repeat(W) + "\n");
-  cmd(0x1b, 0x45, 0x01);
+  write(line());
+  cmd(0x1b, 0x45, 0x01);       // bold on
   write(row("TOTAL", rupiah.format(bill.grand_total)));
-  cmd(0x1b, 0x45, 0x00);
-  cmd(0x1b, 0x61, 0x01);
-  write("\nThank you!\n");
-  cmd(0x1b, 0x64, 0x04);       // ESC d 4  feed 4 lines
-  cmd(0x1d, 0x56, 0x42, 0x00); // GS V B 0  partial cut (ignored by printers without a cutter)
+  cmd(0x1b, 0x45, 0x00);       // bold off
+  cmd(0x1b, 0x61, 0x01);       // center
+  write("Thank you!\n");
+  cmd(0x1b, 0x64, 0x02);       // ESC d 2  feed 2 lines past the last print
+  cmd(0x1d, 0x56, 0x42, 0x00); // GS V B 0  partial cut
 
   return new Uint8Array(bytes);
 }
