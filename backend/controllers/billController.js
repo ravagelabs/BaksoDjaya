@@ -27,6 +27,7 @@ export const getBills = async (billId = null, status = null) => {
             b.customer_id,
             u.name AS employee_name,
             c.name AS customer_name,
+            c.type AS customer_type,
             b.status,
             b.created_at,
             json_agg(
