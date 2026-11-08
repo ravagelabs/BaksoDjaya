@@ -43,3 +43,6 @@ playwright-report/
 
 # env
 .env
+
+# Foto menu yang di-upload
+uploads/
