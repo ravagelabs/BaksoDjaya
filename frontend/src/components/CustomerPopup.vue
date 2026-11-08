@@ -16,9 +16,9 @@ const props = defineProps({
 const emit = defineEmits(["update:open", "saveCustomer", "selectCustomer"]);
 
 const TYPES = [
-  { value: "dine_in", label: "Dine in" },
+  { value: "dine_in", label: "Dine-in" },
+  { value: "pickup", label: "Take away" },
   { value: "delivery", label: "Delivery" },
-  { value: "pickup", label: "Pickup" },
 ];
 
 const name = ref("");
@@ -44,59 +44,57 @@ function submit() {
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-h-[85vh] overflow-y-auto">
+    <DialogContent class="max-h-[85vh] overflow-y-auto sm:max-w-lg">
       <DialogHeader>
-        <DialogTitle>Customer</DialogTitle>
-        <DialogDescription>Pick an existing customer or add a new one.</DialogDescription>
+        <DialogTitle class="text-xl">Pelanggan</DialogTitle>
+        <DialogDescription>Pilih pelanggan yang sudah ada atau tambahkan yang baru.</DialogDescription>
       </DialogHeader>
 
-      <!-- Existing customers (GET /customers) -->
       <div class="grid gap-2">
-        <p class="text-sm font-medium">Existing customers</p>
-        <p v-if="loading" class="text-sm text-muted-foreground">Loading customers...</p>
-        <p v-else-if="!customers.length" class="text-sm text-muted-foreground">No customers yet.</p>
-        <div v-else class="flex max-h-40 flex-col gap-1 overflow-y-auto">
+        <p class="text-sm font-semibold">Pelanggan tersimpan</p>
+        <p v-if="loading" class="text-sm text-muted-foreground">Memuat pelanggan...</p>
+        <p v-else-if="!customers.length" class="text-sm text-muted-foreground">Belum ada pelanggan.</p>
+        <div v-else class="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
           <button
             v-for="c in customers"
             :key="c.id"
             type="button"
-            class="flex items-center justify-between rounded-md border p-2 text-left text-sm hover:bg-muted"
+            class="flex min-h-12 items-center justify-between rounded-xl bg-muted/60 px-4 text-left text-[15px] transition-colors hover:bg-secondary"
             @click="emit('selectCustomer', c)"
           >
             <span class="font-medium">{{ c.name }}</span>
-            <span class="text-xs text-muted-foreground">{{ c.telp }} · {{ c.type }}</span>
+            <span class="text-xs text-muted-foreground">{{ [c.telp, TYPES.find((t) => t.value === c.type)?.label].filter(Boolean).join(" · ") }}</span>
           </button>
         </div>
       </div>
 
-      <!-- New customer (POST /customers) -->
-      <form class="grid gap-3 border-t pt-4" @submit.prevent="submit">
-        <p class="text-sm font-medium">New customer</p>
+      <form class="grid gap-4 border-t pt-4" @submit.prevent="submit">
+        <p class="text-sm font-semibold">Pelanggan baru</p>
         <div class="grid gap-2">
-          <Label for="customer-name">Name</Label>
-          <Input id="customer-name" v-model="name" required />
+          <Label for="customer-name">Nama</Label>
+          <Input id="customer-name" v-model="name" class="h-12 rounded-xl text-base" required />
         </div>
         <div class="grid gap-2">
-          <Label for="customer-telp">Telp</Label>
-          <Input id="customer-telp" v-model="telp" type="tel" required />
+          <Label for="customer-telp">No. telepon</Label>
+          <Input id="customer-telp" v-model="telp" type="tel" class="h-12 rounded-xl text-base" required />
         </div>
         <div class="grid gap-2">
-          <Label>Type</Label>
-          <div class="flex gap-2">
-            <Button
+          <Label>Tipe</Label>
+          <div class="grid grid-cols-3 gap-2">
+            <button
               v-for="t in TYPES"
               :key="t.value"
               type="button"
-              size="sm"
-              :variant="type === t.value ? 'default' : 'outline'"
+              class="h-12 rounded-xl border text-[15px] font-medium transition-colors"
+              :class="type === t.value ? 'border-primary bg-secondary text-primary' : 'bg-card hover:bg-muted'"
               @click="type = t.value"
             >
               {{ t.label }}
-            </Button>
+            </button>
           </div>
         </div>
         <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
-        <Button type="submit" :disabled="saving">{{ saving ? "Saving..." : "Save customer" }}</Button>
+        <Button type="submit" class="h-12 rounded-xl text-base" :disabled="saving">{{ saving ? "Menyimpan..." : "Simpan pelanggan" }}</Button>
       </form>
     </DialogContent>
   </Dialog>

@@ -1,6 +1,4 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 @import 'tailwindcss';
 @import "tw-animate-css";
 
@@ -33,6 +31,13 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-nav: var(--nav);
+  --color-nav-foreground: var(--nav-foreground);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -45,73 +50,94 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
+  --shadow-card: 0 1px 2px rgb(28 22 38 / 0.04), 0 4px 16px -6px rgb(28 22 38 / 0.08);
+  --shadow-float: 0 2px 4px rgb(28 22 38 / 0.05), 0 12px 32px -12px rgb(28 22 38 / 0.18);
+}
+
+/* Palet mengikuti mockup Ravage POS / Bakso Djaya (halaman 08) */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --radius: 0.875rem;
+  --background: #f5f5f7;   /* Canvas */
+  --foreground: #1d1d1f;   /* Charcoal */
+  --card: #ffffff;         /* Surface */
+  --card-foreground: #1d1d1f;
+  --popover: #ffffff;
+  --popover-foreground: #1d1d1f;
+  --primary: #6536b5;      /* Plum */
+  --primary-foreground: #ffffff;
+  --primary-hover: #572c9e;
+  --secondary: #f0ebf8;    /* Lavender */
+  --secondary-foreground: #6536b5;
+  --muted: #f2f2f4;
+  --muted-foreground: #6e6e73;
+  --accent: #f0ebf8;
+  --accent-foreground: #6536b5;
+  --destructive: #c4314b;
+  --success: #24765a;
+  --success-soft: #e7f2ec;
+  --warning: #7a5418;
+  --warning-soft: #fff3dc;
+  --nav: #51366f;          /* Ungu PDR PRO */
+  --nav-foreground: #f5f5f7;
+  --border: #e5e5ea;
+  --input: #e5e5ea;
+  --ring: #6536b5;
+  --chart-1: #6536b5;
+  --chart-2: #ddd0f0;
+  --chart-3: #24765a;
+  --chart-4: #e3a008;
+  --chart-5: #6e6e73;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1d1d1f;
+  --sidebar-primary: #6536b5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0ebf8;
+  --sidebar-accent-foreground: #6536b5;
+  --sidebar-border: #e5e5ea;
+  --sidebar-ring: #6536b5;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #141019;
+  --foreground: #f3f0f7;
+  --card: #1e1926;
+  --card-foreground: #f3f0f7;
+  --popover: #1e1926;
+  --popover-foreground: #f3f0f7;
+  --primary: #9a7cc0;
+  --primary-foreground: #ffffff;
+  --primary-hover: #ab90cd;
+  --success: #5fc59c;
+  --success-soft: #16302a;
+  --warning: #f3c97a;
+  --warning-soft: #3a2e17;
+  --nav: #2a1d3b;
+  --nav-foreground: #f5f5f7;
+  --secondary: #2a2234;
+  --secondary-foreground: #e4dbef;
+  --muted: #2a2234;
+  --muted-foreground: #a198ad;
+  --accent: #2a2234;
+  --accent-foreground: #e4dbef;
+  --destructive: #e5486f;
+  --border: #2e2738;
+  --input: #2e2738;
+  --ring: #9a7cc0;
+  --chart-1: #9a7cc0;
+  --chart-2: #c4a8e6;
+  --chart-3: #f06292;
+  --chart-4: #fbbf24;
+  --chart-5: #a198ad;
+  --sidebar: #1e1926;
+  --sidebar-foreground: #f3f0f7;
+  --sidebar-primary: #9a7cc0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a2234;
+  --sidebar-accent-foreground: #e4dbef;
+  --sidebar-border: #2e2738;
+  --sidebar-ring: #9a7cc0;
 }
 
 @layer base {
@@ -119,6 +145,61 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Saat app kasir terbuka, halaman dikunci: navbar dan panel tidak ikut ter-scroll
+     (Safari iPad menggeser seluruh halaman kalau body bisa di-scroll). Hanya area
+     dengan overflow-y-auto di dalam app yang bisa di-scroll. */
+  html.app-locked,
+  html.app-locked body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  html.app-locked body {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+  }
+  html.app-locked #app {
+    height: 100%;
+  }
+  /* Ketukan cepat di tablet tanpa jeda zoom dan tanpa sorotan abu-abu bawaan iOS */
+  button,
+  a,
+  [role="button"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Loading R: pulse opacity lembut 1,2 detik, tanpa berputar */
+@keyframes r-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+@keyframes bar-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+@layer utilities {
+  .animate-r-pulse {
+    animation: r-pulse 1.2s ease-in-out infinite;
+  }
+  .animate-bar-slide {
+    animation: bar-slide 1.2s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-r-pulse,
+    .animate-bar-slide {
+      animation: none;
+    }
   }
 }

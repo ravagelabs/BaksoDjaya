@@ -1,12 +1,23 @@
 import express from 'express';
-import { addBill, saveBill, finalizeBill, getBills, getSalesSummary } from '../controllers/billController.js';
+import { addBill, saveBill, finalizeBill, getBills, getSalesSummary, getKitchenQueue, setKitchenStatus } from '../controllers/billController.js';
+import { publish } from '../lib/events.js';
+
+// Kabari layar lain (Dapur, Meja, Transaksi). kitchen:new dipakai Dapur untuk bunyi notifikasi.
+const announce = (bill, { enteredKitchen = false } = {}) => {
+    const data = { billId: bill?.id ?? bill?.billId, kitchenStatus: bill?.kitchen_status ?? null, status: bill?.status ?? null };
+    if (enteredKitchen) publish('kitchen:new', data);
+    publish('bill:changed', data);
+};
 
 const router = express.Router();
 
 router.get('/', async (req, res) => {
     try {
-        const { status } = req.query;
-        const bills = await getBills(null, status || null);
+        const { status, date } = req.query;
+        if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+        }
+        const bills = await getBills(null, status || null, date || null);
 
         return res.status(200).json({
             message: 'Bills retrieved successfully',
@@ -42,6 +53,35 @@ router.get('/summary', async (req, res) => {
     }
 });
 
+// Antrean dapur (Baru, Dimasak, Siap saji)
+router.get('/kitchen', async (req, res) => {
+    try {
+        const bills = await getKitchenQueue();
+        return res.status(200).json({
+            message: 'Kitchen queue retrieved successfully',
+            data: bills
+        });
+    } catch (err) {
+        console.error('Error fetching kitchen queue:', err);
+        return res.status(500).json({ error: err.message || 'Failed to fetch kitchen queue' });
+    }
+});
+
+router.patch('/:billId/kitchen', async (req, res) => {
+    try {
+        const billId = Number(req.params.billId);
+        if (!Number.isInteger(billId)) {
+            return res.status(400).json({ error: 'Invalid bill id' });
+        }
+        const result = await setKitchenStatus(billId, req.body?.kitchenStatus);
+        announce(result);
+        return res.status(200).json({ message: 'Kitchen status updated', data: result });
+    } catch (err) {
+        console.error('Error updating kitchen status:', err);
+        return res.status(400).json({ error: err.message || 'Failed to update kitchen status' });
+    }
+});
+
 router.get('/:billId', async (req, res) => {
     try {
         const billId = Number(req.params.billId);
@@ -68,22 +108,22 @@ router.get('/:billId', async (req, res) => {
 
 router.post('/', async (req, res) => {
     try {
-        const { billId, customerId, employeeId, grandTotal, paymentMethod, billItems } = req.body;
+        const { billId, paymentMethod, billItems, sendToKitchen } = req.body;
+        // customerId, employeeId, grandTotal, tableId, orderType, guests, note
+        const fields = req.body;
 
         let result;
 
         // 1. If paymentMethod is provided, finalize the bill
         if (paymentMethod) {
-            const finalBillId = billId || (await addBill(customerId, employeeId, grandTotal, billItems)).id;
+            const finalBillId = billId || (await addBill(fields, billItems)).id;
+            // Take away: belum pernah ke dapur, jadi pembayaran = masuk dapur
+            const wasInKitchen = billId
+                ? Boolean((await getBills(Number(billId)))[0]?.kitchen_status)
+                : false;
 
-            result = await finalizeBill(
-                finalBillId,
-                customerId,
-                employeeId,
-                grandTotal,
-                paymentMethod,
-                billItems
-            );
+            result = await finalizeBill(finalBillId, fields, paymentMethod, billItems);
+            announce(result, { enteredKitchen: !wasInKitchen });
             return res.status(200).json({
                 message: 'Bill finalized successfully',
                 data: result
@@ -92,13 +132,9 @@ router.post('/', async (req, res) => {
 
         // 2. If billId is provided (without paymentMethod), update/save the pending draft
         if (billId) {
-            result = await saveBill(
-                billId,
-                customerId,
-                employeeId,
-                grandTotal,
-                billItems
-            );
+            const before = (await getBills(Number(billId)))[0];
+            result = await saveBill(billId, fields, billItems, { sendToKitchen: Boolean(sendToKitchen) });
+            announce(result, { enteredKitchen: Boolean(sendToKitchen) && !before?.kitchen_status });
             return res.status(200).json({
                 message: 'Bill updated successfully',
                 data: result
@@ -106,12 +142,8 @@ router.post('/', async (req, res) => {
         }
 
         // 3. Otherwise, create a brand-new pending bill
-        result = await addBill(
-            customerId,
-            employeeId,
-            grandTotal,
-            billItems
-        );
+        result = await addBill(fields, billItems, { sendToKitchen: Boolean(sendToKitchen) });
+        announce(result, { enteredKitchen: Boolean(sendToKitchen) });
 
         return res.status(201).json({
             message: 'Bill created successfully',
@@ -125,8 +157,5 @@ router.post('/', async (req, res) => {
         });
     }
 });
-
-
-
 
 export default router; 
