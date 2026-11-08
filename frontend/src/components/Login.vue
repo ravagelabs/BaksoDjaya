@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import BrandLogo from "@/components/BrandLogo.vue";
-import { OUTLET_NAME } from "@/lib/format";
 
 const email = ref("");
 const password = ref("");
@@ -28,11 +27,11 @@ async function submit() {
 <template>
   <div class="flex min-h-dvh items-center justify-center p-6">
     <div class="w-full max-w-md rounded-[20px] border bg-card p-8 shadow-card">
-      <div class="mb-8 inline-flex rounded-xl bg-nav px-4 py-3">
-        <BrandLogo variant="dark" />
+      <div class="mb-8">
+        <BrandLogo variant="light" class="!h-9" />
       </div>
-      <h1 class="text-[28px] font-bold leading-tight">Masuk ke kasir</h1>
-      <p class="mt-1 text-[15px] text-muted-foreground">{{ OUTLET_NAME }} · Masuk dengan akun karyawan atau owner.</p>
+      <h1 class="text-[28px] font-bold leading-tight">Login</h1>
+      <p class="mt-1 text-[15px] text-muted-foreground">Masuk dengan akun karyawan atau owner.</p>
 
       <form class="mt-8 grid gap-5" @submit.prevent="submit">
         <div class="grid gap-2">

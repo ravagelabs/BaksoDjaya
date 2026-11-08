@@ -1,18 +1,55 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="splashing">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#51366f">
     <!-- iPad: "Add to Home Screen" membuka app tanpa address bar Safari -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Bakso Djaya">
-    <title>Bakso Djaya · Ravage POS</title>
+    <meta name="apple-mobile-web-app-title" content="Ravage POS">
+    <title>Ravage POS</title>
+    <!-- Logo R. .ico cadangan untuk browser lama; SVG terakhir supaya dipilih browser modern
+         (otomatis gelap di tab terang, silver di tab gelap) -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <style>
+      /* Splash screen: tampil instan sebelum JavaScript dimuat, dihilangkan oleh App.vue */
+      html.splashing { background: #51366f; }
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #51366f;
+        transition: opacity 0.35s ease;
+      }
+      #splash img {
+        height: 40px;
+        width: auto;
+        filter: brightness(0) invert(1);
+        animation: splash-in 0.6s ease-out both;
+        user-select: none;
+        -webkit-user-drag: none;
+      }
+      #splash.hide { opacity: 0; pointer-events: none; }
+      @keyframes splash-in {
+        from { opacity: 0; transform: scale(0.96); }
+        to { opacity: 1; transform: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #splash, #splash img { animation: none; transition: none; }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash" role="status" aria-label="Memuat Ravage POS">
+      <img src="/brand/ravage-pos-light.png" alt="Ravage POS">
+    </div>
     <div id="app"></div>
     <script type="module" src="./src/main.js"></script>
   </body>
