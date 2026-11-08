@@ -22,8 +22,8 @@ export const getShifts = async (limit = 10) => {
                     COALESCE(SUM(b.grand_total), 0)::float AS total
                 FROM bill b
                 WHERE b.payment_method IS NOT NULL
-                  AND b.created_at >= s.created_at
-                  AND b.created_at <= s.ended_at
+                  AND COALESCE(b.paid_at, b.created_at) >= s.created_at
+                  AND COALESCE(b.paid_at, b.created_at) <= s.ended_at
             ) sm
             ORDER BY s.id DESC
             LIMIT $1;

@@ -37,52 +37,52 @@ const duration = computed(() => {
   const totalMinutes = Math.max(0, Math.floor(ms / 60000));
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
-  return `${h}h ${m}m`;
+  return h ? `${h} jam ${m} menit` : `${m} menit`;
 });
 </script>
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent class="sm:max-w-sm">
+    <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>End shift</DialogTitle>
-        <DialogDescription>Review your shift before logging out.</DialogDescription>
+        <DialogTitle class="text-xl">Akhiri shift</DialogTitle>
+        <DialogDescription>Periksa ringkasan shift sebelum keluar.</DialogDescription>
       </DialogHeader>
 
-      <p v-if="loading" class="text-sm text-muted-foreground">Loading shift...</p>
+      <p v-if="loading" class="text-sm text-muted-foreground">Memuat shift...</p>
       <p v-else-if="error" class="text-sm text-destructive">{{ error }}</p>
       <template v-else>
-        <dl class="grid grid-cols-2 gap-y-2 text-sm">
-          <dt class="text-muted-foreground">Shift start</dt>
+        <dl class="grid grid-cols-2 gap-y-2 text-[15px]">
+          <dt class="text-muted-foreground">Mulai</dt>
           <dd class="text-right">{{ formatDate(createdAt) }}</dd>
-          <dt class="text-muted-foreground">Shift end</dt>
+          <dt class="text-muted-foreground">Selesai</dt>
           <dd class="text-right">{{ formatDate(endedAt) }}</dd>
-          <dt class="text-muted-foreground">Duration</dt>
+          <dt class="text-muted-foreground">Durasi</dt>
           <dd class="text-right font-semibold">{{ duration }}</dd>
         </dl>
 
-        <section class="border-t pt-3">
-          <h3 class="mb-2 text-sm font-semibold">SALES SUMMARY</h3>
-          <dl class="grid grid-cols-2 gap-y-2 text-sm">
-            <dt class="text-muted-foreground">CASH</dt>
+        <section class="rounded-xl bg-muted/60 p-4">
+          <h3 class="mb-3 text-sm font-semibold text-muted-foreground">Ringkasan penjualan</h3>
+          <dl class="tabular grid grid-cols-2 gap-y-2 text-[15px]">
+            <dt class="text-muted-foreground">Tunai</dt>
             <dd class="text-right">{{ rupiah.format(summary.cash) }}</dd>
-            <dt class="text-muted-foreground">CARD</dt>
+            <dt class="text-muted-foreground">Kartu</dt>
             <dd class="text-right">{{ rupiah.format(summary.card) }}</dd>
             <dt class="text-muted-foreground">QRIS</dt>
             <dd class="text-right">{{ rupiah.format(summary.qris) }}</dd>
-            <dt class="border-t pt-2 font-semibold">TOTAL</dt>
-            <dd class="border-t pt-2 text-right font-semibold">{{ rupiah.format(summary.total) }}</dd>
+            <dt class="border-t pt-2 font-semibold">Total</dt>
+            <dd class="border-t pt-2 text-right text-lg font-bold">{{ rupiah.format(summary.total) }}</dd>
           </dl>
         </section>
       </template>
 
-      <p v-if="unsavedItems > 0" class="text-sm text-destructive">
-        You still have {{ unsavedItems }} unsaved item(s) in the current order. Logging out will discard them.
+      <p v-if="unsavedItems > 0" class="rounded-xl bg-warning-soft px-4 py-3 text-sm font-medium text-warning">
+        Masih ada {{ unsavedItems }} item di pesanan yang belum disimpan. Keluar akan membuangnya.
       </p>
 
-      <DialogFooter>
-        <Button variant="outline" @click="open = false">Cancel</Button>
-        <Button :disabled="loading" @click="emit('confirm-logout')">Log out</Button>
+      <DialogFooter class="gap-2">
+        <Button variant="secondary" class="h-12 flex-1 rounded-xl" @click="open = false">Batal</Button>
+        <Button class="h-12 flex-1 rounded-xl" :disabled="loading" @click="emit('confirm-logout')">Simpan shift & keluar</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>

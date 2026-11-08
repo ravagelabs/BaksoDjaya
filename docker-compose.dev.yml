@@ -1,0 +1,61 @@
+# Setup untuk development lokal: Postgres + backend + frontend dengan hot reload.
+# Jalankan: docker compose -f docker-compose.dev.yml up --build
+# Akses dari iPad / HP di Wi-Fi yang sama: isi APP_HOST dengan IP laptop, contoh
+#   APP_HOST=$(ipconfig getifaddr en0) docker compose -f docker-compose.dev.yml up -d
+# docker-compose.yml (tanpa .dev) tetap untuk production.
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: baksodjaya
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+      - ./backend/db/init:/docker-entrypoint-initdb.d:ro
+      - ./backend/db/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d baksodjaya"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      DEV_MODE: "true"
+      DB_URL_DEV: postgres://postgres:postgres@db:5432/baksodjaya
+      DEV_URL: http://${APP_HOST:-localhost}:5174
+      BETTER_AUTH_URL: http://${APP_HOST:-localhost}:3000
+      BETTER_AUTH_SECRET: dev-only-secret-ganti-di-production-123456
+      RESEND_API_KEY: re_dev_dummy
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      VITE_API_URL: http://${APP_HOST:-localhost}:3000
+    ports:
+      - "5174:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  pgdata_dev:
