@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowRight, FilePenLine, Minus, Plus, Printer, Search, Trash2, UserRound, X } from "@lucide/vue";
+import { ArrowRight, ChevronDown, FilePenLine, ShoppingBag, Minus, Plus, Printer, Search, Trash2, UserRound, X } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import ProductCard from "@/components/ProductCard.vue";
 import CustomizeDialog from "@/components/CustomizeDialog.vue";
@@ -30,6 +30,9 @@ const ui = useUiStore();
 const router = useRouter();
 
 onMounted(() => catalog.load());
+
+// HP: panel pesanan tampil sebagai layar penuh, dibuka dari bar bawah
+const showOrderSheet = ref(false);
 
 // ---- Menu: cari dan filter kategori ----
 const query = ref("");
@@ -196,17 +199,17 @@ function goPay() {
 </script>
 
 <template>
-  <div class="flex h-full">
+  <div class="relative flex h-full">
     <!-- Kiri: menu -->
     <section class="flex min-w-0 flex-1 flex-col">
-      <div class="px-6 pt-5">
-        <div class="flex items-baseline gap-3">
-          <h1 class="text-2xl font-bold leading-tight">Mau pesan apa?</h1>
-          <p class="truncate text-sm text-muted-foreground">{{ longDate() }} · {{ OUTLET_BRANCH }}</p>
+      <div class="px-4 pt-4 md:px-6 md:pt-5">
+        <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+          <h1 class="shrink-0 text-2xl font-bold leading-tight">Mau pesan apa?</h1>
+          <p class="min-w-0 truncate text-sm text-muted-foreground">{{ longDate() }} · {{ OUTLET_BRANCH }}</p>
         </div>
 
         <div class="mt-4 flex flex-wrap items-center gap-3">
-        <label class="relative block min-w-56 flex-1 basis-72">
+        <label class="relative block min-w-0 flex-1 basis-72">
           <span class="sr-only">Cari menu</span>
           <Search class="pointer-events-none absolute top-1/2 left-4 size-[18px] -translate-y-1/2 text-muted-foreground" />
           <input
@@ -234,14 +237,14 @@ function goPay() {
         </div>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-4 pb-6">
+      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24 md:px-6 md:pb-6">
         <p v-if="catalog.loading" class="text-[15px] text-muted-foreground">Memuat menu...</p>
         <div v-else-if="catalog.error" class="flex items-center gap-3 text-[15px] text-destructive">
           {{ catalog.error }}
           <Button variant="secondary" size="sm" @click="catalog.load(true)">Coba lagi</Button>
         </div>
         <p v-else-if="!visibleProducts.length" class="text-[15px] text-muted-foreground">Menu tidak ditemukan.</p>
-        <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5">
+        <div v-else class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,160px),1fr))] gap-3 md:grid-cols-[repeat(auto-fill,minmax(220px,1fr))] md:gap-5">
           <ProductCard
             v-for="p in visibleProducts"
             :key="p.id"
@@ -253,9 +256,35 @@ function goPay() {
       </div>
     </section>
 
-    <!-- Kanan: pesanan -->
-    <aside class="flex w-[360px] shrink-0 flex-col border-l xl:w-[400px]">
-      <div class="px-6 pt-5">
+    <!-- HP: bar bawah untuk membuka pesanan -->
+    <button
+      type="button"
+      class="absolute inset-x-3 bottom-3 z-20 flex h-14 items-center justify-between rounded-2xl bg-primary px-4 text-primary-foreground shadow-lg md:hidden"
+      :aria-expanded="showOrderSheet"
+      @click="showOrderSheet = true"
+    >
+      <span class="flex items-center gap-2 text-[15px] font-semibold">
+        <ShoppingBag class="size-5" />
+        {{ order.isEmpty ? "Pesanan kosong" : `${order.lines.length} item` }}
+      </span>
+      <span class="tabular flex items-center gap-1.5 text-base font-bold">
+        {{ formatRp(order.total) }} <ArrowRight class="size-5" />
+      </span>
+    </button>
+
+    <!-- Kanan: pesanan (HP: layar penuh) -->
+    <aside
+      class="flex-col bg-card md:flex md:w-[360px] md:shrink-0 md:border-l xl:w-[400px]"
+      :class="showOrderSheet ? 'fixed inset-0 z-40 flex pt-[env(safe-area-inset-top)] md:static' : 'hidden'"
+    >
+      <button
+        type="button"
+        class="flex h-11 shrink-0 items-center justify-center gap-1.5 border-b text-sm font-medium text-muted-foreground md:hidden"
+        @click="showOrderSheet = false"
+      >
+        <ChevronDown class="size-4" /> Kembali ke menu
+      </button>
+      <div class="px-4 pt-4 md:px-6 md:pt-5">
         <div class="flex items-start justify-between gap-3">
           <h2 class="text-2xl font-bold leading-tight">{{ title }}</h2>
           <div class="flex shrink-0 items-center">
@@ -315,10 +344,10 @@ function goPay() {
         <p class="mt-2.5 text-sm text-muted-foreground">{{ flowHint }}</p>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-3">
+      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-3 md:px-6">
         <div v-if="order.isEmpty" class="flex h-full flex-col items-center justify-center pb-10 text-center">
           <p class="text-[17px] font-semibold">Belum ada item</p>
-          <p class="mt-1 text-[15px] text-muted-foreground">Ketuk menu di kiri untuk mulai.</p>
+          <p class="mt-1 text-[15px] text-muted-foreground">Ketuk menu<span class="hidden md:inline"> di kiri</span> untuk mulai.</p>
         </div>
 
         <ul v-else class="flex flex-col">
@@ -379,7 +408,7 @@ function goPay() {
         </div>
       </div>
 
-      <div class="border-t px-6 pt-4 pb-5">
+      <div class="border-t px-4 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] md:px-6 md:pb-5">
         <dl class="tabular grid grid-cols-[1fr_auto] gap-y-1.5 text-[15px]">
           <dt class="text-muted-foreground">Subtotal</dt>
           <dd class="text-right">{{ formatRp(order.subtotal) }}</dd>
