@@ -2,7 +2,7 @@ import { betterAuth } from 'better-auth';
 import { Pool } from 'pg';
 import { Resend } from 'resend';
 
-const dbUrl = process.env.DEV_MODE? process.env.DB_URL_DEV : process.env.DB_URL_PROD; 
+const dbUrl = process.env.DEV_MODE? process.env.DB_URL_DEV : (process.env.DB_URL_PROD || process.env.DATABASE_URL); 
 const url = process.env.DEV_MODE? process.env.DEV_URL : process.env.PROD_URL;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
