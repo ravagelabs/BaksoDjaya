@@ -1,7 +1,8 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed } from "vue";
 import { Plus } from "@lucide/vue";
-import { formatRp, titleCase, assetUrl } from "@/lib/format";
+import { formatRp, titleCase } from "@/lib/format";
+import MenuImage from "@/components/MenuImage.vue";
 
 const props = defineProps({
   product: { type: Object, required: true }, // item dari catalog.gridProducts
@@ -10,10 +11,6 @@ const props = defineProps({
 const emit = defineEmits(["open", "quickAdd"]);
 
 const disabled = computed(() => !props.product.is_available);
-
-// Foto gagal dimuat → tampilkan huruf awal menu, bukan ikon gambar rusak
-const imgFailed = ref(false);
-watch(() => props.product.picture, () => (imgFailed.value = false));
 </script>
 
 <template>
@@ -29,21 +26,7 @@ watch(() => props.product.picture, () => (imgFailed.value = false));
       @click="emit('open', product)"
     >
       <div class="relative overflow-hidden rounded-xl bg-[#f6efe7]">
-        <img
-          :src="assetUrl(product.picture)"
-          :alt="titleCase(product.name)"
-          class="aspect-[4/3] w-full object-cover"
-          :class="imgFailed && 'invisible'"
-          loading="lazy"
-          @error="imgFailed = true"
-        />
-        <span
-          v-if="imgFailed"
-          class="absolute inset-0 flex items-center justify-center text-3xl font-bold text-[#c9b8a6]"
-          aria-hidden="true"
-        >
-          {{ titleCase(product.name).charAt(0) }}
-        </span>
+        <MenuImage :src="product.picture" :name="titleCase(product.name)" />
         <span
           v-if="disabled"
           class="absolute top-2 left-2 rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-foreground shadow-xs"

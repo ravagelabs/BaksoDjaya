@@ -191,7 +191,7 @@ async function submit() {
             </p>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-2 gap-4 [&>*]:min-w-0">
             <div class="grid gap-2">
               <label for="pf-category" class="text-sm font-semibold">Kategori</label>
               <input
@@ -199,7 +199,7 @@ async function submit() {
                 v-model="category"
                 list="pf-categories"
                 placeholder="Bakso, Mie, Minuman..."
-                class="h-11 rounded-xl border bg-card px-4 text-base outline-none focus:border-primary focus:ring-3 focus:ring-ring/20"
+                class="h-11 w-full min-w-0 rounded-xl border bg-card px-4 text-base outline-none focus:border-primary focus:ring-3 focus:ring-ring/20"
               />
               <datalist id="pf-categories">
                 <option v-for="c in catalog.categories" :key="c" :value="c" />
@@ -211,18 +211,18 @@ async function submit() {
                 type="button"
                 role="switch"
                 :aria-checked="available"
-                class="flex h-11 items-center justify-between rounded-xl border bg-card px-4 text-base"
+                class="flex h-11 items-center justify-between gap-2 rounded-xl border bg-card px-3 text-[15px] sm:px-4 sm:text-base"
                 @click="available = !available"
               >
-                {{ available ? "Tersedia" : "Stok habis" }}
-                <span class="relative inline-flex h-7 w-12 items-center rounded-full transition-colors" :class="available ? 'bg-primary' : 'bg-[#d8d8dc]'">
+                <span class="truncate">{{ available ? "Tersedia" : "Stok habis" }}</span>
+                <span class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors" :class="available ? 'bg-primary' : 'bg-[#d8d8dc]'">
                   <span class="inline-block size-5 rounded-full bg-white shadow transition-transform" :class="available ? 'translate-x-6' : 'translate-x-1'" />
                 </span>
               </button>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-2 gap-4 [&>*]:min-w-0">
             <div class="grid gap-2">
               <label for="pf-price" class="text-sm font-semibold">Harga jual</label>
               <div class="relative">

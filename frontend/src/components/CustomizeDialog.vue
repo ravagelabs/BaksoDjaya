@@ -4,7 +4,8 @@ import { Check, Minus, Plus } from "@lucide/vue";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useCatalogStore } from "@/stores/catalog";
-import { formatRp, number, titleCase, assetUrl } from "@/lib/format";
+import { formatRp, number, titleCase } from "@/lib/format";
+import MenuImage from "@/components/MenuImage.vue";
 
 // "Sesuaikan menu": pilihan wajib, tambahan, catatan dapur, dan jumlah untuk satu item
 const props = defineProps({
@@ -96,7 +97,7 @@ const choiceClass = (selected) =>
         <!-- Kiri: foto dan info menu -->
         <section class="flex flex-col self-start rounded-2xl bg-[#f7f5f1] p-3">
           <div class="overflow-hidden rounded-xl bg-[#f6efe7]">
-            <img :src="assetUrl(product.picture)" :alt="titleCase(product.name)" class="aspect-[4/3] w-full object-cover" />
+            <MenuImage :src="product.picture" :name="titleCase(product.name)" :lazy="false" />
           </div>
           <div class="flex flex-col px-2 pt-3 pb-1">
             <h2 class="text-xl font-bold leading-tight">{{ titleCase(product.name) }}</h2>
