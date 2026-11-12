@@ -224,7 +224,7 @@ function closePrint(open) {
         <Button class="mt-5 h-13 justify-start rounded-xl px-5 text-base font-semibold" :disabled="!canConfirm" @click="confirm">
           {{ order.saving ? "Memproses..." : "Konfirmasi pembayaran" }}
         </Button>
-        <p class="mt-2 text-xs text-muted-foreground">QRIS: selesai hanya setelah status pembayaran terverifikasi.</p>
+        <p v-if="method === 'qris'" class="mt-2 text-xs text-muted-foreground">QRIS: selesai hanya setelah status pembayaran terverifikasi.</p>
       </section>
     </div>
 

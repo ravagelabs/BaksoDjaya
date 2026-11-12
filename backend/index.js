@@ -13,6 +13,8 @@ import uploadsRouter, { UPLOAD_DIR } from './routes/uploads.js'
 import eventsRouter from './routes/events.js'
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
+import { requireAuth, requireRole, safeErrors } from './lib/http.js';
+import { runMigrations } from './lib/migrate.js';
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -35,6 +37,19 @@ app.use(express.static(path.join(__dirname, 'dist')));
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true }));
 
 app.all('/api/auth/*splat', toNodeHandler(auth));
+
+// Semua endpoint di bawah ini: pesan error aman + wajib login
+app.use(safeErrors);
+
+const API_PATHS = ['/uploads', '/products', '/bills', '/customers', '/shifts', '/modifiers', '/tables', '/expenses', '/reports', '/events'];
+app.use(API_PATHS, requireAuth);
+
+// Khusus pengelola (owner): ubah menu & foto, laporan/HPP, biaya, riwayat shift
+const WRITE = ['POST', 'PUT', 'PATCH', 'DELETE'];
+app.use('/uploads', requireRole());
+app.use(['/products', '/modifiers'], requireRole(undefined, WRITE));
+app.use(['/reports', '/expenses'], requireRole());
+app.use('/shifts', requireRole(undefined, ['GET']));
 
 app.use('/uploads', uploadsRouter);
 
@@ -62,6 +77,13 @@ app.use('/events', eventsRouter);
 app.get('{*splat}', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
+
+// Pastikan struktur database selalu terbaru sebelum menerima request
+try {
+    await runMigrations();
+} catch (err) {
+    console.error('Migrasi database gagal. Server tetap jalan, tapi sebagian fitur bisa error:', err);
+}
 
 app.listen(3000, () => {
         console.log(`Listening on PORT 3000`)

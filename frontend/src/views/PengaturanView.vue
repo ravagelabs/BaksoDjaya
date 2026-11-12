@@ -4,7 +4,8 @@ import { Pencil, Plus, Search } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import ProductFormDialog from "@/components/ProductFormDialog.vue";
 import { api } from "@/lib/api";
-import { formatRp, number, dateTime, splitName, assetUrl, OUTLET_NAME, OUTLET_BRANCH } from "@/lib/format";
+import { formatRp, number, dateTime, splitName, OUTLET_NAME, OUTLET_BRANCH } from "@/lib/format";
+import MenuImage from "@/components/MenuImage.vue";
 import { useCatalogStore } from "@/stores/catalog";
 import { useUiStore } from "@/stores/ui";
 
@@ -149,15 +150,11 @@ function duration(from, to) {
         >
           <button type="button" class="flex flex-1 flex-col rounded-xl text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/40" @click="openEdit(p)">
             <div class="relative overflow-hidden rounded-xl bg-[#f6efe7]">
-              <img
-                v-if="p.picture"
-                :src="assetUrl(p.picture)"
-                :alt="splitName(p.name).title"
-                class="aspect-[4/3] w-full object-cover"
+              <MenuImage
+                :src="p.picture"
+                :name="splitName(p.name).title"
                 :class="p.is_available ? '' : 'opacity-50 grayscale'"
-                loading="lazy"
               />
-              <div v-else class="flex aspect-[4/3] w-full items-center justify-center text-sm text-muted-foreground">Belum ada foto</div>
               <span
                 v-if="!p.is_available"
                 class="absolute top-2 left-2 rounded-full bg-card px-2.5 py-1 text-xs font-semibold shadow-xs"

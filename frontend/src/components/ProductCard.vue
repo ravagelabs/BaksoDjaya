@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from "vue";
 import { Plus } from "@lucide/vue";
-import { formatRp, titleCase, assetUrl } from "@/lib/format";
+import { formatRp, titleCase } from "@/lib/format";
+import MenuImage from "@/components/MenuImage.vue";
 
 const props = defineProps({
   product: { type: Object, required: true }, // item dari catalog.gridProducts
@@ -25,12 +26,7 @@ const disabled = computed(() => !props.product.is_available);
       @click="emit('open', product)"
     >
       <div class="relative overflow-hidden rounded-xl bg-[#f6efe7]">
-        <img
-          :src="assetUrl(product.picture)"
-          :alt="titleCase(product.name)"
-          class="aspect-[4/3] w-full object-cover"
-          loading="lazy"
-        />
+        <MenuImage :src="product.picture" :name="titleCase(product.name)" />
         <span
           v-if="disabled"
           class="absolute top-2 left-2 rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-foreground shadow-xs"
@@ -38,8 +34,8 @@ const disabled = computed(() => !props.product.is_available);
           Stok habis
         </span>
       </div>
-      <p class="mt-3 px-1.5 text-[17px] font-semibold leading-snug">{{ titleCase(product.name) }}</p>
-      <p class="tabular mt-1 px-1.5 pb-1 text-[15px] text-muted-foreground">
+      <p class="mt-3 line-clamp-2 pr-12 pl-1.5 text-[17px] font-semibold leading-snug">{{ titleCase(product.name) }}</p>
+      <p class="tabular mt-1 pr-12 pl-1.5 pb-1 text-[15px] text-muted-foreground">
         <span v-if="product.isPaket">mulai </span>{{ formatRp(product.price) }}
       </p>
     </button>

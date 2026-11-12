@@ -140,7 +140,7 @@ async function advance(b, next) {
       <section v-for="col in COLUMNS" :key="col.key">
         <div class="flex items-center justify-between">
           <h2 class="text-2xl font-semibold">{{ col.title }}</h2>
-          <span class="w-44 rounded-full bg-secondary px-5 py-2 text-[15px] font-semibold text-primary">
+          <span class="tabular rounded-full bg-secondary px-4 py-1.5 text-sm font-semibold text-primary">
             {{ byStatus[col.key].length }} pesanan
           </span>
         </div>
