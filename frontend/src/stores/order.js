@@ -12,7 +12,8 @@ export const useOrderStore = defineStore("order", () => {
   const lines = ref([]); // { key, product_id, name, category, price, qty, note, options }
   const customer = ref(null);
   const table = ref(null); // { id, code }
-  const orderType = ref("dine_in");
+  // null = belum dipilih; kasir wajib memilih Dine-in / Take away sebelum bayar
+  const orderType = ref(null);
   const guests = ref(null);
   const note = ref("");
   const kitchenStatus = ref(null);
@@ -120,7 +121,7 @@ export const useOrderStore = defineStore("order", () => {
     lines.value = [];
     customer.value = null;
     table.value = null;
-    orderType.value = "dine_in";
+    orderType.value = null;
     guests.value = null;
     note.value = "";
     kitchenStatus.value = null;
@@ -174,7 +175,7 @@ export const useOrderStore = defineStore("order", () => {
       employeeId,
       grandTotal: total.value,
       tableId: table.value?.id ?? null,
-      orderType: orderType.value,
+      orderType: orderType.value ?? "dine_in",
       guests: guests.value,
       note: note.value,
       billItems: lines.value.map(({ product_id, price, qty, note: n, options }) => ({
@@ -193,7 +194,7 @@ export const useOrderStore = defineStore("order", () => {
     return {
       billId: id,
       table_code: table.value?.code ?? null,
-      order_type: orderType.value,
+      order_type: orderType.value ?? "dine_in",
       guests: guests.value,
       customer_name: customer.value?.name ?? null,
       note: note.value || null,

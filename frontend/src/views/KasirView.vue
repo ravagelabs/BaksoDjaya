@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowRight, ChevronDown, FilePenLine, Pencil, ShoppingBag, Minus, Plus, Printer, Search, Trash2, UserRound, X } from "@lucide/vue";
+import { ArrowRight, ChevronDown, FilePenLine, Pencil, ShoppingBag, Minus, Plus, Printer, Search, Trash2, UserRound, Utensils, X } from "@lucide/vue";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import ProductCard from "@/components/ProductCard.vue";
 import CustomizeDialog from "@/components/CustomizeDialog.vue";
@@ -203,7 +204,18 @@ async function saveOrder() {
   }
 }
 
+// Dine-in / Take away wajib dipilih: kalau belum, tanya dulu lewat popup besar
+const askType = ref(false);
 function goPay() {
+  if (!order.orderType) {
+    askType.value = true;
+    return;
+  }
+  router.push("/transaksi/bayar");
+}
+function pickTypeAndPay(type) {
+  order.setOrderType(type);
+  askType.value = false;
   router.push("/transaksi/bayar");
 }
 </script>
@@ -329,7 +341,12 @@ function goPay() {
         </div>
 
         <div class="mt-2.5 flex items-center gap-2">
-        <div class="grid min-w-0 flex-1 grid-cols-2 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Tipe pesanan">
+        <div
+          class="grid min-w-0 flex-1 grid-cols-2 gap-1 rounded-xl p-1 transition-colors"
+          :class="!order.orderType && !order.isEmpty ? 'bg-warning-soft ring-2 ring-warning/60' : 'bg-muted'"
+          role="radiogroup"
+          aria-label="Tipe pesanan"
+        >
           <button
             v-for="t in KASIR_ORDER_TYPES"
             :key="t.value"
@@ -484,6 +501,34 @@ function goPay() {
       :updated="slipUpdated"
       @print="printOrderSlip(slipBill, { updated: slipUpdated })"
     />
+    <!-- Wajib pilih Dine-in / Take away sebelum bayar -->
+    <Dialog v-model:open="askType">
+      <DialogContent class="p-6 sm:max-w-md sm:p-8">
+        <DialogHeader>
+          <DialogTitle class="text-2xl font-bold">Makan di sini atau bawa pulang?</DialogTitle>
+          <DialogDescription class="text-[15px]">Tanyakan ke pelanggan dulu, lalu pilih.</DialogDescription>
+        </DialogHeader>
+        <div class="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            class="flex h-36 flex-col items-center justify-center gap-3 rounded-2xl border-2 bg-card text-xl font-bold transition hover:border-primary hover:bg-secondary"
+            @click="pickTypeAndPay('dine_in')"
+          >
+            <Utensils class="size-10" /> Dine-in
+            <span class="-mt-2 text-sm font-normal text-muted-foreground">Makan di sini</span>
+          </button>
+          <button
+            type="button"
+            class="flex h-36 flex-col items-center justify-center gap-3 rounded-2xl border-2 bg-card text-xl font-bold transition hover:border-primary hover:bg-secondary"
+            @click="pickTypeAndPay('pickup')"
+          >
+            <ShoppingBag class="size-10" /> Take away
+            <span class="-mt-2 text-sm font-normal text-muted-foreground">Bawa pulang</span>
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
     <CustomerPopup
       v-model:open="showCustomer"
       :customers="customers"
