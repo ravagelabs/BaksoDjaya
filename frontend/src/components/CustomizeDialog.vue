@@ -24,10 +24,16 @@ const choices = ref({}); // { [groupName]: optionName }
 const extras = ref([]); // nama tambahan yang dipilih
 const paketBakso = ref("");
 const paketMie = ref("");
+const variantId = ref(null); // jenis yang dipilih untuk kartu gabungan (mis. Mie / Bihun / Kwetiau)
+const isVariant = computed(() => Boolean(props.product?.isVariant));
 
 const isPaket = computed(() => Boolean(props.product?.isPaket));
 const paket = computed(() => (isPaket.value ? catalog.paketOptions(props.product.name) : { bakso: [], mie: [] }));
-const groups = computed(() => (props.product && !isPaket.value ? catalog.modifierGroups(props.product.category, props.product.id) : []));
+const groups = computed(() =>
+  props.product && !isPaket.value
+    ? catalog.modifierGroups(props.product.category, isVariant.value ? variantId.value : props.product.id)
+    : []
+);
 const choiceGroups = computed(() => groups.value.filter((g) => g.kind === "choice"));
 const extraGroups = computed(() => groups.value.filter((g) => g.kind === "extra"));
 
@@ -37,6 +43,9 @@ watch(
   ([isOpen]) => {
     if (!isOpen || !props.product) return;
     const e = props.editing;
+    variantId.value = isVariant.value
+      ? e?.variant ?? (props.product.variants.find((v) => v.is_available) ?? props.product.variants[0]).id
+      : null;
     qty.value = e?.qty ?? 1;
     note.value = e?.note ?? "";
     const picked = e?.options ?? [];
@@ -53,9 +62,15 @@ watch(
   { immediate: true }
 );
 
+// Ganti jenis: grup pilihan yang belum punya nilai diberi opsi pertama
+watch(choiceGroups, (list) => {
+  for (const g of list) if (!g.options.some((o) => o.name === choices.value[g.name])) choices.value[g.name] = g.options[0].name;
+});
+
 // Produk yang benar-benar ditambahkan: untuk paket, baris kombinasi yang cocok
 const targetProduct = computed(() => {
   if (!props.product) return null;
+  if (isVariant.value) return props.product.variants.find((v) => v.id === variantId.value) ?? null;
   if (!isPaket.value) return props.product;
   return catalog.findPaket(props.product.name, paketBakso.value, paketMie.value) ?? null;
 });
@@ -154,6 +169,27 @@ const choiceClass = (selected) =>
               </div>
             </div>
           </template>
+
+          <!-- Menu gabungan: pilih jenisnya -->
+          <div v-if="isVariant">
+            <h3 class="text-base font-semibold">Pilih jenis</h3>
+            <p class="mb-2 text-xs text-muted-foreground">Pilih satu</p>
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <button
+                v-for="v in product.variants"
+                :key="v.id"
+                type="button"
+                class="flex h-12 items-center justify-between gap-2 rounded-xl border px-3 text-left text-[15px] transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                :class="choiceClass(variantId === v.id)"
+                :disabled="!v.is_available"
+                @click="variantId = v.id"
+              >
+                <span class="truncate">{{ catalog.variantLabel(product, v) }}</span>
+                <span v-if="!v.is_available" class="shrink-0 text-xs">Habis</span>
+                <span v-else-if="v.price > product.price" class="shrink-0 text-sm opacity-70">+{{ number.format(v.price - product.price) }}</span>
+              </button>
+            </div>
+          </div>
 
           <!-- Produk biasa: grup pilihan dari tabel modifier -->
           <div v-for="g in choiceGroups" :key="g.name">

@@ -27,6 +27,7 @@ const category = ref("");
 const price = ref("");
 const hpp = ref("");
 const description = ref("");
+const variantGroup = ref("");
 const picture = ref("");
 const available = ref(true);
 const showUrl = ref(false);
@@ -49,6 +50,7 @@ watch(
     price.value = p ? fmt(p.price) : "";
     hpp.value = p ? fmt(p.hpp ?? 0) : "";
     description.value = p?.description ?? "";
+    variantGroup.value = p?.variant_group ?? "";
     picture.value = p?.picture ?? "";
     available.value = p ? p.is_available : true;
     showUrl.value = false;
@@ -119,6 +121,7 @@ async function submit() {
     price: toInt(price.value),
     hpp: toInt(hpp.value),
     description: description.value,
+    variant_group: variantGroup.value,
     picture: picture.value,
     is_available: available.value,
   };
@@ -276,6 +279,22 @@ async function submit() {
           <p v-if="margin !== null" class="-mt-3 text-xs text-muted-foreground">
             Margin {{ margin }}% dari harga jual.
           </p>
+
+          <div class="grid gap-2">
+            <label for="pf-group" class="text-sm font-semibold">Gabung di kasir <span class="font-normal text-muted-foreground">(opsional)</span></label>
+            <input
+              id="pf-group"
+              v-model="variantGroup"
+              list="pf-groups"
+              maxlength="40"
+              placeholder="Contoh: Mie / Bihun / Kwetiau"
+              class="h-11 rounded-xl border bg-card px-4 text-base outline-none focus:border-primary focus:ring-3 focus:ring-ring/20"
+            />
+            <datalist id="pf-groups">
+              <option v-for="g in catalog.variantGroups" :key="g" :value="g" />
+            </datalist>
+            <p class="text-xs text-muted-foreground">Menu dengan nama gabungan yang sama tampil jadi satu kartu, jenisnya dipilih saat dipencet.</p>
+          </div>
 
           <div class="grid gap-2">
             <label for="pf-desc" class="text-sm font-semibold">Deskripsi</label>

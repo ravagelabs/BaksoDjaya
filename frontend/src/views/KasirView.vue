@@ -44,7 +44,8 @@ const visibleProducts = computed(() => {
   return catalog.gridProducts.filter((p) => {
     if (category.value !== "Semua" && (p.category || "Lainnya") !== category.value) return false;
     if (!q) return true;
-    return p.name.toLowerCase().includes(q) || String(p.id) === q;
+    const names = p.isVariant ? [p.name, ...p.variants.map((v) => v.name)] : [p.name];
+    return names.some((n) => n.toLowerCase().includes(q)) || String(p.id) === q;
   });
 });
 
@@ -64,7 +65,7 @@ function openCustomize(product) {
 function editLine(line) {
   const found = catalog.cardForLine(line);
   if (!found) return;
-  editingLine.value = { key: line.key, qty: line.qty, note: line.note ?? "", options: line.options ?? [], paket: found.paket };
+  editingLine.value = { key: line.key, qty: line.qty, note: line.note ?? "", options: line.options ?? [], paket: found.paket, variant: found.variant };
   customizing.value = found.product;
   showCustomize.value = true;
 }
@@ -72,7 +73,8 @@ function editLine(line) {
 // Tombol +: langsung tambah dengan pilihan default. Paket tetap harus dipilih dulu.
 function quickAdd(product) {
   if (product.isPaket || catalog.hasChoices(product)) return openCustomize(product);
-  order.addLine({ product, qty: 1, options: catalog.defaultOptions(product.category, product.id) });
+  const target = product.isVariant ? product.variants[0] : product;
+  order.addLine({ product: target, qty: 1, options: catalog.defaultOptions(target.category, target.id) });
 }
 
 function addFromDialog(item) {

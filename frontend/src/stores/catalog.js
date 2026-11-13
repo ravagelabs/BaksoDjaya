@@ -39,7 +39,24 @@ export const useCatalogStore = defineStore("catalog", () => {
   const gridProducts = computed(() => {
     const seen = new Map();
     const result = [];
+    const variantCards = new Map();
     for (const p of products.value) {
+      // Menu sejenis (variant_group sama) jadi satu kartu, jenisnya dipilih di dialog
+      if (p.variant_group && !isPaket(p)) {
+        const card = variantCards.get(p.variant_group);
+        if (card) {
+          card.variants.push(p);
+          card.is_available = card.is_available || p.is_available;
+          card.price = Math.min(card.price, p.price);
+          card.priceVaries = card.variants.some((v) => v.price !== card.variants[0].price);
+          if (!card.picture && p.picture) card.picture = p.picture;
+          continue;
+        }
+        const entry = { ...p, name: p.variant_group, isPaket: false, isVariant: true, variants: [p], priceVaries: false };
+        variantCards.set(p.variant_group, entry);
+        result.push(entry);
+        continue;
+      }
       if (!isPaket(p)) {
         result.push({ ...p, isPaket: false });
         continue;
@@ -88,9 +105,21 @@ export const useCatalogStore = defineStore("catalog", () => {
       const card = gridProducts.value.find((g) => g.isPaket && g.name === m[1]);
       return card ? { product: card, paket: { bakso: m[2], mie: m[3] } } : null;
     }
+    const variantCard = gridProducts.value.find((g) => g.isVariant && g.variants.some((v) => v.id === line.product_id));
+    if (variantCard) return { product: variantCard, paket: null, variant: line.product_id };
     const card = gridProducts.value.find((g) => g.id === line.product_id);
     return card ? { product: card, paket: null } : null;
   }
+
+  // Nama jenis di dialog: "BAKSO URAT" dalam grup "Bakso" -> "Urat"
+  function variantLabel(card, product) {
+    const name = product.name.trim();
+    const prefix = String(card.name).trim().toUpperCase() + " ";
+    const short = name.toUpperCase().startsWith(prefix) ? name.slice(prefix.length) : name;
+    return short.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
+  const variantGroups = computed(() => [...new Set(products.value.map((p) => p.variant_group).filter(Boolean))]);
 
   const findPaket = (base, bakso, mie) =>
     products.value.find((p) => p.name === `${base} - BAKSO ${bakso} + ${mie}`);
@@ -118,6 +147,7 @@ export const useCatalogStore = defineStore("catalog", () => {
 
   // Menu yang punya pilihan wajib (mis. Panas / Es): tombol + membuka dialog, bukan langsung tambah
   const hasChoices = (product) =>
+    (product.isVariant && product.variants.length > 1) ||
     modifierGroups(product.category, product.id).some((g) => g.kind === "choice" && g.options.length > 1);
 
   // Menyisipkan menu baru atau mengganti data menu yang sudah ada
@@ -156,5 +186,7 @@ export const useCatalogStore = defineStore("catalog", () => {
     setAvailability,
     upsert,
     remove,
+    variantLabel,
+    variantGroups,
   };
 });

@@ -1,6 +1,6 @@
 import db from "../db/db.js";
 
-const COLUMNS = 'id, name, price, picture, category, description, hpp, is_available';
+const COLUMNS = 'id, name, price, picture, category, description, hpp, is_available, variant_group';
 
 export const getProducts = async () => {
     try {
@@ -35,8 +35,8 @@ export const createProduct = async (input) => {
     if (input.hpp !== undefined && !isMoney(input.hpp)) throw new Error('HPP harus angka 0 atau lebih.');
 
     return await db.one(
-        `INSERT INTO product (name, price, hpp, category, description, picture, is_available)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO product (name, price, hpp, category, description, picture, is_available, variant_group)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING ${COLUMNS};`,
         [
             name,
@@ -46,6 +46,7 @@ export const createProduct = async (input) => {
             text(input.description) || null,
             text(input.picture) || '',
             typeof input.is_available === 'boolean' ? input.is_available : true,
+            text(input.variant_group) || null,
         ]
     );
 };
@@ -64,7 +65,8 @@ export const updateProduct = async (id, input) => {
             category = CASE WHEN $5::boolean THEN $6 ELSE category END,
             description = CASE WHEN $7::boolean THEN $8 ELSE description END,
             picture = COALESCE($9, picture),
-            is_available = COALESCE($10, is_available)
+            is_available = COALESCE($10, is_available),
+            variant_group = CASE WHEN $11::boolean THEN $12 ELSE variant_group END
         WHERE id = $1
         RETURNING ${COLUMNS};
     `;
@@ -80,6 +82,8 @@ export const updateProduct = async (id, input) => {
         text(input.description) || null,
         typeof input.picture === 'string' ? input.picture.trim() : null,
         typeof input.is_available === 'boolean' ? input.is_available : null,
+        input.variant_group !== undefined,
+        text(input.variant_group) || null,
     ]);
 
     if (!product) throw new Error(`Product #${id} not found.`);

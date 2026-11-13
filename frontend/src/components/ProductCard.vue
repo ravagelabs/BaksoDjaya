@@ -36,7 +36,7 @@ const disabled = computed(() => !props.product.is_available);
       </div>
       <p class="mt-3 line-clamp-2 pr-12 pl-1.5 text-[17px] font-semibold leading-snug">{{ titleCase(product.name) }}</p>
       <p class="tabular mt-1 pr-12 pl-1.5 pb-1 text-[15px] text-muted-foreground">
-        <span v-if="product.isPaket">mulai </span>{{ formatRp(product.price) }}
+        <span v-if="product.isPaket || product.priceVaries">mulai </span>{{ formatRp(product.price) }}
       </p>
     </button>
     <button
