@@ -146,10 +146,11 @@ export async function prepareReceiptLogo(url) {
 // Tulisan dicoret (mis. SELEDRI dicoret = jangan pakai seledri). Printer thermal tidak punya huruf coret,
 // jadi tulisan digambar jadi gambar hitam-putih selebar kertas (384 titik) lalu dicetak sebagai raster.
 // Return null kalau tidak ada canvas (mis. bukan di browser).
-function strikeRaster(text, { size = 34, indent = 34 } = {}) {
+function strikeRaster(text, { indentChars = 3 } = {}) {
   if (typeof document === "undefined") return null;
+  // Meniru huruf printer "tinggi 2x": 12 titik lebar x 48 titik tinggi per huruf, tebal
   const w = 384;
-  const h = Math.round(size * 1.35);
+  const h = 52;
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
@@ -157,15 +158,20 @@ function strikeRaster(text, { size = 34, indent = 34 } = {}) {
   ctx.fillStyle = "#fff";
   ctx.fillRect(0, 0, w, h);
   ctx.fillStyle = "#000";
-  let fs = size;
-  const font = (n) => `700 ${n}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
-  ctx.font = font(fs);
-  while (ctx.measureText(text).width > w - indent * 2 && fs > 16) ctx.font = font(--fs);
+  const x0 = indentChars * 12;
+  ctx.save();
+  ctx.scale(1, 2); // tinggi 2x seperti teks printer
+  ctx.font = `bold 20px "Courier New", ui-monospace, Menlo, monospace`;
   ctx.textBaseline = "middle";
-  ctx.fillText(text, indent, h / 2);
-  const tw = ctx.measureText(text).width;
-  // garis coret tebal di tengah tulisan, sedikit lebih panjang dari tulisannya
-  ctx.fillRect(indent - 8, Math.round(h / 2 - fs * 0.05), tw + 16, Math.max(4, Math.round(fs * 0.1)));
+  // paksa lebar tiap huruf 12 titik supaya sejajar dengan baris lain
+  const chars = [...text];
+  chars.forEach((ch, k) => {
+    const cw = ctx.measureText(ch).width;
+    ctx.fillText(ch, x0 + k * 12 + (12 - cw) / 2, h / 4);
+  });
+  ctx.restore();
+  // garis coret tebal di tengah tulisan
+  ctx.fillRect(x0 - 6, Math.round(h / 2) - 3, chars.length * 12 + 12, 5);
   const px = ctx.getImageData(0, 0, w, h).data;
   const rowBytes = w / 8;
   const data = new Uint8Array(rowBytes * h);
@@ -372,23 +378,23 @@ export function buildKitchenSlip(bill) {
     const { head, parts } = title(i.name);
     BIG();
     BOLD(true);
-    const q = `${i.qty}`;
+    const q = `${i.qty}x`;
     wrap(head.toUpperCase(), 16 - q.length - 1)
       .split("\n")
       .filter(Boolean)
       .forEach((l, k) => write(`${k === 0 ? q : " ".repeat(q.length)} ${l}\n`));
     TALL();
     for (const p of parts) write(wrap(p.toUpperCase(), 32, "   "));
-    const opts = optionsText(i.options);
-    for (const o of opts ? opts.split(", ") : []) {
-      const label = o.replace(/ \(\+[\d.]+\)$/, "").toUpperCase();
-      if (label.startsWith("TANPA ")) {
-        // "Tanpa seledri" dicetak SELEDRI dicoret supaya tidak ketuker
-        const what = label.slice(6);
+    // Pilihan: "Pakai seledri" -> SELEDRI biasa, "Tanpa seledri" -> SELEDRI dicoret. Ukuran sama dengan BIHUN dll.
+    for (const o of i.options ?? []) {
+      const m = /^(pakai|tanpa)\b\s*(.*)$/i.exec(clean(o.name));
+      const what = (m ? m[2] || o.group || "" : clean(o.name)).toUpperCase();
+      if (!what) continue;
+      if (m && m[1].toLowerCase() === "tanpa") {
         const r = strikeRaster(what);
         if (r) bytes.push(...r);
         else write(`   JANGAN ${what}\n`);
-      } else write(wrap(label, 32, "   "));
+      } else write(wrap(what, 32, "   "));
     }
     if (i.note) write(wrap(`CATATAN: ${i.note.toUpperCase()}`, 32, "   "));
     BOLD(false);
