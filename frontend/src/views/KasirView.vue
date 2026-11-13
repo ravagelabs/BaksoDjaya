@@ -259,7 +259,7 @@ function goPay() {
     <!-- HP: bar bawah untuk membuka pesanan -->
     <button
       type="button"
-      class="absolute inset-x-3 bottom-3 z-20 flex h-14 items-center justify-between rounded-2xl bg-primary px-4 text-primary-foreground shadow-lg md:hidden"
+      class="absolute inset-x-3 bottom-3 z-20 flex h-14 items-center justify-between rounded-2xl bg-cta px-4 text-cta-foreground shadow-lg md:hidden"
       :aria-expanded="showOrderSheet"
       @click="showOrderSheet = true"
     >

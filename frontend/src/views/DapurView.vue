@@ -183,7 +183,7 @@ async function advance(b, next) {
           <button
             type="button"
             class="mt-4 h-14 w-full rounded-xl px-7 text-left text-lg font-semibold transition-colors disabled:opacity-60"
-            :class="col.primary ? 'bg-primary text-primary-foreground hover:bg-primary-hover' : 'bg-muted text-foreground hover:bg-[#e9e9ec]'"
+            :class="col.primary ? 'bg-cta text-cta-foreground hover:bg-cta-hover' : 'bg-muted text-foreground hover:bg-[#e9e9ec]'"
             :disabled="busy === b.billId"
             @click="advance(b, col.next)"
           >

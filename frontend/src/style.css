@@ -32,6 +32,10 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
+  --color-cta: var(--cta);
+  --color-cta-foreground: var(--cta-foreground);
+  --color-cta-hover: var(--cta-hover);
+  --color-secondary-hover: var(--secondary-hover);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
@@ -52,92 +56,102 @@
 
 @theme {
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", sans-serif;
-  --shadow-card: 0 1px 2px rgb(28 22 38 / 0.04), 0 4px 16px -6px rgb(28 22 38 / 0.08);
-  --shadow-float: 0 2px 4px rgb(28 22 38 / 0.05), 0 12px 32px -12px rgb(28 22 38 / 0.18);
+  --shadow-card: 0 1px 2px rgb(28 25 23 / 0.04), 0 4px 16px -6px rgb(28 25 23 / 0.08);
+  --shadow-float: 0 2px 4px rgb(28 25 23 / 0.05), 0 12px 32px -12px rgb(28 25 23 / 0.18);
 }
 
-/* Palet mengikuti mockup Ravage POS / Bakso Djaya (halaman 08) */
 :root {
+  /* Prinsip 60/30/10:
+     60% kanvas terang, 30% tinta gelap (navigasi, teks, pilihan aktif),
+     10% aksen — HANYA untuk tombol aksi utama (Button default / kelas *-cta). */
   --radius: 0.875rem;
-  --background: #f5f5f7;   /* Canvas */
-  --foreground: #1d1d1f;   /* Charcoal */
-  --card: #ffffff;         /* Surface */
-  --card-foreground: #1d1d1f;
+  --background: #f6f5f2;   /* Kanvas hangat */
+  --foreground: #1c1917;   /* Tinta arang */
+  --card: #ffffff;
+  --card-foreground: #1c1917;
   --popover: #ffffff;
-  --popover-foreground: #1d1d1f;
-  --primary: #6536b5;      /* Plum */
+  --popover-foreground: #1c1917;
+  --primary: #1c1917;      /* Tinta: pilihan aktif, chip, toggle */
   --primary-foreground: #ffffff;
-  --primary-hover: #572c9e;
-  --secondary: #f0ebf8;    /* Lavender */
-  --secondary-foreground: #6536b5;
-  --muted: #f2f2f4;
-  --muted-foreground: #6e6e73;
-  --accent: #f0ebf8;
-  --accent-foreground: #6536b5;
+  --primary-hover: #33302c;
+  --cta: #d9480f;          /* Aksen: oranye bara, khusus tombol utama */
+  --cta-foreground: #ffffff;
+  --cta-hover: #c03d0a;
+  --secondary: #eceae6;
+  --secondary-hover: #e2dfda;
+  --secondary-foreground: #1c1917;
+  --muted: #f0eeeb;
+  --muted-foreground: #6b6660;
+  --accent: #eceae6;
+  --accent-foreground: #1c1917;
   --destructive: #c4314b;
   --success: #24765a;
   --success-soft: #e7f2ec;
-  --warning: #7a5418;
-  --warning-soft: #fff3dc;
-  --nav: #51366f;          /* Ungu PDR PRO */
-  --nav-foreground: #f5f5f7;
-  --border: #e5e5ea;
-  --input: #e5e5ea;
-  --ring: #6536b5;
-  --chart-1: #6536b5;
-  --chart-2: #ddd0f0;
+  --warning: #7a5a00;
+  --warning-soft: #fdf3c4;
+  --nav: #1c1917;
+  --nav-foreground: #f6f5f2;
+  --border: #e6e3de;
+  --input: #e6e3de;
+  --ring: #1c1917;
+  --chart-1: #1c1917;
+  --chart-2: #d9d5cf;
   --chart-3: #24765a;
   --chart-4: #e3a008;
-  --chart-5: #6e6e73;
+  --chart-5: #6b6660;
   --sidebar: #ffffff;
-  --sidebar-foreground: #1d1d1f;
-  --sidebar-primary: #6536b5;
+  --sidebar-foreground: #1c1917;
+  --sidebar-primary: #1c1917;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f0ebf8;
-  --sidebar-accent-foreground: #6536b5;
-  --sidebar-border: #e5e5ea;
-  --sidebar-ring: #6536b5;
+  --sidebar-accent: #eceae6;
+  --sidebar-accent-foreground: #1c1917;
+  --sidebar-border: #e6e3de;
+  --sidebar-ring: #1c1917;
 }
 
 .dark {
-  --background: #141019;
-  --foreground: #f3f0f7;
-  --card: #1e1926;
-  --card-foreground: #f3f0f7;
-  --popover: #1e1926;
-  --popover-foreground: #f3f0f7;
-  --primary: #9a7cc0;
-  --primary-foreground: #ffffff;
-  --primary-hover: #ab90cd;
+  --background: #141312;
+  --foreground: #f4f2ef;
+  --card: #1e1c1a;
+  --card-foreground: #f4f2ef;
+  --popover: #1e1c1a;
+  --popover-foreground: #f4f2ef;
+  --primary: #f4f2ef;
+  --primary-foreground: #1c1917;
+  --primary-hover: #dedbd6;
+  --cta: #f0642a;
+  --cta-foreground: #ffffff;
+  --cta-hover: #f67a45;
   --success: #5fc59c;
   --success-soft: #16302a;
   --warning: #f3c97a;
   --warning-soft: #3a2e17;
-  --nav: #2a1d3b;
-  --nav-foreground: #f5f5f7;
-  --secondary: #2a2234;
-  --secondary-foreground: #e4dbef;
-  --muted: #2a2234;
-  --muted-foreground: #a198ad;
-  --accent: #2a2234;
-  --accent-foreground: #e4dbef;
+  --nav: #0f0e0d;
+  --nav-foreground: #f4f2ef;
+  --secondary: #2a2725;
+  --secondary-hover: #34312e;
+  --secondary-foreground: #f4f2ef;
+  --muted: #2a2725;
+  --muted-foreground: #a8a29c;
+  --accent: #2a2725;
+  --accent-foreground: #f4f2ef;
   --destructive: #e5486f;
-  --border: #2e2738;
-  --input: #2e2738;
-  --ring: #9a7cc0;
-  --chart-1: #9a7cc0;
-  --chart-2: #c4a8e6;
-  --chart-3: #f06292;
+  --border: #2f2c29;
+  --input: #2f2c29;
+  --ring: #f4f2ef;
+  --chart-1: #f4f2ef;
+  --chart-2: #57524d;
+  --chart-3: #5fc59c;
   --chart-4: #fbbf24;
-  --chart-5: #a198ad;
-  --sidebar: #1e1926;
-  --sidebar-foreground: #f3f0f7;
-  --sidebar-primary: #9a7cc0;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #2a2234;
-  --sidebar-accent-foreground: #e4dbef;
-  --sidebar-border: #2e2738;
-  --sidebar-ring: #9a7cc0;
+  --chart-5: #a8a29c;
+  --sidebar: #1e1c1a;
+  --sidebar-foreground: #f4f2ef;
+  --sidebar-primary: #f4f2ef;
+  --sidebar-primary-foreground: #1c1917;
+  --sidebar-accent: #2a2725;
+  --sidebar-accent-foreground: #f4f2ef;
+  --sidebar-border: #2f2c29;
+  --sidebar-ring: #f4f2ef;
 }
 
 @layer base {
