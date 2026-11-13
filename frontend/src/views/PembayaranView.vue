@@ -271,6 +271,7 @@ function closePrint(open) {
       :error="printError"
       @update:open="closePrint"
       kitchen
+      sequential
       @print-bill="printBill(printData)"
       @print-kitchen="printKitchenSlip(printData)"
     />
