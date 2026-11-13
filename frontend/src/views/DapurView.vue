@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { Volume2, VolumeX, X } from "@lucide/vue";
+import { X } from "@lucide/vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
-import { useLive, unlockSound, soundReady, chime } from "@/lib/live";
+import { useLive } from "@/lib/live";
 import { api } from "@/lib/api";
 import { minutesSince, orderNo, orderTypeLabel, splitName, optionsText } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
@@ -15,13 +15,6 @@ const online = ref(true);
 const now = ref(Date.now());
 const busy = ref(null); // id bill yang sedang diperbarui
 const fresh = ref(new Set()); // pesanan yang baru masuk, disorot beberapa detik
-const soundOn = ref(false);
-
-// Ketukan pertama di halaman mengaktifkan suara (aturan browser, terutama Safari iPad)
-function enableSound() {
-  unlockSound();
-  setTimeout(() => (soundOn.value = soundReady()), 50);
-}
 
 function highlight(id) {
   fresh.value = new Set(fresh.value).add(id);
@@ -37,7 +30,6 @@ const { connected } = useLive(async (type, data) => {
   await load();
   if (type === "kitchen:new") {
     if (data.billId) highlight(data.billId);
-    if (soundOn.value) chime();
     const b = bills.value.find((x) => x.billId === data.billId);
     ui.toast(b ? `Pesanan baru: ${label(b)}` : "Pesanan baru masuk");
   }
@@ -132,17 +124,6 @@ async function cancelOrder() {
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <button
-          type="button"
-          class="flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors"
-          :class="soundOn ? 'bg-secondary text-primary' : 'bg-muted text-muted-foreground hover:text-foreground'"
-          :aria-pressed="soundOn"
-          @click="soundOn ? (soundOn = false) : enableSound()"
-        >
-          <Volume2 v-if="soundOn" class="size-4" />
-          <VolumeX v-else class="size-4" />
-          {{ soundOn ? "Suara aktif" : "Aktifkan suara" }}
-        </button>
         <span
           class="flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold"
           :class="connected && online ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'"
