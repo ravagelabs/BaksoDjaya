@@ -10,6 +10,7 @@ const views = {
   transaksi: () => import('@/views/TransaksiView.vue'),
   shift: () => import('@/views/ShiftView.vue'),
   laporan: () => import('@/views/LaporanView.vue'),
+  keuangan: () => import('@/views/KeuanganView.vue'),
   pengaturan: () => import('@/views/PengaturanView.vue'),
 }
 
@@ -23,7 +24,9 @@ const router = createRouter({
     { path: '/transaksi', name: 'transaksi', component: views.transaksi },
     { path: '/transaksi/bayar', name: 'bayar', component: PembayaranView },
     { path: '/shift', name: 'shift', component: views.shift },
-    { path: '/laporan', name: 'laporan', component: views.laporan },
+    { path: '/beranda', name: 'beranda', component: views.laporan },
+    { path: '/laporan', redirect: '/beranda' },
+    { path: '/keuangan', name: 'keuangan', component: views.keuangan },
     { path: '/pengaturan', name: 'pengaturan', component: views.pengaturan },
     { path: '/:pathMatch(.*)*', redirect: '/kasir' },
   ],

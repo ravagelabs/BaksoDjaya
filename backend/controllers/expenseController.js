@@ -6,7 +6,8 @@ export const EXPENSE_CATEGORIES = [
     'Kemasan', 'Transport', 'Marketing', 'Perawatan', 'Lainnya',
 ];
 
-const COLUMNS = `id, spent_on::text AS spent_on, category, name, amount, created_at`;
+const COLUMNS = `id, spent_on::text AS spent_on, category, name, amount, paid_from, created_at`;
+const PAID_FROM = ['1-1100', '1-1200', '1-1300'];
 
 // Satu tanggal (date) atau rentang (from-to)
 export const getExpenses = async (from, to = from) => {
@@ -19,16 +20,16 @@ export const getExpenses = async (from, to = from) => {
     );
 };
 
-export const addExpense = async (name, amount, date, category) => {
+export const addExpense = async (name, amount, date, category, paidFrom) => {
     if (!name || !name.trim()) throw new Error('Expense name is required.');
     if (!Number.isInteger(amount) || amount <= 0) throw new Error('Amount must be a positive integer.');
     const cat = EXPENSE_CATEGORIES.includes(category) ? category : 'Lainnya';
 
     return await db.one(
-        `INSERT INTO expense (name, amount, spent_on, category)
-         VALUES ($1, $2, COALESCE($3::date, (now() AT TIME ZONE 'Asia/Jakarta')::date), $4)
+        `INSERT INTO expense (name, amount, spent_on, category, paid_from)
+         VALUES ($1, $2, COALESCE($3::date, (now() AT TIME ZONE 'Asia/Jakarta')::date), $4, $5)
          RETURNING ${COLUMNS};`,
-        [name.trim(), amount, date || null, cat]
+        [name.trim(), amount, date || null, cat, PAID_FROM.includes(paidFrom) ? paidFrom : '1-1100']
     );
 };
 

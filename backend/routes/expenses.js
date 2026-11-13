@@ -23,11 +23,11 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
     try {
-        const { name, amount, date, category } = req.body ?? {};
+        const { name, amount, date, category, paid_from } = req.body ?? {};
         if (date && !DATE_RE.test(date)) {
             return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
         }
-        const expense = await addExpense(name, Number(amount), date, category);
+        const expense = await addExpense(name, Number(amount), date, category, paid_from);
         res.status(201).json({ message: 'Expense created successfully', data: expense });
     } catch (err) {
         console.error('Error in POST /expenses:', err);

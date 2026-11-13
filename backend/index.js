@@ -13,6 +13,7 @@ import usersRouter from './routes/users.js'
 import uploadsRouter, { UPLOAD_DIR } from './routes/uploads.js'
 import eventsRouter from './routes/events.js'
 import settingsRouter from './routes/settings.js'
+import financeRouter from './routes/finance.js'
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 import { requireAuth, requireRole, safeErrors } from './lib/http.js';
@@ -51,14 +52,14 @@ app.use(safeErrors);
 // Pengaturan toko (logo): GET publik untuk halaman login, PUT dicek di route
 app.use('/settings', settingsRouter);
 
-const API_PATHS = ['/uploads', '/products', '/bills', '/customers', '/shifts', '/modifiers', '/tables', '/expenses', '/reports', '/events', '/users'];
+const API_PATHS = ['/finance', '/uploads', '/products', '/bills', '/customers', '/shifts', '/modifiers', '/tables', '/expenses', '/reports', '/events', '/users'];
 app.use(API_PATHS, requireAuth);
 
 // Khusus pengelola (owner): ubah menu & foto, laporan/HPP, biaya, riwayat shift
 const WRITE = ['POST', 'PUT', 'PATCH', 'DELETE'];
 app.use('/uploads', requireRole());
 app.use(['/products', '/modifiers'], requireRole(undefined, WRITE));
-app.use(['/reports', '/expenses', '/users'], requireRole());
+app.use(['/reports', '/expenses', '/users', '/finance'], requireRole());
 // Batalkan pesanan: akun utama semua pesanan; admin hanya pesanan yang masih di dapur (dicek di route)
 // /shifts: semua akun (karyawan hanya melihat shift miliknya, dicek di route)
 
@@ -83,6 +84,8 @@ app.use('/expenses', expensesRouter);
 app.use('/reports', reportsRouter);
 
 app.use('/users', usersRouter);
+
+app.use('/finance', financeRouter);
 
 // Update realtime untuk layar Dapur, Meja, dan Transaksi
 app.use('/events', eventsRouter);

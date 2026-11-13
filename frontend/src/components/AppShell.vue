@@ -32,6 +32,19 @@ const props = defineProps({
 const ui = useUiStore();
 const settings = useSettingsStore();
 onMounted(() => settings.load());
+
+// Setelah login, akun utama langsung ke Beranda (sekali per sesi; refresh halaman tidak memindahkan)
+onMounted(() => {
+  const key = `landed-${props.user.id}`;
+  let landed = false;
+  try {
+    landed = sessionStorage.getItem(key) === "1";
+    sessionStorage.setItem(key, "1");
+  } catch {
+    // sessionStorage tidak tersedia: anggap baru login
+  }
+  if (!landed && isManager.value && route.path === "/kasir") router.replace("/beranda");
+});
 const order = useOrderStore();
 const router = useRouter();
 const route = useRoute();
@@ -48,13 +61,15 @@ onUnmounted(() => document.documentElement.classList.remove("app-locked"));
 const MANAGER_ROLES = ["owner"];
 const isManager = computed(() => MANAGER_ROLES.includes(props.user.role));
 
+// Akun utama mulai dari Beranda (ringkasan bisnis); admin langsung Kasir
 const NAV_ALL = [
+  { to: "/beranda", label: "Beranda", manager: true },
   { to: "/kasir", label: "Kasir" },
   { to: "/meja", label: "Nomor" },
   { to: "/dapur", label: "Dapur" },
   { to: "/transaksi", label: "Transaksi" },
   { to: "/shift", label: "Shift" },
-  { to: "/laporan", label: "Laporan", manager: true },
+  { to: "/keuangan", label: "Keuangan", manager: true },
   { to: "/pengaturan", label: "Pengaturan", manager: true },
 ];
 const NAV = computed(() => NAV_ALL.filter((item) => !item.manager || isManager.value));
@@ -179,6 +194,11 @@ async function confirmLogout({ print = false } = {}) {
     showShift.value = false;
     order.reset();
     // useSession() in App.vue updates, which renders Login again
+    try {
+      sessionStorage.removeItem(`landed-${props.user.id}`);
+    } catch {
+      // abaikan
+    }
     await authClient.signOut();
   } catch (e) {
     shiftError.value = e.message; // popup stays open so they can retry
