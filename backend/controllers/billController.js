@@ -292,6 +292,9 @@ export const getSalesSummary = async (from, to) => {
             COALESCE(SUM(grand_total) FILTER (WHERE LOWER(payment_method::text) = 'cash'), 0)::float AS cash,
             COALESCE(SUM(grand_total) FILTER (WHERE LOWER(payment_method::text) = 'card'), 0)::float AS card,
             COALESCE(SUM(grand_total) FILTER (WHERE LOWER(payment_method::text) = 'qris'), 0)::float AS qris,
+            COALESCE(SUM(grand_total) FILTER (WHERE LOWER(payment_method::text) = 'transfer'), 0)::float AS transfer,
+            COALESCE(SUM(grand_total) FILTER (WHERE LOWER(payment_method::text) = 'gofood'), 0)::float AS gofood,
+            COALESCE(SUM(grand_total) FILTER (WHERE LOWER(payment_method::text) = 'grabfood'), 0)::float AS grabfood,
             COALESCE(SUM(grand_total), 0)::float AS total
         FROM bill
         WHERE payment_method IS NOT NULL

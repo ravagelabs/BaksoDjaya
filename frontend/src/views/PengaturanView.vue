@@ -4,7 +4,7 @@ import { Pencil, Plus, Search } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import ProductFormDialog from "@/components/ProductFormDialog.vue";
 import { api } from "@/lib/api";
-import { formatRp, number, dateTime, splitName, OUTLET_NAME, OUTLET_BRANCH } from "@/lib/format";
+import { formatRp, number, dateTime, splitName, OUTLET_NAME, OUTLET_BRANCH, paymentRows } from "@/lib/format";
 import MenuImage from "@/components/MenuImage.vue";
 import { useCatalogStore } from "@/stores/catalog";
 import { useUiStore } from "@/stores/ui";
@@ -212,10 +212,8 @@ function duration(from, to) {
             <span class="text-sm text-muted-foreground">{{ duration(s.created_at, s.ended_at) }}</span>
           </div>
           <p class="text-sm text-muted-foreground">{{ dateTime(s.created_at) }} – {{ dateTime(s.ended_at) }}</p>
-          <dl class="tabular mt-3 grid grid-cols-4 gap-2 text-sm">
-            <div><dt class="text-muted-foreground">Tunai</dt><dd>{{ number.format(s.cash) }}</dd></div>
-            <div><dt class="text-muted-foreground">Kartu</dt><dd>{{ number.format(s.card) }}</dd></div>
-            <div><dt class="text-muted-foreground">QRIS</dt><dd>{{ number.format(s.qris) }}</dd></div>
+          <dl class="tabular mt-3 grid grid-cols-3 gap-2 text-sm sm:grid-cols-6">
+            <div v-for="r in paymentRows(s)" :key="r.key"><dt class="text-muted-foreground">{{ r.label }}</dt><dd>{{ number.format(r.value) }}</dd></div>
             <div><dt class="text-muted-foreground">Total</dt><dd class="font-semibold">{{ number.format(s.total) }}</dd></div>
           </dl>
         </li>

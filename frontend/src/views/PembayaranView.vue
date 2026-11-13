@@ -5,7 +5,7 @@ import { ArrowLeft } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import PrintPopup from "@/components/PrintPopup.vue";
 import { api } from "@/lib/api";
-import { formatRp, number, orderNo, orderTypeLabel, splitName, optionsText } from "@/lib/format";
+import { formatRp, number, orderNo, orderTypeLabel, splitName, optionsText, PAYMENT_LABELS, PAYMENT_METHODS } from "@/lib/format";
 import { printBill } from "@/lib/receipt";
 import { useOrderStore } from "@/stores/order";
 import { useUiStore } from "@/stores/ui";
@@ -19,12 +19,16 @@ onMounted(() => {
   if (order.isEmpty) router.replace("/transaksi");
 });
 
-const METHODS = [
-  { value: "cash", label: "Tunai" },
-  { value: "qris", label: "QRIS" },
-  { value: "card", label: "Kartu" },
-];
-const method = ref("cash");
+const METHODS = PAYMENT_METHODS.map((value) => ({ value, label: PAYMENT_LABELS[value] }));
+const method = ref("qris");
+
+// Petunjuk singkat untuk metode non-tunai
+const METHOD_HINT = {
+  qris: "Tunjukkan QRIS ke pelanggan, lalu konfirmasi setelah pembayaran masuk.",
+  transfer: "Cek mutasi rekening, lalu konfirmasi setelah dana masuk.",
+  gofood: "Pesanan GoFood: pembayaran diselesaikan lewat aplikasi GoFood.",
+  grabfood: "Pesanan GrabFood: pembayaran diselesaikan lewat aplikasi GrabFood.",
+};
 
 // ---- Tunai: uang diterima, nominal cepat, kembalian ----
 const received = ref("");
@@ -154,14 +158,14 @@ function closePrint(open) {
       <!-- Metode -->
       <section class="flex flex-col">
         <h2 class="text-lg font-semibold">Metode pembayaran</h2>
-        <div class="mt-3 grid grid-cols-3 gap-3" role="radiogroup" aria-label="Metode pembayaran">
+        <div class="mt-3 grid grid-cols-3 gap-2.5 xl:grid-cols-5" role="radiogroup" aria-label="Metode pembayaran">
           <button
             v-for="m in METHODS"
             :key="m.value"
             type="button"
             role="radio"
             :aria-checked="method === m.value"
-            class="h-12 rounded-xl border px-4 text-left text-base transition-colors"
+            class="h-12 rounded-xl border px-3 text-center text-[15px] transition-colors"
             :class="method === m.value ? 'border-primary bg-secondary font-semibold text-primary' : 'bg-card hover:bg-muted/50'"
             @click="method = m.value"
           >
@@ -212,19 +216,13 @@ function closePrint(open) {
           </div>
         </template>
 
-        <p v-else-if="method === 'qris'" class="mt-5 rounded-2xl bg-muted/60 px-5 py-4 text-[15px]">
-          Tunjukkan QRIS ke pelanggan, lalu konfirmasi setelah pembayaran masuk.
-        </p>
-        <p v-else class="mt-5 rounded-2xl bg-muted/60 px-5 py-4 text-[15px]">
-          Proses kartu di mesin EDC, lalu konfirmasi setelah transaksi berhasil.
-        </p>
+        <p v-else class="mt-5 rounded-2xl bg-muted/60 px-5 py-4 text-[15px]">{{ METHOD_HINT[method] }}</p>
 
         <p v-if="error" class="mt-4 text-sm text-destructive">{{ error }}</p>
 
         <Button class="mt-5 h-13 justify-start rounded-xl px-5 text-base font-semibold" :disabled="!canConfirm" @click="confirm">
           {{ order.saving ? "Memproses..." : "Konfirmasi pembayaran" }}
         </Button>
-        <p v-if="method === 'qris'" class="mt-2 text-xs text-muted-foreground">QRIS: selesai hanya setelah status pembayaran terverifikasi.</p>
       </section>
     </div>
 

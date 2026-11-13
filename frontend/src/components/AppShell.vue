@@ -69,7 +69,7 @@ const showShift = ref(false);
 const shiftLoading = ref(false);
 const shiftError = ref("");
 const shift = ref({ createdAt: null, endedAt: null });
-const salesSummary = ref({ cash: 0, card: 0, qris: 0, total: 0 });
+const salesSummary = ref({ cash: 0, qris: 0, transfer: 0, gofood: 0, grabfood: 0, total: 0 });
 
 async function logout() {
   shiftError.value = "";
@@ -85,7 +85,7 @@ async function logout() {
 
     const params = new URLSearchParams({ from: createdAt.toISOString(), to: endedAt.toISOString() });
     const json = await api(`/bills/summary?${params}`);
-    salesSummary.value = json.data; // { cash, card, qris, total }
+    salesSummary.value = json.data; // { qris, transfer, cash, gofood, grabfood, card, total }
   } catch (e) {
     shiftError.value = e.message;
   } finally {

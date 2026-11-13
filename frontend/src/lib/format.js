@@ -54,7 +54,23 @@ export const ORDER_TYPES = [
 export const KASIR_ORDER_TYPES = ORDER_TYPES.slice(0, 2);
 export const orderTypeLabel = (v) => ORDER_TYPES.find((t) => t.value === v)?.label ?? "Dine-in";
 
-export const PAYMENT_LABELS = { cash: "Tunai", qris: "QRIS", card: "Kartu" };
+export const PAYMENT_LABELS = {
+  qris: "QRIS",
+  transfer: "Transfer",
+  cash: "Tunai",
+  gofood: "GoFood",
+  grabfood: "GrabFood",
+  card: "Kartu", // metode lama, tetap terbaca di transaksi sebelumnya
+};
+
+// Metode yang dipilih di kasir, sesuai urutan tombol di halaman Bayar
+export const PAYMENT_METHODS = ["qris", "transfer", "cash", "gofood", "grabfood"];
+
+// Baris ringkasan per metode: metode aktif selalu tampil, "Kartu" hanya kalau ada nilainya
+export const paymentRows = (summary = {}) =>
+  [...PAYMENT_METHODS, "card"]
+    .filter((k) => PAYMENT_METHODS.includes(k) || Number(summary[k]) > 0)
+    .map((k) => ({ key: k, label: PAYMENT_LABELS[k], value: Number(summary[k]) || 0 }));
 
 // "BAKSO URAT" -> "Bakso Urat"
 export const titleCase = (s = "") =>

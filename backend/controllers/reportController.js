@@ -58,7 +58,10 @@ export const getDailyReport = async (date) => {
             `SELECT
                 COALESCE(SUM(b.grand_total) FILTER (WHERE b.payment_method::text = 'cash'), 0)::float AS cash,
                 COALESCE(SUM(b.grand_total) FILTER (WHERE b.payment_method::text = 'card'), 0)::float AS card,
-                COALESCE(SUM(b.grand_total) FILTER (WHERE b.payment_method::text = 'qris'), 0)::float AS qris
+                COALESCE(SUM(b.grand_total) FILTER (WHERE b.payment_method::text = 'qris'), 0)::float AS qris,
+                COALESCE(SUM(b.grand_total) FILTER (WHERE b.payment_method::text = 'transfer'), 0)::float AS transfer,
+                COALESCE(SUM(b.grand_total) FILTER (WHERE b.payment_method::text = 'gofood'), 0)::float AS gofood,
+                COALESCE(SUM(b.grand_total) FILTER (WHERE b.payment_method::text = 'grabfood'), 0)::float AS grabfood
              FROM bill b
              WHERE b.status = 'paid' AND ${PAID_DAY} = $1::date;`,
             [date]

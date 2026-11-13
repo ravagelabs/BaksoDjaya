@@ -38,6 +38,8 @@ const showOrderSheet = ref(false);
 const query = ref("");
 const category = ref("Semua");
 
+const menuScrolled = ref(false);
+
 const visibleProducts = computed(() => {
   const q = query.value.trim().toLowerCase();
   return catalog.gridProducts.filter((p) => {
@@ -223,7 +225,11 @@ function goPay() {
   <div class="relative flex h-full">
     <!-- Kiri: menu -->
     <section class="flex min-w-0 flex-1 flex-col">
-      <div class="px-4 pt-4 md:px-6 md:pt-5">
+      <!-- Kepala menu: jarak bawah + garis tipis saat daftar menu digulir, supaya kartu tidak terlihat menempel -->
+      <div
+        class="relative z-10 border-b px-4 pt-4 pb-4 transition-[border-color,box-shadow] duration-200 md:px-6 md:pt-5"
+        :class="menuScrolled ? 'border-border shadow-[0_8px_16px_-14px_rgb(28_25_23/0.35)]' : 'border-transparent'"
+      >
         <div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
           <h1 class="shrink-0 text-2xl font-bold leading-tight">Mau pesan apa?</h1>
           <p class="min-w-0 truncate text-sm text-muted-foreground">{{ longDate() }} · {{ OUTLET_BRANCH }}</p>
@@ -258,7 +264,10 @@ function goPay() {
         </div>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-24 md:px-6 md:pb-6">
+      <div
+        class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-1 pb-24 md:px-6 md:pb-6"
+        @scroll.passive="menuScrolled = $event.target.scrollTop > 4"
+      >
         <p v-if="catalog.loading" class="text-[15px] text-muted-foreground">Memuat menu...</p>
         <div v-else-if="catalog.error" class="flex items-center gap-3 text-[15px] text-destructive">
           {{ catalog.error }}
@@ -472,14 +481,14 @@ function goPay() {
           <Button
             v-if="showKitchenButton"
             variant="secondary"
-            class="h-13 min-w-0 flex-1 gap-2 rounded-xl px-3 text-[15px] font-semibold"
+            class="h-13 min-w-0 flex-1 gap-1.5 rounded-xl px-2.5 text-[15px] font-semibold"
             :disabled="order.isEmpty || order.saving"
             @click="sendToKitchen"
           >
             <Printer class="size-5 shrink-0" /> <span class="truncate">Ke dapur</span>
           </Button>
           <Button
-            class="h-13 min-w-0 flex-[1.4] justify-between rounded-xl px-4 text-base font-semibold"
+            class="h-13 min-w-0 flex-1 justify-between rounded-xl px-4 text-base font-semibold"
             :disabled="order.isEmpty || order.saving"
             @click="primaryAction.run"
           >

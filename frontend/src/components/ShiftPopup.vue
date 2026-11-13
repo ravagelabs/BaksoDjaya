@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { paymentRows } from "@/lib/format";
 
 const open = defineModel("open", { type: Boolean, default: false });
 
@@ -17,7 +18,7 @@ const props = defineProps({
   endedAt: { type: [String, Date], default: null }, // current time when popup opened
   summary: {
     type: Object,
-    default: () => ({ cash: 0, card: 0, qris: 0, total: 0 }),
+    default: () => ({ cash: 0, qris: 0, transfer: 0, gofood: 0, grabfood: 0, total: 0 }),
   },
   loading: { type: Boolean, default: false },
   error: { type: String, default: "" },
@@ -64,12 +65,10 @@ const duration = computed(() => {
         <section class="rounded-xl bg-muted/60 p-4">
           <h3 class="mb-3 text-sm font-semibold text-muted-foreground">Ringkasan penjualan</h3>
           <dl class="tabular grid grid-cols-2 gap-y-2 text-[15px]">
-            <dt class="text-muted-foreground">Tunai</dt>
-            <dd class="text-right">{{ rupiah.format(summary.cash) }}</dd>
-            <dt class="text-muted-foreground">Kartu</dt>
-            <dd class="text-right">{{ rupiah.format(summary.card) }}</dd>
-            <dt class="text-muted-foreground">QRIS</dt>
-            <dd class="text-right">{{ rupiah.format(summary.qris) }}</dd>
+            <template v-for="r in paymentRows(summary)" :key="r.key">
+              <dt class="text-muted-foreground">{{ r.label }}</dt>
+              <dd class="text-right">{{ rupiah.format(r.value) }}</dd>
+            </template>
             <dt class="border-t pt-2 font-semibold">Total</dt>
             <dd class="border-t pt-2 text-right text-lg font-bold">{{ rupiah.format(summary.total) }}</dd>
           </dl>
