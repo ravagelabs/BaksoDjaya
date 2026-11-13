@@ -11,6 +11,8 @@ import { printShiftReport } from "@/lib/receipt";
 import { OUTLET_NAME, ROLE_LABELS, minutesSince, orderNo } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
 import { useOrderStore } from "@/stores/order";
+import { useSettingsStore } from "@/stores/settings";
+import { assetUrl } from "@/lib/format";
 import BrandLogo from "@/components/BrandLogo.vue";
 import ShiftPopup from "@/components/ShiftPopup.vue";
 import ToastHost from "@/components/ToastHost.vue";
@@ -28,6 +30,8 @@ const props = defineProps({
 });
 
 const ui = useUiStore();
+const settings = useSettingsStore();
+onMounted(() => settings.load());
 const order = useOrderStore();
 const router = useRouter();
 const route = useRoute();
@@ -223,7 +227,14 @@ async function confirmLogout({ print = false } = {}) {
       </nav>
 
       <div class="ml-auto flex shrink-0 items-center gap-4 md:ml-0">
-        <span class="hidden text-[15px] font-medium text-white lg:inline">{{ OUTLET_NAME }}</span>
+        <!-- Logo outlet (Pengaturan → Toko); kalau belum ada, nama outlet -->
+        <img
+          v-if="settings.logo"
+          :src="assetUrl(settings.logo)"
+          :alt="OUTLET_NAME"
+          class="h-9 w-auto max-w-32 object-contain"
+        />
+        <span v-else class="hidden text-[15px] font-medium text-white lg:inline">{{ OUTLET_NAME }}</span>
         <DropdownMenu>
           <DropdownMenuTrigger
             class="flex h-10 items-center gap-2 rounded-lg px-2 text-[15px] text-white/80 outline-none hover:bg-white/10 hover:text-white focus-visible:bg-white/10"

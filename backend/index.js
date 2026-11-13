@@ -12,6 +12,7 @@ import reportsRouter from './routes/reports.js'
 import usersRouter from './routes/users.js'
 import uploadsRouter, { UPLOAD_DIR } from './routes/uploads.js'
 import eventsRouter from './routes/events.js'
+import settingsRouter from './routes/settings.js'
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 import { requireAuth, requireRole, safeErrors } from './lib/http.js';
@@ -46,6 +47,9 @@ app.all('/api/auth/*splat', toNodeHandler(auth));
 
 // Semua endpoint di bawah ini: pesan error aman + wajib login
 app.use(safeErrors);
+
+// Pengaturan toko (logo): GET publik untuk halaman login, PUT dicek di route
+app.use('/settings', settingsRouter);
 
 const API_PATHS = ['/uploads', '/products', '/bills', '/customers', '/shifts', '/modifiers', '/tables', '/expenses', '/reports', '/events', '/users'];
 app.use(API_PATHS, requireAuth);

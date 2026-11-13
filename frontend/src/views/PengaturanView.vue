@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { UsersRound, UtensilsCrossed } from "@lucide/vue";
+import { Store, UsersRound, UtensilsCrossed } from "@lucide/vue";
+import OutletSection from "@/components/OutletSection.vue";
 import { ChevronRight, Pencil, Plus, Search } from "@lucide/vue";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ const router = useRouter();
 const SECTIONS = [
   { key: "menu", short: "Menu", label: "Menu", hint: "Harga, foto, stok", icon: UtensilsCrossed },
   { key: "akun", short: "Akun", label: "Akun pengguna", hint: "Akun utama & admin", icon: UsersRound },
+  { key: "toko", short: "Toko", label: "Toko & logo", hint: "Logo di aplikasi & struk", icon: Store },
 ];
 const section = ref(SECTIONS.some((x) => x.key === route.query.bagian) ? route.query.bagian : "menu");
 watch(section, (v) => router.replace({ query: { ...route.query, bagian: v === "menu" ? undefined : v } }));
@@ -135,7 +137,7 @@ onMounted(() => catalog.load(true));
     </div>
 
     <!-- Pilih bagian pengaturan -->
-    <nav class="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-muted p-1.5 md:max-w-lg" aria-label="Bagian pengaturan">
+    <nav class="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-muted p-1.5 md:max-w-2xl" aria-label="Bagian pengaturan">
       <button
         v-for="sct in SECTIONS"
         :key="sct.key"
@@ -298,6 +300,7 @@ onMounted(() => catalog.load(true));
     <!-- Riwayat shift pindah ke menu Shift -->
 
     <AccountsSection v-if="section === 'akun'" />
+    <OutletSection v-if="section === 'toko'" />
 
     <!-- Isi grup -->
     <Dialog :open="Boolean(openGroup)" @update:open="!$event && (openGroupKey = null)">

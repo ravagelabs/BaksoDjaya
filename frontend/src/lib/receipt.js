@@ -45,9 +45,11 @@ export function buildEscposReceipt(bill, { copyLabel = "" } = {}) {
 
   cmd(0x1b, 0x40);             // ESC @  init printer
   cmd(0x1b, 0x61, 0x01);       // ESC a 1  center
-  cmd(0x1b, 0x45, 0x01);       // ESC E 1  bold on
-  write(`${OUTLET_NAME.toUpperCase()}\n`);
-  cmd(0x1b, 0x45, 0x00);       // bold off
+  if (!writeLogo(bytes)) {      // logo outlet; kalau belum ada, nama outlet
+    cmd(0x1b, 0x45, 0x01);     // ESC E 1  bold on
+    write(`${OUTLET_NAME.toUpperCase()}\n`);
+    cmd(0x1b, 0x45, 0x00);     // bold off
+  }
   if (copyLabel) write(`[ ${copyLabel} ]\n`);
   // Nomor pager besar supaya dapur & pelanggan langsung lihat
   if (bill.table_code) {
@@ -96,6 +98,57 @@ export function openInRawBT(bytes) {
 
 // Ubah perintah ESC/POS jadi HTML struk 58mm (dipakai untuk cetak lewat browser di non-Android).
 // Mendukung perintah yang dipakai builder di file ini: init, rata, tebal, ukuran 2x, feed, potong.
+// ---- Logo outlet di struk ----
+// Logo diubah jadi gambar hitam-putih (ESC/POS raster GS v 0) supaya bisa dicetak printer thermal 58mm.
+let logoRaster = null; // Uint8Array perintah GS v 0 lengkap
+let logoPreview = ""; // data URL hitam-putih untuk print browser & pratinjau
+const LOGO_DOTS = 288; // lebar logo di kertas (58mm = 384 titik)
+
+export async function prepareReceiptLogo(url) {
+  logoRaster = null;
+  logoPreview = "";
+  if (!url) return "";
+  const img = await new Promise((resolve, reject) => {
+    const el = new Image();
+    el.crossOrigin = "anonymous";
+    el.onload = () => resolve(el);
+    el.onerror = reject;
+    el.src = url;
+  });
+  const w = LOGO_DOTS;
+  const h = Math.max(8, Math.round((img.naturalHeight / img.naturalWidth) * w));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, 0, 0, w, h);
+  const px = ctx.getImageData(0, 0, w, h).data;
+  const rowBytes = Math.ceil(w / 8);
+  const data = new Uint8Array(rowBytes * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      const ink = lum < 150;
+      if (ink) data[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
+      px[i] = px[i + 1] = px[i + 2] = ink ? 0 : 255;
+    }
+  }
+  ctx.putImageData(new ImageData(px, w, h), 0, 0);
+  logoPreview = canvas.toDataURL("image/png");
+  logoRaster = new Uint8Array([0x1d, 0x76, 0x30, 0x00, rowBytes & 0xff, rowBytes >> 8, h & 0xff, h >> 8, ...data, 0x0a]);
+  return logoPreview;
+}
+
+// Tulis logo (kalau ada) di posisi sekarang; return true kalau logo dicetak
+function writeLogo(bytes) {
+  if (!logoRaster) return false;
+  for (const b of logoRaster) bytes.push(b);
+  return true;
+}
+
 export function escposToHtml(bytes) {
   const dec = new TextDecoder();
   const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -124,6 +177,15 @@ export function escposToHtml(bytes) {
       else if (c === 0x1b && op === 0x64) { i += 2; }
       else if (c === 0x1d && op === 0x21) { big = bytes[i + 2] === 0x11 ? 2 : bytes[i + 2] ? 1 : 0; i += 2; }
       else if (c === 0x1d && op === 0x56) { i += 3; if (buf.length) flush(); lines.push('<div style="break-after:page;height:0"></div>'); }
+      else if (c === 0x1d && op === 0x76 && bytes[i + 2] === 0x30) {
+        // GS v 0: gambar raster (logo)
+        const xb = bytes[i + 4] + bytes[i + 5] * 256;
+        const yd = bytes[i + 6] + bytes[i + 7] * 256;
+        if (buf.length) flush();
+        if (logoPreview) lines.push(`<div style="text-align:center"><img src="${logoPreview}" style="width:75%;image-rendering:pixelated"></div>`);
+        i += 7 + xb * yd;
+        if (bytes[i + 1] === 0x0a) i += 1;
+      }
       else i += 1;
       continue;
     }
@@ -257,9 +319,11 @@ export function buildShiftReport(s, { running = false } = {}) {
 
   cmd(0x1b, 0x40);
   cmd(0x1b, 0x61, 0x01);
-  cmd(0x1b, 0x45, 0x01);
-  write(`${OUTLET_NAME.toUpperCase()}\n`);
-  cmd(0x1b, 0x45, 0x00);
+  if (!writeLogo(bytes)) {
+    cmd(0x1b, 0x45, 0x01);
+    write(`${OUTLET_NAME.toUpperCase()}\n`);
+    cmd(0x1b, 0x45, 0x00);
+  }
   cmd(0x1d, 0x21, 0x01);
   write(running ? "LAPORAN SHIFT (BERJALAN)\n" : "LAPORAN SHIFT\n");
   cmd(0x1d, 0x21, 0x00);

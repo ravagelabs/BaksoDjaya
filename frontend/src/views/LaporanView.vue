@@ -1,12 +1,16 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
-import { Download, Plus, Trash2, TriangleAlert } from "@lucide/vue";
+import { Download, FileText, Plus, Trash2, TriangleAlert } from "@lucide/vue";
+import { printReport } from "@/lib/pdf";
+import { assetUrl } from "@/lib/format";
+import { useSettingsStore } from "@/stores/settings";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { formatRp, number, shortDate, todayISO, timeOnly, orderTypeLabel, titleCase, PAYMENT_LABELS, OUTLET_BRANCH } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
 
 const ui = useUiStore();
+const settings = useSettingsStore();
 
 // ---- Periode laporan ----
 // Tanggal dihitung sebagai string YYYY-MM-DD (zona waktu outlet) supaya tidak bergeser
@@ -146,6 +150,64 @@ async function removeExpense(e) {
   }
 }
 
+// ---- PDF Laba Rugi (A4, kop logo) ----
+function exportPdf() {
+  const r = report.value;
+  if (!r) return;
+  printReport({
+    title: "Laporan Laba Rugi",
+    period: rangeLabel.value,
+    logo: settings.logo ? new URL(assetUrl(settings.logo), location.origin).href : "",
+    sections: [
+      {
+        heading: "Pendapatan",
+        rows: [
+          { label: "Penjualan", value: r.net_sales, note: `${r.transactions} transaksi` },
+          { label: "Harga pokok penjualan (HPP)", value: -r.hpp },
+          { label: "Laba kotor", value: r.gross_profit, total: true },
+        ],
+      },
+      {
+        heading: "Beban operasional",
+        rows: [
+          ...(r.expenses_by_category.length
+            ? r.expenses_by_category.map((e) => ({ label: e.category, value: -e.total, indent: 1 }))
+            : [{ label: "Tidak ada beban di periode ini", value: null, indent: 1 }]),
+          { label: "Total beban operasional", value: -r.expenses, total: true },
+        ],
+      },
+      {
+        rows: [
+          { label: "LABA (RUGI) BERSIH", value: r.net_profit, grand: true },
+          { label: "Margin laba bersih", value: `${Math.round(r.net_margin * 100)}%` },
+        ],
+      },
+      {
+        heading: "Penerimaan per metode pembayaran",
+        table: {
+          columns: ["Metode", "Transaksi", "Jumlah", "Porsi"],
+          align: ["left", "right", "right", "right"],
+          rows: [
+            ...r.payments.map((p) => [paymentLabel(p.method), String(p.count), p.total, `${pct(p.total, r.net_sales)}%`]),
+            ...(r.payments.length ? [{ className: "sum", cells: ["Total", String(r.transactions), r.net_sales, "100%"] }] : []),
+          ],
+        },
+      },
+      {
+        heading: "Menu terlaris",
+        table: {
+          columns: ["#", "Menu", "Porsi", "Penjualan"],
+          align: ["left", "left", "right", "right"],
+          rows: r.top_products.map((p, i) => [String(i + 1), titleCase(p.name), String(p.qty), p.total]),
+        },
+      },
+    ],
+    note:
+      (r.items_without_hpp ? `Catatan: ${r.items_without_hpp} menu terjual belum memiliki HPP, laba terlihat lebih besar dari sebenarnya. ` : "") +
+      (r.cancelled.count ? `${r.cancelled.count} pesanan dibatalkan (Rp ${number.format(r.cancelled.total)}) tidak dihitung.` : ""),
+  });
+}
+
 // ---- Ekspor CSV: transaksi + ringkasan laba rugi untuk periode ini ----
 const exporting = ref(false);
 async function exportCsv() {
@@ -208,9 +270,14 @@ async function exportCsv() {
         <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Laporan</h1>
         <p class="mt-1 text-[15px] text-muted-foreground">{{ rangeLabel }} · {{ OUTLET_BRANCH }}</p>
       </div>
-      <Button variant="secondary" class="h-12 rounded-xl px-5 text-base font-semibold" :disabled="exporting || !report" @click="exportCsv">
-        <Download /> {{ exporting ? "Menyiapkan..." : "Ekspor Excel (CSV)" }}
-      </Button>
+      <div class="flex flex-wrap gap-2">
+        <Button class="h-12 rounded-xl px-5 text-base font-semibold" :disabled="!report" @click="exportPdf">
+          <FileText /> Unduh PDF
+        </Button>
+        <Button variant="secondary" class="h-12 rounded-xl px-5 text-base font-semibold" :disabled="exporting || !report" @click="exportCsv">
+          <Download /> {{ exporting ? "Menyiapkan..." : "Excel (CSV)" }}
+        </Button>
+      </div>
     </div>
 
     <!-- Periode -->
