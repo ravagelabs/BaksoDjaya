@@ -156,7 +156,8 @@ const choiceClass = (selected) =>
                 </button>
               </div>
             </div>
-            <div>
+            <!-- Disembunyikan kalau hanya ada satu pilihan (mis. Paket Siji: tanpa mie) -->
+            <div v-if="paket.mie.length > 1">
               <h3 class="text-base font-semibold">Pilihan mie</h3>
               <p class="mb-2 text-xs text-muted-foreground">Pilih satu</p>
               <div class="grid grid-cols-3 gap-2">

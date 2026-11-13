@@ -98,12 +98,16 @@ export const useCatalogStore = defineStore("catalog", () => {
   });
 
   // Pilihan bakso dan mie untuk satu paket, diambil dari nama kombinasi yang ada di database
+  // Pilihan yang semua kombinasinya stok habis tidak ditampilkan (mis. Paket Siji tanpa mie/bihun).
+  // Kalau semua kombinasi habis, pilihan tetap tampil supaya kartu menunjukkan "Stok habis".
   function paketOptions(base) {
+    const combos = products.value
+      .map((p) => ({ p, m: p.name.match(PAKET_RE) }))
+      .filter(({ m }) => m && m[1] === base);
+    const usable = combos.some(({ p }) => p.is_available) ? combos.filter(({ p }) => p.is_available) : combos;
     const bakso = [];
     const mie = [];
-    for (const p of products.value) {
-      const m = p.name.match(PAKET_RE);
-      if (!m || m[1] !== base) continue;
+    for (const { m } of usable) {
       if (!bakso.includes(m[2])) bakso.push(m[2]);
       if (!mie.includes(m[3])) mie.push(m[3]);
     }
