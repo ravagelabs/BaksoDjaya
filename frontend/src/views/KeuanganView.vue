@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ArrowLeftRight, FileText, Landmark, Package, Plus, Trash2, TriangleAlert, CheckCircle2 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import ExportMenu from "@/components/ExportMenu.vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import { api } from "@/lib/api";
 import { assetUrl, todayISO } from "@/lib/format";
@@ -245,15 +246,12 @@ const journalTotals = computed(() => {
 
 <template>
   <div class="h-full overflow-y-auto overscroll-contain px-4 py-5 md:px-8 md:py-7">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div>
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
         <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Keuangan</h1>
         <p class="mt-1 text-[15px] text-muted-foreground">Laporan keuangan dari penjualan, biaya, dan jurnal.</p>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <Button variant="secondary" class="h-12 rounded-xl px-5 text-base" @click="ui.quickAction = 'jurnal'"><Plus /> Catat jurnal</Button>
-        <Button class="h-12 rounded-xl px-5 text-base font-semibold" :disabled="!data || loading" @click="exportPdf"><FileText /> Unduh PDF</Button>
-      </div>
+      <ExportMenu :disabled="!data || loading" :items="[{ label: 'Unduh PDF', icon: 'pdf', action: exportPdf }]" />
     </div>
 
     <!-- Jenis laporan -->

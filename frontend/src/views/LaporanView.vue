@@ -5,6 +5,7 @@ import { printReport } from "@/lib/pdf";
 import { assetUrl } from "@/lib/format";
 import { useSettingsStore } from "@/stores/settings";
 import { Button } from "@/components/ui/button";
+import ExportMenu from "@/components/ExportMenu.vue";
 import { api } from "@/lib/api";
 import { formatRp, number, shortDate, todayISO, timeOnly, orderTypeLabel, titleCase, PAYMENT_LABELS, OUTLET_BRANCH } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
@@ -236,19 +237,18 @@ async function exportCsv() {
 
 <template>
   <div class="h-full overflow-y-auto overscroll-contain px-4 py-5 md:px-8 md:py-7">
-    <div class="flex flex-wrap items-start justify-between gap-4">
-      <div>
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
         <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Beranda</h1>
         <p class="mt-1 text-[15px] text-muted-foreground">{{ rangeLabel }} · {{ OUTLET_BRANCH }}</p>
       </div>
-      <div class="flex flex-wrap gap-2">
-        <Button class="h-12 rounded-xl px-5 text-base font-semibold" :disabled="!report" @click="exportPdf">
-          <FileText /> Unduh PDF
-        </Button>
-        <Button variant="secondary" class="h-12 rounded-xl px-5 text-base font-semibold" :disabled="exporting || !report" @click="exportCsv">
-          <Download /> {{ exporting ? "Menyiapkan..." : "Excel (CSV)" }}
-        </Button>
-      </div>
+      <ExportMenu
+        :disabled="!report"
+        :items="[
+          { label: 'Unduh PDF', icon: 'pdf', action: exportPdf },
+          { label: exporting ? 'Menyiapkan...' : 'Unduh Excel (CSV)', icon: 'excel', action: exportCsv, disabled: exporting },
+        ]"
+      />
     </div>
 
     <!-- Periode -->

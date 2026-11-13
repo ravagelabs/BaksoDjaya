@@ -69,6 +69,7 @@ const BILL_SELECT = `
                 'id', bi.id,
                 'product_id', bi.product_id,
                 'name', p.name,
+                'category', p.category,
                 'qty', bi.qty,
                 'price', bi.price,
                 'note', bi.note,

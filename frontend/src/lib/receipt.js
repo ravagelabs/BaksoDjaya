@@ -1,3 +1,4 @@
+import { useCatalogStore } from "@/stores/catalog";
 import { rupiah, orderTypeLabel, PAYMENT_LABELS, OUTLET_NAME, BANK_ACCOUNT, optionsText, orderNo } from "@/lib/format";
 
 // ESC/POS builder: raw printer commands for a 58mm receipt (32 chars per line, Font A)
@@ -156,13 +157,14 @@ export function escposToHtml(bytes) {
   let align = "left";
   let bold = false;
   let big = 0;
+  let inv = false;
   let buf = [];
   let lineStyle = null; // gaya diambil dari awal baris
   const flush = () => {
     const text = dec.decode(new Uint8Array(buf));
-    const st = lineStyle ?? { align, bold, big };
+    const st = lineStyle ?? { align, bold, big, inv };
     lines.push(
-      `<div style="text-align:${st.align};font-weight:${st.bold ? 700 : 400};${st.big === 2 ? "font-size:22px;line-height:1.25;font-weight:700;" : st.big ? "font-size:16px;line-height:1.35;font-weight:600;" : ""}">${esc(text) || "&nbsp;"}</div>`
+      `<div style="text-align:${st.align};font-weight:${st.bold ? 700 : 400};white-space:pre-wrap;${st.inv ? "background:#000;color:#fff;" : ""}${st.big === 2 ? "font-size:22px;line-height:1.25;font-weight:700;" : st.big ? "font-size:16px;line-height:1.35;font-weight:600;" : ""}">${esc(text) || "&nbsp;"}</div>`
     );
     buf = [];
     lineStyle = null;
@@ -175,6 +177,7 @@ export function escposToHtml(bytes) {
       else if (c === 0x1b && op === 0x61) { const n = bytes[i + 2]; align = n === 1 ? "center" : n === 2 ? "right" : "left"; i += 2; }
       else if (c === 0x1b && op === 0x45) { bold = bytes[i + 2] === 1; i += 2; }
       else if (c === 0x1b && op === 0x64) { i += 2; }
+      else if (c === 0x1d && op === 0x42) { inv = bytes[i + 2] === 1; i += 2; }
       else if (c === 0x1d && op === 0x21) { big = bytes[i + 2] === 0x11 ? 2 : bytes[i + 2] ? 1 : 0; i += 2; }
       else if (c === 0x1d && op === 0x56) { i += 3; if (buf.length) flush(); lines.push('<div style="break-after:page;height:0"></div>'); }
       else if (c === 0x1d && op === 0x76 && bytes[i + 2] === 0x30) {
@@ -190,7 +193,7 @@ export function escposToHtml(bytes) {
       continue;
     }
     if (c === 0x0a) { flush(); continue; }
-    if (!buf.length && !lineStyle) lineStyle = { align, bold, big };
+    if (!buf.length && !lineStyle) lineStyle = { align, bold, big, inv };
     buf.push(c);
   }
   if (buf.length) flush();
@@ -261,38 +264,91 @@ export function buildKitchenSlip(bill) {
   const time = new Intl.DateTimeFormat("id-ID", { timeStyle: "short" })
     .format(new Date(bill.paid_at ?? bill.sent_to_kitchen_at ?? bill.created_at ?? Date.now()));
 
+  const INV = (on) => cmd(0x1d, 0x42, on ? 1 : 0); // putih di atas hitam (judul kategori)
+  const BOLD = (on) => cmd(0x1b, 0x45, on ? 1 : 0);
+  const catalog = (() => {
+    try {
+      return useCatalogStore();
+    } catch {
+      return null;
+    }
+  })();
+  const categoryOf = (i) => clean(i.category ?? catalog?.byId?.(i.product_id)?.category ?? "Lainnya") || "Lainnya";
+  // Urutan kategori di dapur: paket, bakso, mie, lainnya, minuman paling bawah
+  const ORDER = ["paket", "bakso", "mie"];
+  const rank = (c) => {
+    const k = c.toLowerCase();
+    if (k === "minuman") return 99;
+    const i = ORDER.indexOf(k);
+    return i === -1 ? 50 : i;
+  };
+  const groups = new Map();
+  for (const i of bill.billItems) {
+    const c = categoryOf(i);
+    if (!groups.has(c)) groups.set(c, []);
+    groups.get(c).push(i);
+  }
+  const cats = [...groups.keys()].sort((a, b) => rank(a) - rank(b));
+  const totalQty = bill.billItems.reduce((s, i) => s + Number(i.qty || 0), 0);
+
+  // Kepala: tanpa logo, nomor meja besar
   cmd(0x1b, 0x40);
-  cmd(0x1b, 0x61, 0x01);       // tengah
-  write("STRUK DAPUR\n");
+  cmd(0x1b, 0x61, 0x01); // tengah
+  TALL();
+  BOLD(true);
+  write("DAPUR\n");
   BIG();
-  cmd(0x1b, 0x45, 0x01);
-  write(bill.table_code ? `NO. ${bill.table_code}\n` : `${orderTypeLabel(bill.order_type).toUpperCase()}\n`);
-  cmd(0x1b, 0x45, 0x00);
+  write(bill.table_code ? `NO. ${clean(bill.table_code)}\n` : `${orderTypeLabel(bill.order_type).toUpperCase()}\n`);
+  TALL();
+  write(`${orderTypeLabel(bill.order_type).toUpperCase()}  ${clean(time)}\n`);
+  BOLD(false);
   NORMAL();
-  write(`${orderTypeLabel(bill.order_type)} - ${clean(time)} - ${orderNo(bill.billId)}\n`);
-  cmd(0x1b, 0x61, 0x00);       // kiri
+  write(`Pesanan ${orderNo(bill.billId)}\n`);
+  cmd(0x1b, 0x61, 0x00); // kiri
   write("=".repeat(32) + "\n");
 
-  for (const i of bill.billItems) {
-    const { head, parts } = title(i.name);
+  // Per kategori: judul hitam, lalu kolom JML | MENU
+  for (const c of cats) {
+    const items = groups.get(c);
+    const n = items.reduce((s, i) => s + Number(i.qty || 0), 0);
     BIG();
-    cmd(0x1b, 0x45, 0x01);
-    write(wrap(`${i.qty}x ${head.toUpperCase()}`, 16));
-    cmd(0x1b, 0x45, 0x00);
-    TALL();
-    for (const p of parts) write(wrap(`- ${p.toUpperCase()}`, 32, " "));
-    const opts = optionsText(i.options);
-    if (opts) for (const o of opts.split(", ")) write(wrap(`- ${o.replace(/ \(\+[\d.]+\)$/, "").toUpperCase()}`, 32, " "));
-    if (i.note) write(wrap(`! ${i.note.toUpperCase()}`, 32, " "));
+    BOLD(true);
+    INV(true);
+    write(` ${c.toUpperCase()} (${n})`.slice(0, 16).padEnd(16) + "\n");
+    INV(false);
     NORMAL();
-    write("-".repeat(32) + "\n");
+    write("JML MENU\n");
+    for (const i of items) {
+      const { head, parts } = title(i.name);
+      BIG();
+      BOLD(true);
+      const q = String(i.qty).padEnd(2);
+      const lines = wrap(head.toUpperCase(), 13).split("\n").filter(Boolean);
+      lines.forEach((l, k) => write(`${k === 0 ? q : "  "} ${l}\n`));
+      TALL();
+      for (const p of parts) write(wrap(`+ ${p.toUpperCase()}`, 32, "      "));
+      const opts = optionsText(i.options);
+      if (opts) for (const o of opts.split(", ")) write(wrap(`- ${o.replace(/ \(\+[\d.]+\)$/, "").toUpperCase()}`, 32, "      "));
+      if (i.note) write(wrap(`! ${i.note.toUpperCase()}`, 32, "      "));
+      BOLD(false);
+      NORMAL();
+      write("-".repeat(32) + "\n");
+    }
   }
   if (bill.note) {
     TALL();
+    BOLD(true);
     write(wrap(`CATATAN: ${bill.note.toUpperCase()}`, 32));
+    BOLD(false);
     NORMAL();
+    write("-".repeat(32) + "\n");
   }
-  cmd(0x1b, 0x64, 0x03);
+  TALL();
+  BOLD(true);
+  write(`TOTAL ${totalQty} PORSI\n`);
+  BOLD(false);
+  NORMAL();
+  cmd(0x1b, 0x64, 0x04);
   cmd(0x1d, 0x56, 0x42, 0x00);
   return new Uint8Array(bytes);
 }
