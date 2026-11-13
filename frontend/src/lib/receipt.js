@@ -143,11 +143,65 @@ export async function prepareReceiptLogo(url) {
   return logoPreview;
 }
 
+// Tulisan dicoret (mis. SELEDRI dicoret = jangan pakai seledri). Printer thermal tidak punya huruf coret,
+// jadi tulisan digambar jadi gambar hitam-putih selebar kertas (384 titik) lalu dicetak sebagai raster.
+// Return null kalau tidak ada canvas (mis. bukan di browser).
+function strikeRaster(text, { size = 34, indent = 34 } = {}) {
+  if (typeof document === "undefined") return null;
+  const w = 384;
+  const h = Math.round(size * 1.35);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#000";
+  let fs = size;
+  const font = (n) => `700 ${n}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+  ctx.font = font(fs);
+  while (ctx.measureText(text).width > w - indent * 2 && fs > 16) ctx.font = font(--fs);
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, indent, h / 2);
+  const tw = ctx.measureText(text).width;
+  // garis coret tebal di tengah tulisan, sedikit lebih panjang dari tulisannya
+  ctx.fillRect(indent - 8, Math.round(h / 2 - fs * 0.05), tw + 16, Math.max(4, Math.round(fs * 0.1)));
+  const px = ctx.getImageData(0, 0, w, h).data;
+  const rowBytes = w / 8;
+  const data = new Uint8Array(rowBytes * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (px[i] < 128) data[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
+    }
+  return [0x1d, 0x76, 0x30, 0x00, rowBytes & 0xff, rowBytes >> 8, h & 0xff, h >> 8, ...data, 0x0a];
+}
+
 // Tulis logo (kalau ada) di posisi sekarang; return true kalau logo dicetak
 function writeLogo(bytes) {
   if (!logoRaster) return false;
   for (const b of logoRaster) bytes.push(b);
   return true;
+}
+
+// Gambar raster ESC/POS -> data URL (untuk cetak lewat browser)
+function rasterToDataUrl(data, xb, yd) {
+  if (typeof document === "undefined") return "";
+  const w = xb * 8;
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = yd;
+  const ctx = c.getContext("2d");
+  const img = ctx.createImageData(w, yd);
+  for (let y = 0; y < yd; y++)
+    for (let x = 0; x < w; x++) {
+      const on = data[y * xb + (x >> 3)] & (0x80 >> (x & 7));
+      const k = (y * w + x) * 4;
+      img.data[k] = img.data[k + 1] = img.data[k + 2] = on ? 0 : 255;
+      img.data[k + 3] = 255;
+    }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL("image/png");
 }
 
 export function escposToHtml(bytes) {
@@ -193,7 +247,8 @@ export function escposToHtml(bytes) {
         const xb = bytes[i + 4] + bytes[i + 5] * 256;
         const yd = bytes[i + 6] + bytes[i + 7] * 256;
         if (buf.length) flush();
-        if (logoPreview) lines.push(`<div style="text-align:center"><img src="${logoPreview}" style="width:75%;image-rendering:pixelated"></div>`);
+        const src = rasterToDataUrl(bytes.subarray(i + 8, i + 8 + xb * yd), xb, yd) || logoPreview;
+        if (src) lines.push(`<div style="text-align:center"><img src="${src}" style="width:${Math.round(((xb * 8) / 384) * 100)}%;image-rendering:pixelated;display:block;margin:0 auto"></div>`);
         i += 7 + xb * yd;
         if (bytes[i + 1] === 0x0a) i += 1;
       }
@@ -328,10 +383,11 @@ export function buildKitchenSlip(bill) {
     for (const o of opts ? opts.split(", ") : []) {
       const label = o.replace(/ \(\+[\d.]+\)$/, "").toUpperCase();
       if (label.startsWith("TANPA ")) {
-        INV(true);
-        write(` JANGAN ${label.slice(6)} `);
-        INV(false);
-        write("\n");
+        // "Tanpa seledri" dicetak SELEDRI dicoret supaya tidak ketuker
+        const what = label.slice(6);
+        const r = strikeRaster(what);
+        if (r) bytes.push(...r);
+        else write(`   JANGAN ${what}\n`);
       } else write(wrap(label, 32, "   "));
     }
     if (i.note) write(wrap(`CATATAN: ${i.note.toUpperCase()}`, 32, "   "));
