@@ -1,11 +1,14 @@
 <script setup>
 import { ref, computed, watch, watchEffect, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ChevronDown, History, LogOut } from "@lucide/vue";
+import { ChevronDown, History, LogOut, Undo2 } from "@lucide/vue";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useLive } from "@/lib/live";
 import { authClient } from "@/lib/auth-client";
 import { api } from "@/lib/api";
 import { printShiftReport } from "@/lib/receipt";
-import { OUTLET_NAME, ROLE_LABELS } from "@/lib/format";
+import { OUTLET_NAME, ROLE_LABELS, minutesSince, orderNo } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
 import { useOrderStore } from "@/stores/order";
 import BrandLogo from "@/components/BrandLogo.vue";
@@ -64,6 +67,68 @@ watch(
 
 
 const firstName = computed(() => props.user.name?.split(" ")[0] ?? "");
+
+// ---- Badge merah di menu: pesanan aktif di Dapur, nomor yang sedang dipakai ----
+const badges = ref({ "/dapur": 0, "/meja": 0 });
+const tables = ref([]);
+
+async function refreshBadges() {
+  try {
+    const [k, t] = await Promise.all([api("/bills/kitchen"), api("/tables")]);
+    tables.value = t.data;
+    badges.value = {
+      "/dapur": k.data.filter((b) => b.kitchen_status === "new" || b.kitchen_status === "cooking").length,
+      "/meja": t.data.filter((x) => x.status !== "available").length,
+    };
+  } catch {
+    // badge bukan hal penting; coba lagi di putaran berikutnya
+  }
+}
+useLive(() => refreshBadges());
+
+// ---- Pengingat nomor: tiap 30 menit tanya nomor yang dipakai > 30 menit dan belum kembali ----
+const REMIND_MINUTES = 30;
+const showReminder = ref(false);
+const returningId = ref(null);
+const overdue = computed(() =>
+  tables.value.filter((t) => t.status !== "available" && minutesSince(t.bill_created_at, Date.now()) >= REMIND_MINUTES)
+);
+
+const ago = (iso) => {
+  const m = minutesSince(iso, Date.now());
+  return m >= 60 ? `${Math.floor(m / 60)} jam ${m % 60} menit lalu` : `${m} menit lalu`;
+};
+
+async function remindNumbers() {
+  await refreshBadges();
+  if (overdue.value.length) showReminder.value = true;
+}
+
+async function returnNumber(t) {
+  returningId.value = t.id;
+  try {
+    await api(`/tables/${t.id}/return`, { method: "POST" });
+    ui.toast(`Nomor ${t.code} sudah dikembalikan`);
+    await refreshBadges();
+    if (!overdue.value.length) showReminder.value = false;
+  } catch (e) {
+    ui.toast(e.message, "error");
+  } finally {
+    returningId.value = null;
+  }
+}
+
+let badgeTimer;
+let remindTimer;
+onMounted(() => {
+  refreshBadges();
+  badgeTimer = setInterval(refreshBadges, 20000);
+  remindTimer = setInterval(remindNumbers, REMIND_MINUTES * 60 * 1000);
+});
+onUnmounted(() => {
+  clearInterval(badgeTimer);
+  clearInterval(remindTimer);
+});
 
 // ---- Akhiri shift & keluar: ringkasan shift berjalan, lalu simpan shift dan sign out ----
 const showShift = ref(false);
@@ -143,6 +208,13 @@ async function confirmLogout({ print = false } = {}) {
           >
             {{ item.label }}
             <span
+              v-if="badges[item.to]"
+              class="tabular ml-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold text-white"
+              :aria-label="`${badges[item.to]} aktif`"
+            >
+              {{ badges[item.to] }}
+            </span>
+            <span
               v-if="isActive"
               class="absolute inset-x-3 bottom-1.5 h-0.5 rounded-full bg-white lg:inset-x-4 lg:bottom-2"
             />
@@ -190,6 +262,31 @@ async function confirmLogout({ print = false } = {}) {
       :unsaved-items="order.dirty ? order.lines.length : 0"
       @confirm-logout="confirmLogout"
     />
+
+    <!-- Pengingat nomor yang belum kembali -->
+    <Dialog v-model:open="showReminder">
+      <DialogContent class="p-6 sm:max-w-md sm:p-8">
+        <DialogHeader>
+          <DialogTitle class="text-2xl font-bold">Nomor belum kembali</DialogTitle>
+          <DialogDescription class="text-[15px]">
+            Nomor ini sudah dipakai lebih dari {{ REMIND_MINUTES }} menit. Kalau pager-nya sudah kembali, tekan Kembalikan.
+          </DialogDescription>
+        </DialogHeader>
+        <ul class="flex max-h-[50dvh] flex-col divide-y overflow-y-auto rounded-xl border">
+          <li v-for="t in overdue" :key="t.id" class="flex items-center gap-3 px-4 py-3">
+            <span class="tabular flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary text-xl font-bold text-primary-foreground">{{ t.code }}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block font-semibold">Pesanan {{ orderNo(t.bill_id) }}</span>
+              <span class="tabular block text-sm text-muted-foreground">{{ ago(t.bill_created_at) }}</span>
+            </span>
+            <Button class="h-11 rounded-xl px-4" :disabled="returningId === t.id" @click="returnNumber(t)">
+              <Undo2 class="size-4" /> Kembalikan
+            </Button>
+          </li>
+        </ul>
+        <Button variant="secondary" class="h-12 rounded-xl text-base" @click="showReminder = false">Nanti, ingatkan lagi</Button>
+      </DialogContent>
+    </Dialog>
 
     <ToastHost />
   </div>
