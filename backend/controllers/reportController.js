@@ -83,3 +83,111 @@ export const getDailyReport = async (date) => {
         };
     });
 };
+
+// ---- Laporan laba rugi untuk rentang tanggal (from-to, termasuk keduanya) ----
+const IN_RANGE = `(COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::date BETWEEN $1::date AND $2::date`;
+
+export const getSummaryReport = async (from, to) => {
+    return await db.task(async (t) => {
+        const sales = await t.one(
+            `SELECT COALESCE(SUM(b.grand_total), 0)::float AS net_sales, COUNT(*)::int AS transactions
+             FROM bill b WHERE b.status = 'paid' AND ${IN_RANGE};`,
+            [from, to]
+        );
+
+        // HPP dari HPP menu saat ini; jumlah menu yang HPP-nya masih 0 ikut dihitung untuk peringatan
+        const cogs = await t.one(
+            `SELECT COALESCE(SUM(bi.qty * p.hpp), 0)::float AS hpp,
+                    COUNT(DISTINCT p.id) FILTER (WHERE COALESCE(p.hpp, 0) = 0)::int AS items_without_hpp
+             FROM bill b
+             JOIN bill_item bi ON bi.bill_id = b.id
+             JOIN product p ON p.id = bi.product_id
+             WHERE b.status = 'paid' AND ${IN_RANGE};`,
+            [from, to]
+        );
+
+        // Pembayaran dari mana saja: per metode, jumlah transaksi dan nilainya
+        const payments = await t.any(
+            `SELECT COALESCE(b.payment_method::text, 'lainnya') AS method,
+                    COUNT(*)::int AS count, SUM(b.grand_total)::float AS total
+             FROM bill b WHERE b.status = 'paid' AND ${IN_RANGE}
+             GROUP BY 1 ORDER BY total DESC;`,
+            [from, to]
+        );
+
+        const orderTypes = await t.any(
+            `SELECT b.order_type::text AS type, COUNT(*)::int AS count, SUM(b.grand_total)::float AS total
+             FROM bill b WHERE b.status = 'paid' AND ${IN_RANGE}
+             GROUP BY 1 ORDER BY total DESC;`,
+            [from, to]
+        );
+
+        const expensesByCategory = await t.any(
+            `SELECT category, COUNT(*)::int AS count, SUM(amount)::float AS total
+             FROM expense WHERE spent_on BETWEEN $1::date AND $2::date
+             GROUP BY category ORDER BY total DESC;`,
+            [from, to]
+        );
+
+        const daily = await t.any(
+            `SELECT d::date::text AS date,
+                    COALESCE((SELECT SUM(b.grand_total) FROM bill b
+                              WHERE b.status = 'paid'
+                                AND (COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::date = d::date), 0)::float AS sales,
+                    COALESCE((SELECT SUM(e.amount) FROM expense e WHERE e.spent_on = d::date), 0)::float AS expenses
+             FROM generate_series($1::date, $2::date, interval '1 day') d
+             ORDER BY d;`,
+            [from, to]
+        );
+
+        const hourly = await t.any(
+            `SELECT EXTRACT(HOUR FROM COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::int AS hour,
+                    SUM(b.grand_total)::float AS total
+             FROM bill b WHERE b.status = 'paid' AND ${IN_RANGE}
+             GROUP BY 1 ORDER BY 1;`,
+            [from, to]
+        );
+
+        const topProducts = await t.any(
+            `SELECT p.name, SUM(bi.qty)::int AS qty, SUM(bi.qty * bi.price)::float AS total
+             FROM bill b
+             JOIN bill_item bi ON bi.bill_id = b.id
+             JOIN product p ON p.id = bi.product_id
+             WHERE b.status = 'paid' AND ${IN_RANGE}
+             GROUP BY p.name ORDER BY qty DESC, p.name LIMIT 8;`,
+            [from, to]
+        );
+
+        const cancelled = await t.one(
+            `SELECT COUNT(*)::int AS count, COALESCE(SUM(b.grand_total), 0)::float AS total
+             FROM bill b WHERE b.status = 'cancelled'
+               AND (COALESCE(b.cancelled_at, b.created_at) AT TIME ZONE '${TZ}')::date BETWEEN $1::date AND $2::date;`,
+            [from, to]
+        );
+
+        const expensesTotal = expensesByCategory.reduce((sum, e) => sum + e.total, 0);
+        const grossProfit = sales.net_sales - cogs.hpp;
+        const netProfit = grossProfit - expensesTotal;
+
+        return {
+            from,
+            to,
+            net_sales: sales.net_sales,
+            transactions: sales.transactions,
+            average_ticket: sales.transactions ? sales.net_sales / sales.transactions : 0,
+            hpp: cogs.hpp,
+            items_without_hpp: cogs.items_without_hpp,
+            gross_profit: grossProfit,
+            expenses: expensesTotal,
+            expenses_by_category: expensesByCategory,
+            net_profit: netProfit,
+            net_margin: sales.net_sales ? netProfit / sales.net_sales : 0,
+            payments,
+            order_types: orderTypes,
+            daily,
+            hourly,
+            top_products: topProducts,
+            cancelled,
+        };
+    });
+};

@@ -1,26 +1,68 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
-import { Download, Plus, Trash2 } from "@lucide/vue";
+import { Download, Plus, Trash2, TriangleAlert } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { formatRp, number, shortDate, todayISO, timeOnly, orderTypeLabel, PAYMENT_LABELS, OUTLET_BRANCH } from "@/lib/format";
+import { formatRp, number, shortDate, todayISO, timeOnly, orderTypeLabel, titleCase, PAYMENT_LABELS, OUTLET_BRANCH } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
 
 const ui = useUiStore();
 
-const date = ref(todayISO());
+// ---- Periode laporan ----
+// Tanggal dihitung sebagai string YYYY-MM-DD (zona waktu outlet) supaya tidak bergeser
+const addDays = (iso, n) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const monthStart = (iso) => `${iso.slice(0, 7)}-01`;
+const prevMonthEnd = (iso) => addDays(monthStart(iso), -1);
+
+const PERIODS = [
+  { key: "today", label: "Hari ini", range: (t) => [t, t] },
+  { key: "yesterday", label: "Kemarin", range: (t) => [addDays(t, -1), addDays(t, -1)] },
+  { key: "7d", label: "7 hari", range: (t) => [addDays(t, -6), t] },
+  { key: "month", label: "Bulan ini", range: (t) => [monthStart(t), t] },
+  { key: "lastmonth", label: "Bulan lalu", range: (t) => [monthStart(prevMonthEnd(t)), prevMonthEnd(t)] },
+  { key: "custom", label: "Pilih tanggal", range: null },
+];
+
+const period = ref("today");
+const from = ref(todayISO());
+const to = ref(todayISO());
+
+function setPeriod(key) {
+  period.value = key;
+  const p = PERIODS.find((x) => x.key === key);
+  if (p.range) [from.value, to.value] = p.range(todayISO());
+}
+
+const singleDay = computed(() => from.value === to.value);
+const rangeLabel = computed(() => {
+  const f = shortDate(`${from.value}T12:00:00+07:00`);
+  return singleDay.value ? f : `${f} – ${shortDate(`${to.value}T12:00:00+07:00`)}`;
+});
+
+// ---- Data ----
 const report = ref(null);
 const expenses = ref([]);
+const categories = ref([]);
 const loading = ref(false);
 const error = ref("");
 
 async function load() {
+  if (from.value > to.value) {
+    error.value = "Tanggal awal tidak boleh setelah tanggal akhir.";
+    return;
+  }
   loading.value = true;
   error.value = "";
   try {
-    const [r, e] = await Promise.all([api(`/reports/daily?date=${date.value}`), api(`/expenses?date=${date.value}`)]);
+    const q = `from=${from.value}&to=${to.value}`;
+    const [r, e] = await Promise.all([api(`/reports/summary?${q}`), api(`/expenses?${q}`)]);
     report.value = r.data;
     expenses.value = e.data;
+    categories.value = e.categories ?? [];
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -29,37 +71,62 @@ async function load() {
 }
 
 onMounted(load);
-watch(date, load);
+watch([from, to], load);
 
-// Batang per jam: minimal 10.00 sampai 17.00, melebar mengikuti jam yang ada transaksinya
+const dayMonth = (iso) => new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
+const pct = (part, whole) => (whole ? Math.round((part / whole) * 100) : 0);
+const paymentLabel = (m) => PAYMENT_LABELS[m] ?? titleCase(m);
+
+// Grafik: per jam untuk satu hari, per hari untuk rentang
 const bars = computed(() => {
-  const hourly = report.value?.hourly ?? [];
-  const hours = hourly.map((h) => h.hour);
-  const from = Math.min(10, ...hours);
-  const to = Math.max(17, ...hours);
-  const max = Math.max(1, ...hourly.map((h) => h.total));
-  const out = [];
-  for (let h = from; h <= to; h++) {
-    const total = hourly.find((x) => x.hour === h)?.total ?? 0;
-    out.push({ hour: h, total, pct: (total / max) * 100, peak: total > 0 && total === max });
+  if (!report.value) return [];
+  if (singleDay.value) {
+    const hourly = report.value.hourly;
+    const hours = hourly.map((h) => h.hour);
+    const lo = Math.min(10, ...hours);
+    const hi = Math.max(17, ...hours);
+    const max = Math.max(1, ...hourly.map((h) => h.total));
+    const out = [];
+    for (let h = lo; h <= hi; h++) {
+      const total = hourly.find((x) => x.hour === h)?.total ?? 0;
+      out.push({ key: h, label: `${String(h).padStart(2, "0")}.00`, total, pct: (total / max) * 100, peak: total > 0 && total === max });
+    }
+    return out;
   }
-  return out;
+  const daily = report.value.daily;
+  const max = Math.max(1, ...daily.map((d) => d.sales));
+  return daily.map((d) => ({
+    key: d.date,
+    label: daily.length > 14 ? String(Number(d.date.slice(8))) : dayMonth(d.date),
+    total: d.sales,
+    pct: (d.sales / max) * 100,
+    peak: d.sales > 0 && d.sales === max,
+  }));
 });
 
 // ---- Biaya operasional ----
 const adding = ref(false);
-const expName = ref("");
-const expAmount = ref("");
+const exp = ref({ date: todayISO(), category: "Bahan baku", name: "", amount: "" });
 const expSaving = ref(false);
 
+function openAdd() {
+  exp.value = { date: to.value, category: exp.value.category || "Bahan baku", name: "", amount: "" };
+  adding.value = true;
+}
+
+function onAmount(e) {
+  const digits = e.target.value.replace(/\D/g, "");
+  exp.value.amount = digits ? number.format(Number(digits)) : "";
+  e.target.value = exp.value.amount;
+}
+
 async function addExpense() {
-  const amount = Number(String(expAmount.value).replace(/\D/g, ""));
-  if (!expName.value.trim() || !amount) return;
+  const amount = Number(String(exp.value.amount).replace(/\D/g, ""));
+  if (!exp.value.name.trim() || !amount) return;
   expSaving.value = true;
   try {
-    await api("/expenses", { method: "POST", body: { name: expName.value, amount, date: date.value } });
-    expName.value = "";
-    expAmount.value = "";
+    await api("/expenses", { method: "POST", body: { name: exp.value.name, amount, date: exp.value.date, category: exp.value.category } });
+    ui.toast(`Biaya ${exp.value.name} dicatat`);
     adding.value = false;
     await load();
   } catch (e) {
@@ -69,41 +136,61 @@ async function addExpense() {
   }
 }
 
-async function removeExpense(id) {
+async function removeExpense(e) {
   try {
-    await api(`/expenses/${id}`, { method: "DELETE" });
+    await api(`/expenses/${e.id}`, { method: "DELETE" });
+    ui.toast(`Biaya ${e.name} dihapus`);
     await load();
-  } catch (e) {
-    ui.toast(e.message, "error");
+  } catch (err) {
+    ui.toast(err.message, "error");
   }
 }
 
-// ---- Ekspor CSV transaksi hari itu ----
+// ---- Ekspor CSV: transaksi + ringkasan laba rugi untuk periode ini ----
 const exporting = ref(false);
 async function exportCsv() {
   exporting.value = true;
   try {
-    const bills = (await api(`/bills?status=paid&date=${date.value}`)).data;
+    const bills = (await api(`/bills?status=paid&from=${from.value}&to=${to.value}`)).data;
+    const r = report.value;
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = [["No", "Waktu", "Tipe", "Nomor", "Pelanggan", "Kasir", "Metode", "Item", "Total"]];
+    const rows = [
+      ["LAPORAN LABA RUGI", rangeLabel.value],
+      ["Penjualan", r.net_sales],
+      ["HPP", -r.hpp],
+      ["Laba kotor", r.gross_profit],
+      ...r.expenses_by_category.map((e) => [`Biaya: ${e.category}`, -e.total]),
+      ["Laba bersih", r.net_profit],
+      [],
+      ["PEMBAYARAN", "Transaksi", "Total"],
+      ...r.payments.map((p) => [paymentLabel(p.method), p.count, p.total]),
+      [],
+      ["No", "Tanggal", "Waktu", "Tipe", "Nomor", "Pelanggan", "Kasir", "Metode", "Item", "Total"],
+    ];
     for (const b of [...bills].reverse()) {
+      const at = b.paid_at ?? b.created_at;
       rows.push([
         b.billId,
-        timeOnly(b.paid_at ?? b.created_at),
+        new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(at)),
+        timeOnly(at),
         orderTypeLabel(b.order_type),
         b.table_code ?? "",
         b.customer_name ?? "",
         b.employee_name ?? "",
-        PAYMENT_LABELS[b.payment_method] ?? b.payment_method ?? "",
+        paymentLabel(b.payment_method),
         b.billItems.map((i) => `${i.qty}x ${i.name}`).join("; "),
         b.grand_total,
       ]);
     }
-    const csv = "﻿" + rows.map((r) => r.map(esc).join(",")).join("\r\n");
+    if (expenses.value.length) {
+      rows.push([], ["BIAYA", "Tanggal", "Kategori", "Nama", "Jumlah"]);
+      for (const e of expenses.value) rows.push(["", e.spent_on, e.category, e.name, e.amount]);
+    }
+    const csv = "﻿" + rows.map((row) => row.map(esc).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `transaksi-bakso-djaya-${date.value}.csv`;
+    a.download = `laporan-bakso-djaya-${from.value}${singleDay.value ? "" : `-sd-${to.value}`}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   } catch (e) {
@@ -115,120 +202,211 @@ async function exportCsv() {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto overscroll-contain px-8 py-7">
+  <div class="h-full overflow-y-auto overscroll-contain px-4 py-5 md:px-8 md:py-7">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h1 class="text-[32px] font-bold leading-tight">
-          {{ date === todayISO() ? "Ringkasan hari ini" : "Ringkasan harian" }}
-        </h1>
-        <p class="mt-1 text-[15px] text-muted-foreground">{{ shortDate(date + "T12:00:00+07:00") }} · {{ OUTLET_BRANCH }}</p>
+        <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Laporan</h1>
+        <p class="mt-1 text-[15px] text-muted-foreground">{{ rangeLabel }} · {{ OUTLET_BRANCH }}</p>
       </div>
-      <div class="flex gap-3">
-        <input
-          v-model="date"
-          type="date"
-          :max="todayISO()"
-          aria-label="Tanggal laporan"
-          class="h-14 rounded-xl border bg-card px-4 text-[15px] outline-none focus:border-primary"
-        />
-        <Button variant="secondary" class="h-14 w-48 justify-start rounded-xl px-6 text-lg font-semibold" :disabled="exporting" @click="exportCsv">
-          <Download /> {{ exporting ? "Menyiapkan..." : "Ekspor" }}
-        </Button>
-      </div>
+      <Button variant="secondary" class="h-12 rounded-xl px-5 text-base font-semibold" :disabled="exporting || !report" @click="exportCsv">
+        <Download /> {{ exporting ? "Menyiapkan..." : "Ekspor Excel (CSV)" }}
+      </Button>
+    </div>
+
+    <!-- Periode -->
+    <div class="mt-5 flex flex-wrap items-center gap-2" role="group" aria-label="Periode laporan">
+      <button
+        v-for="p in PERIODS"
+        :key="p.key"
+        type="button"
+        class="h-11 rounded-full px-4 text-[15px] transition-colors"
+        :class="period === p.key ? 'bg-primary font-semibold text-primary-foreground' : 'bg-muted hover:bg-secondary'"
+        :aria-pressed="period === p.key"
+        @click="setPeriod(p.key)"
+      >
+        {{ p.label }}
+      </button>
+      <span v-if="period === 'custom'" class="flex flex-wrap items-center gap-2">
+        <input v-model="from" type="date" :max="todayISO()" aria-label="Dari tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
+        <span class="text-muted-foreground">s/d</span>
+        <input v-model="to" type="date" :max="todayISO()" aria-label="Sampai tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
+      </span>
     </div>
 
     <p v-if="error" class="mt-8 text-[15px] text-destructive">{{ error }}</p>
     <p v-else-if="loading && !report" class="mt-8 text-[15px] text-muted-foreground">Memuat laporan...</p>
 
     <template v-else-if="report">
-      <div class="mt-8 grid gap-6 md:grid-cols-3">
-        <div class="rounded-[20px] bg-muted/50 p-7">
-          <p class="text-lg text-muted-foreground">Penjualan neto</p>
-          <p class="tabular mt-3 text-[40px] font-bold leading-none tracking-tight">{{ formatRp(report.net_sales) }}</p>
-          <p class="mt-4 text-[15px] text-muted-foreground">{{ report.transactions }} transaksi</p>
+      <!-- Angka utama -->
+      <div class="mt-6 grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4" :class="loading ? 'opacity-60' : ''">
+        <div class="rounded-[20px] bg-muted/50 p-5 md:p-6">
+          <p class="text-[15px] text-muted-foreground">Penjualan</p>
+          <p class="tabular mt-2 whitespace-nowrap text-[21px] font-bold leading-none tracking-tight md:text-[32px]">{{ formatRp(report.net_sales) }}</p>
+          <p class="mt-3 text-sm text-muted-foreground">{{ report.transactions }} transaksi · rata-rata {{ formatRp(report.average_ticket) }}</p>
         </div>
-        <div class="rounded-[20px] bg-muted/50 p-7">
-          <p class="text-lg text-muted-foreground">Estimasi HPP</p>
-          <p class="tabular mt-3 text-[40px] font-bold leading-none tracking-tight">{{ formatRp(report.hpp) }}</p>
-          <p class="mt-4 text-[15px] text-muted-foreground">Berdasarkan HPP per menu</p>
+        <div class="rounded-[20px] bg-muted/50 p-5 md:p-6">
+          <p class="text-[15px] text-muted-foreground">Laba kotor</p>
+          <p class="tabular mt-2 whitespace-nowrap text-[21px] font-bold leading-none tracking-tight md:text-[32px]">{{ formatRp(report.gross_profit) }}</p>
+          <p class="mt-3 text-sm text-muted-foreground">Penjualan dikurangi HPP {{ formatRp(report.hpp) }}</p>
         </div>
-        <div class="rounded-[20px] bg-muted/50 p-7">
-          <p class="text-lg text-muted-foreground">Laba kotor</p>
-          <p class="tabular mt-3 text-[40px] font-bold leading-none tracking-tight">{{ formatRp(report.gross_profit) }}</p>
-          <p class="mt-4 text-[15px] text-muted-foreground">Sebelum biaya operasional</p>
+        <div class="rounded-[20px] bg-muted/50 p-5 md:p-6">
+          <p class="text-[15px] text-muted-foreground">Biaya operasional</p>
+          <p class="tabular mt-2 whitespace-nowrap text-[21px] font-bold leading-none tracking-tight md:text-[32px]">{{ formatRp(report.expenses) }}</p>
+          <p class="mt-3 text-sm text-muted-foreground">{{ report.expenses_by_category.length }} kategori</p>
+        </div>
+        <div class="rounded-[20px] p-5 md:p-6" :class="report.net_profit < 0 ? 'bg-destructive/8' : 'bg-success-soft'">
+          <p class="text-[15px] text-muted-foreground">Laba bersih</p>
+          <p class="tabular mt-2 whitespace-nowrap text-[21px] font-bold leading-none tracking-tight md:text-[32px]" :class="report.net_profit < 0 ? 'text-destructive' : 'text-success'">
+            {{ formatRp(report.net_profit) }}
+          </p>
+          <p class="mt-3 text-sm text-muted-foreground">Margin {{ Math.round(report.net_margin * 100) }}% dari penjualan</p>
         </div>
       </div>
 
-      <div class="mt-7 grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
-        <section class="rounded-[20px] border p-8">
-          <h2 class="text-2xl font-semibold">Penjualan per jam</h2>
-          <p class="mt-1 text-[15px] text-muted-foreground">Nilai penjualan dalam ribuan rupiah</p>
-          <div class="mt-8 flex h-64 items-end gap-3" role="img" :aria-label="`Grafik penjualan per jam tanggal ${date}`">
-            <div v-for="b in bars" :key="b.hour" class="flex h-full flex-1 flex-col items-center justify-end gap-3">
-              <span v-if="b.total" class="tabular text-xs text-muted-foreground">{{ number.format(Math.round(b.total / 1000)) }}</span>
-              <div
-                class="w-full max-w-16 rounded-lg transition-all"
-                :class="b.peak ? 'bg-primary' : 'bg-chart-2'"
-                :style="{ height: b.total ? `${Math.max(b.pct, 4)}%` : '4px' }"
-                :title="`${String(b.hour).padStart(2, '0')}.00 · ${formatRp(b.total)}`"
-              />
-              <span class="tabular text-sm text-muted-foreground">{{ String(b.hour).padStart(2, "0") }}.00</span>
+      <p v-if="report.items_without_hpp" class="mt-4 flex items-start gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning">
+        <TriangleAlert class="mt-0.5 size-4 shrink-0" />
+        {{ report.items_without_hpp }} menu yang terjual belum punya HPP, jadi laba terlihat lebih besar dari sebenarnya.
+        Isi HPP di Pengaturan → Menu.
+      </p>
+
+      <div class="mt-6 grid gap-5 lg:grid-cols-2">
+        <!-- Laba rugi -->
+        <section class="rounded-[20px] border p-5 md:p-7">
+          <h2 class="text-xl font-semibold md:text-2xl">Laba rugi</h2>
+          <p class="text-sm text-muted-foreground">{{ rangeLabel }}</p>
+          <dl class="tabular mt-5 grid gap-2.5 text-[15px]">
+            <div class="flex justify-between"><dt>Penjualan</dt><dd class="font-semibold">{{ formatRp(report.net_sales) }}</dd></div>
+            <div class="flex justify-between text-muted-foreground"><dt>HPP (bahan per porsi)</dt><dd>− {{ formatRp(report.hpp) }}</dd></div>
+            <div class="flex justify-between border-t pt-2.5 font-semibold"><dt>Laba kotor</dt><dd>{{ formatRp(report.gross_profit) }}</dd></div>
+
+            <dt class="mt-3 text-sm font-semibold text-muted-foreground">Biaya operasional</dt>
+            <div v-if="!report.expenses_by_category.length" class="text-sm text-muted-foreground">Belum ada biaya di periode ini.</div>
+            <div v-for="e in report.expenses_by_category" :key="e.category" class="flex justify-between text-muted-foreground">
+              <dt>{{ e.category }}</dt><dd>− {{ formatRp(e.total) }}</dd>
             </div>
-          </div>
+            <div class="flex justify-between border-t pt-2.5"><dt>Total biaya</dt><dd>− {{ formatRp(report.expenses) }}</dd></div>
+
+            <div class="mt-1 flex items-baseline justify-between rounded-xl px-4 py-3" :class="report.net_profit < 0 ? 'bg-destructive/8 text-destructive' : 'bg-success-soft text-success'">
+              <dt class="text-lg font-semibold">Laba bersih</dt>
+              <dd class="text-2xl font-bold">{{ formatRp(report.net_profit) }}</dd>
+            </div>
+          </dl>
+          <p v-if="report.cancelled.count" class="mt-3 text-sm text-muted-foreground">
+            {{ report.cancelled.count }} pesanan dibatalkan ({{ formatRp(report.cancelled.total) }}) tidak dihitung.
+          </p>
         </section>
 
-        <section class="flex flex-col rounded-[20px] bg-muted/50 p-8">
-          <h2 class="text-2xl font-semibold">Menu terlaris</h2>
-          <p v-if="!report.top_products.length" class="mt-6 text-[15px] text-muted-foreground">Belum ada penjualan.</p>
-          <ul class="mt-6 flex flex-col gap-5">
-            <li v-for="p in report.top_products.slice(0, 3)" :key="p.name" class="flex items-baseline justify-between gap-3">
-              <span class="text-lg font-medium">{{ p.name.split(" - ")[0].toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()) }}</span>
-              <span class="tabular text-[15px] text-muted-foreground">{{ p.qty }} porsi</span>
+        <!-- Pembayaran dari mana -->
+        <section class="rounded-[20px] border p-5 md:p-7">
+          <h2 class="text-xl font-semibold md:text-2xl">Sumber pembayaran</h2>
+          <p class="text-sm text-muted-foreground">Uang masuk per metode</p>
+          <p v-if="!report.payments.length" class="mt-5 text-[15px] text-muted-foreground">Belum ada transaksi.</p>
+          <ul class="mt-5 flex flex-col gap-4">
+            <li v-for="p in report.payments" :key="p.method">
+              <div class="flex items-baseline justify-between gap-3">
+                <span class="text-[16px] font-semibold">{{ paymentLabel(p.method) }}</span>
+                <span class="tabular text-[16px] font-semibold">{{ formatRp(p.total) }}</span>
+              </div>
+              <div class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted">
+                <div class="h-full rounded-full bg-primary" :style="{ width: `${Math.max(pct(p.total, report.net_sales), 2)}%` }" />
+              </div>
+              <p class="tabular mt-1 text-sm text-muted-foreground">{{ p.count }} transaksi · {{ pct(p.total, report.net_sales) }}%</p>
             </li>
           </ul>
-
-          <div class="mt-auto border-t pt-5">
-            <div class="flex items-baseline justify-between">
-              <span class="text-lg text-muted-foreground">Biaya operasional</span>
-              <span class="tabular text-lg">{{ formatRp(report.expenses) }}</span>
-            </div>
-            <ul v-if="expenses.length" class="mt-2 flex flex-col gap-1">
-              <li v-for="e in expenses" :key="e.id" class="flex items-center justify-between text-sm text-muted-foreground">
-                <span>{{ e.name }}</span>
-                <span class="flex items-center gap-1">
-                  <span class="tabular">{{ formatRp(e.amount) }}</span>
-                  <button
-                    type="button"
-                    class="flex size-8 items-center justify-center rounded-lg hover:bg-card hover:text-destructive"
-                    :aria-label="`Hapus ${e.name}`"
-                    @click="removeExpense(e.id)"
-                  >
-                    <Trash2 class="size-4" />
-                  </button>
-                </span>
-              </li>
-            </ul>
-            <form v-if="adding" class="mt-3 grid grid-cols-[1fr_8rem] gap-2" @submit.prevent="addExpense">
-              <input v-model="expName" placeholder="Nama biaya" class="h-11 rounded-lg border bg-card px-3 text-[15px] outline-none focus:border-primary" required />
-              <input v-model="expAmount" inputmode="numeric" placeholder="Jumlah" class="tabular h-11 rounded-lg border bg-card px-3 text-[15px] outline-none focus:border-primary" required />
-              <Button type="submit" class="col-span-2 h-11 rounded-lg" :disabled="expSaving">{{ expSaving ? "Menyimpan..." : "Simpan biaya" }}</Button>
-            </form>
-            <button v-else type="button" class="mt-2 flex items-center gap-1 text-[15px] font-medium text-primary hover:underline" @click="adding = true">
-              <Plus class="size-4" /> Tambah biaya
-            </button>
-
-            <div class="mt-5 flex items-baseline justify-between">
-              <span class="text-xl font-semibold">Estimasi laba*</span>
-              <span class="tabular text-2xl font-semibold" :class="report.estimated_profit < 0 ? 'text-destructive' : 'text-primary'">
-                {{ formatRp(report.estimated_profit) }}
-              </span>
+          <div v-if="report.order_types.length" class="mt-6 border-t pt-4">
+            <p class="text-sm font-semibold text-muted-foreground">Tipe pesanan</p>
+            <div v-for="o in report.order_types" :key="o.type" class="tabular mt-2 flex justify-between text-[15px]">
+              <span>{{ orderTypeLabel(o.type) }} · {{ o.count }} transaksi</span><span>{{ formatRp(o.total) }}</span>
             </div>
           </div>
         </section>
       </div>
 
-      <p class="mt-6 text-sm text-muted-foreground">
-        *Contoh sederhana: laba kotor dikurangi biaya operasional; belum termasuk pajak dan penyesuaian.
+      <div class="mt-5 grid gap-5 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
+        <section class="rounded-[20px] border p-5 md:p-7">
+          <h2 class="text-xl font-semibold md:text-2xl">{{ singleDay ? "Penjualan per jam" : "Penjualan per hari" }}</h2>
+          <p class="mt-1 text-sm text-muted-foreground">Dalam ribuan rupiah</p>
+          <div class="mt-6 flex h-56 items-end gap-1.5 md:gap-2.5" role="img" :aria-label="`Grafik penjualan ${rangeLabel}`">
+            <div v-for="b in bars" :key="b.key" class="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+              <span v-if="b.total && bars.length <= 16" class="tabular text-[11px] text-muted-foreground">{{ number.format(Math.round(b.total / 1000)) }}</span>
+              <div
+                class="w-full max-w-14 rounded-md"
+                :class="b.peak ? 'bg-primary' : 'bg-chart-2'"
+                :style="{ height: b.total ? `${Math.max(b.pct, 4)}%` : '3px' }"
+                :title="`${b.label} · ${formatRp(b.total)}`"
+              />
+              <span class="tabular w-full truncate text-center text-[11px] text-muted-foreground md:text-xs">{{ b.label }}</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="rounded-[20px] bg-muted/50 p-5 md:p-7">
+          <h2 class="text-xl font-semibold md:text-2xl">Menu terlaris</h2>
+          <p v-if="!report.top_products.length" class="mt-5 text-[15px] text-muted-foreground">Belum ada penjualan.</p>
+          <ol class="mt-5 flex flex-col gap-3.5">
+            <li v-for="(p, i) in report.top_products" :key="p.name" class="flex items-baseline gap-3">
+              <span class="tabular w-5 shrink-0 text-sm text-muted-foreground">{{ i + 1 }}</span>
+              <span class="min-w-0 flex-1 truncate text-[15px] font-medium">{{ titleCase(p.name) }}</span>
+              <span class="tabular shrink-0 text-sm text-muted-foreground">{{ p.qty }} porsi</span>
+            </li>
+          </ol>
+        </section>
+      </div>
+
+      <!-- Biaya operasional -->
+      <section class="mt-5 rounded-[20px] border p-5 md:p-7">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-semibold md:text-2xl">Biaya operasional</h2>
+            <p class="text-sm text-muted-foreground">Catat pengeluaran supaya laba bersih akurat</p>
+          </div>
+          <Button v-if="!adding" class="h-11 rounded-xl px-4" @click="openAdd"><Plus /> Catat biaya</Button>
+        </div>
+
+        <form v-if="adding" class="mt-5 grid gap-3 rounded-xl bg-muted/60 p-4 md:grid-cols-[9.5rem_11rem_minmax(0,1fr)_9rem]" @submit.prevent="addExpense">
+          <label class="grid gap-1 text-sm font-semibold">Tanggal
+            <input v-model="exp.date" type="date" :max="todayISO()" required class="h-11 w-full min-w-0 rounded-lg border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" />
+          </label>
+          <label class="grid gap-1 text-sm font-semibold">Kategori
+            <select v-model="exp.category" class="h-11 w-full min-w-0 rounded-lg border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary">
+              <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+            </select>
+          </label>
+          <label class="grid gap-1 text-sm font-semibold">Keterangan
+            <input v-model="exp.name" required placeholder="Contoh: Daging sapi 5 kg" class="h-11 w-full min-w-0 rounded-lg border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" />
+          </label>
+          <label class="grid gap-1 text-sm font-semibold">Jumlah (Rp)
+            <input :value="exp.amount" inputmode="numeric" required placeholder="0" class="tabular h-11 w-full min-w-0 rounded-lg border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" @input="onAmount" />
+          </label>
+          <div class="flex gap-2 md:col-span-4 md:justify-end">
+            <Button type="button" variant="secondary" class="h-11 flex-1 rounded-lg md:flex-none md:px-6" @click="adding = false">Batal</Button>
+            <Button type="submit" class="h-11 flex-1 rounded-lg md:flex-none md:px-6" :disabled="expSaving">{{ expSaving ? "Menyimpan..." : "Simpan biaya" }}</Button>
+          </div>
+        </form>
+
+        <p v-if="!expenses.length" class="mt-5 text-[15px] text-muted-foreground">Belum ada biaya di periode ini.</p>
+        <ul v-else class="mt-4 flex flex-col divide-y">
+          <li v-for="e in expenses" :key="e.id" class="flex items-center gap-3 py-3">
+            <span class="tabular w-16 shrink-0 text-sm whitespace-nowrap text-muted-foreground">{{ dayMonth(e.spent_on) }}</span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-[15px] font-medium">{{ e.name }}</span>
+              <span class="mt-0.5 inline-block rounded-full bg-muted px-2 py-0.5 text-xs">{{ e.category }}</span>
+            </span>
+            <span class="tabular shrink-0 text-[15px] font-semibold">{{ formatRp(e.amount) }}</span>
+            <button
+              type="button"
+              class="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              :aria-label="`Hapus ${e.name}`"
+              @click="removeExpense(e)"
+            >
+              <Trash2 class="size-4" />
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <p class="mt-5 text-sm text-muted-foreground">
+        HPP dihitung dari HPP per menu di Pengaturan. Laba bersih = penjualan − HPP − biaya operasional, belum termasuk pajak.
       </p>
     </template>
   </div>

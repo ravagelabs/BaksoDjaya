@@ -84,18 +84,18 @@ const BILL_SELECT = `
     JOIN product p ON bi.product_id = p.id
 `;
 
-export const getBills = async (billId = null, status = null, date = null) => {
+export const getBills = async (billId = null, status = null, from = null, to = from) => {
     const query = `
         ${BILL_SELECT}
         WHERE ($1::int IS NULL OR b.id = $1)
           AND ($2::text IS NULL OR b.status = $2)
           AND b.status <> 'cancelled'
-          AND ($3::date IS NULL OR (COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::date = $3::date)
+          AND ($3::date IS NULL OR (COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::date BETWEEN $3::date AND COALESCE($4::date, $3::date))
         GROUP BY b.id, u.id, c.id, t.id
         ORDER BY b.id DESC;
     `;
 
-    return await db.any(query, [billId, status, date]);
+    return await db.any(query, [billId, status, from, to]);
 };
 
 // Antrean dapur: semua bill yang sudah dikirim dan belum disajikan, terlama di atas
