@@ -152,13 +152,13 @@ async function advance(b, next) {
         <article
           v-for="b in byStatus[col.key]"
           :key="b.billId"
-          class="mt-5 rounded-[20px] border bg-[#fbfbfd] p-6 transition-shadow duration-500"
-          :class="fresh.has(b.billId) ? 'border-primary shadow-[0_0_0_4px_rgba(101,54,181,0.18)]' : ''"
+          class="mt-5 rounded-[20px] border bg-[#fbfaf8] p-6 transition-shadow duration-500"
+          :class="fresh.has(b.billId) ? 'border-cta shadow-[0_0_0_4px_rgb(217_72_15/0.16)]' : ''"
         >
           <header class="flex items-baseline justify-between">
             <h3 class="flex items-center gap-2 text-2xl font-semibold">
               {{ label(b) }}
-              <span v-if="fresh.has(b.billId)" class="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">Baru</span>
+              <span v-if="fresh.has(b.billId)" class="rounded-full bg-cta px-2 py-0.5 text-xs font-semibold text-cta-foreground">Baru</span>
             </h3>
             <span class="tabular text-[15px] font-medium" :class="col.time">{{ minutesSince(b.sent_to_kitchen_at, now) }} menit</span>
           </header>
@@ -183,7 +183,7 @@ async function advance(b, next) {
           <button
             type="button"
             class="mt-4 h-14 w-full rounded-xl px-7 text-left text-lg font-semibold transition-colors disabled:opacity-60"
-            :class="col.primary ? 'bg-primary text-primary-foreground hover:bg-primary-hover' : 'bg-muted text-foreground hover:bg-[#e9e9ec]'"
+            :class="col.primary ? 'bg-cta text-cta-foreground hover:bg-cta-hover' : 'bg-muted text-foreground hover:bg-secondary'"
             :disabled="busy === b.billId"
             @click="advance(b, col.next)"
           >

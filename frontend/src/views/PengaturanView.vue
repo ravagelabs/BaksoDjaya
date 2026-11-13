@@ -121,7 +121,7 @@ function duration(from, to) {
             role="tab"
             :aria-selected="category === c"
             class="h-12 shrink-0 rounded-full px-5 text-[15px] transition-colors"
-            :class="category === c ? 'bg-primary font-semibold text-primary-foreground' : 'bg-muted text-foreground hover:bg-[#e9e9ec]'"
+            :class="category === c ? 'bg-primary font-semibold text-primary-foreground' : 'bg-muted text-foreground hover:bg-secondary'"
             @click="category = c"
           >
             {{ c }}
@@ -184,7 +184,7 @@ function duration(from, to) {
               :aria-checked="p.is_available"
               :aria-label="`${splitName(p.name).title} tersedia`"
               class="relative inline-flex h-8 w-14 items-center rounded-full transition-colors disabled:opacity-50"
-              :class="p.is_available ? 'bg-primary' : 'bg-[#d8d8dc]'"
+              :class="p.is_available ? 'bg-primary' : 'bg-[#d6d3ce]'"
               :disabled="savingId === p.id"
               @click="toggleAvailable(p)"
             >

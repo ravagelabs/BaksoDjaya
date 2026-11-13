@@ -21,7 +21,7 @@ const now = ref(Date.now());
 const filter = ref(null); // null | available | occupied | waiting_payment
 
 const STATUS = {
-  available: { label: "Tersedia", card: "bg-[#f8f8fa]", text: "text-muted-foreground", chip: "bg-muted text-foreground" },
+  available: { label: "Tersedia", card: "bg-[#f8f7f4]", text: "text-muted-foreground", chip: "bg-muted text-foreground" },
   occupied: { label: "Terisi", card: "bg-secondary", text: "text-primary", chip: "bg-secondary text-primary" },
   waiting_payment: { label: "Menunggu bayar", card: "bg-warning-soft", text: "text-warning", chip: "bg-warning-soft text-warning" },
 };
