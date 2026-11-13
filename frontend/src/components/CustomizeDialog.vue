@@ -131,7 +131,7 @@ const choiceClass = (selected) =>
             <h2 class="text-xl font-bold leading-tight">{{ shownName }}</h2>
             <p v-if="product.description" class="mt-1.5 text-sm text-muted-foreground">{{ product.description }}</p>
             <span class="tabular mt-3 inline-flex w-fit rounded-full bg-secondary px-3 py-1 text-sm font-semibold text-primary">
-              {{ formatRp(targetProduct?.price ?? product.price) }}
+              {{ formatRp(targetProduct ? unitPrice : product.price) }}
             </span>
           </div>
         </section>
