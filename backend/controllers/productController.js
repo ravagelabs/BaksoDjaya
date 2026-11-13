@@ -7,6 +7,7 @@ export const getProducts = async () => {
         const query = `
             SELECT ${COLUMNS}
             FROM product
+            WHERE archived_at IS NULL
             ORDER BY id ASC;
         `;
         
@@ -83,4 +84,15 @@ export const updateProduct = async (id, input) => {
 
     if (!product) throw new Error(`Product #${id} not found.`);
     return product;
+};
+
+// Hapus menu dari kasir. Disimpan sebagai arsip supaya transaksi lama tetap bisa dibaca.
+export const archiveProduct = async (id) => {
+    const row = await db.oneOrNone(
+        `UPDATE product SET archived_at = now(), is_available = false
+         WHERE id = $1 AND archived_at IS NULL RETURNING id;`,
+        [id]
+    );
+    if (!row) throw new Error(`Product #${id} not found.`);
+    return row;
 };

@@ -3,6 +3,7 @@ import { ref, computed, watch } from "vue";
 import { ImagePlus, Link2, Trash2 } from "@lucide/vue";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import { api } from "@/lib/api";
 import { resizeImage } from "@/lib/image";
 import { number, titleCase, assetUrl } from "@/lib/format";
@@ -85,6 +86,25 @@ async function onFile(e) {
     error.value = err.message;
   } finally {
     uploading.value = false;
+  }
+}
+
+// ---- Hapus menu (riwayat transaksi tetap aman) ----
+const confirmDelete = ref(false);
+const deleting = ref(false);
+
+async function removeProduct() {
+  if (deleting.value) return;
+  deleting.value = true;
+  try {
+    await api(`/products/${props.product.id}`, { method: "DELETE" });
+    catalog.remove(props.product.id);
+    ui.toast(`${titleCase(props.product.name)} dihapus dari menu`);
+    emit("update:open", false);
+  } catch (err) {
+    error.value = err.message;
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -277,8 +297,25 @@ async function submit() {
               {{ saving ? "Menyimpan..." : isEdit ? "Simpan perubahan" : "Tambah menu" }}
             </Button>
           </div>
+          <button
+            v-if="isEdit"
+            type="button"
+            class="-mt-1 flex h-10 items-center justify-center gap-2 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+            :disabled="deleting"
+            @click="confirmDelete = true"
+          >
+            <Trash2 class="size-4" /> {{ deleting ? "Menghapus..." : "Hapus menu ini" }}
+          </button>
         </div>
       </form>
     </DialogContent>
   </Dialog>
+
+  <ConfirmDialog
+    v-model:open="confirmDelete"
+    :title="`Hapus ${product ? titleCase(product.name) : 'menu'}?`"
+    description="Menu hilang dari kasir. Transaksi lama yang memakai menu ini tetap tersimpan di laporan."
+    confirm-label="Hapus menu"
+    @confirm="removeProduct"
+  />
 </template>

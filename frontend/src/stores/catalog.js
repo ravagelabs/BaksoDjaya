@@ -124,6 +124,10 @@ export const useCatalogStore = defineStore("catalog", () => {
     else products.value[i] = product;
   }
 
+  function remove(id) {
+    products.value = products.value.filter((p) => p.id !== id);
+  }
+
   function setAvailability(id, isAvailable) {
     const p = byId(id);
     if (p) p.is_available = isAvailable;
@@ -147,5 +151,6 @@ export const useCatalogStore = defineStore("catalog", () => {
     hasChoices,
     setAvailability,
     upsert,
+    remove,
   };
 });

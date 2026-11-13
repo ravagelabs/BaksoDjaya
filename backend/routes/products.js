@@ -1,5 +1,5 @@
 import express from 'express';
-import { getProducts, createProduct, updateProduct } from '../controllers/productController.js';
+import { getProducts, createProduct, updateProduct, archiveProduct } from '../controllers/productController.js';
 
 
 const router = express.Router();
@@ -40,6 +40,21 @@ router.patch('/:id', async (req, res) => {
     } catch (err) {
         console.error('Error in PATCH /products/:id:', err);
         res.status(400).json({ error: err.message || 'Failed to update product' });
+    }
+});
+
+// Hapus menu (akun utama saja, dicek di index.js)
+router.delete('/:id', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id)) {
+            return res.status(400).json({ error: 'Invalid product id' });
+        }
+        await archiveProduct(id);
+        res.status(200).json({ message: 'Product deleted' });
+    } catch (err) {
+        console.error('Error in DELETE /products/:id:', err);
+        res.status(400).json({ error: err.message || 'Menu gagal dihapus.' });
     }
 });
 
