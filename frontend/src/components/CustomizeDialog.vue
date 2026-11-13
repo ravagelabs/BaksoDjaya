@@ -34,6 +34,10 @@ const groups = computed(() =>
   props.product ? catalog.modifierGroups(props.product.category, isVariant.value ? variantId.value : props.product.id) : []
 );
 const choiceGroups = computed(() => groups.value.filter((g) => g.kind === "choice"));
+// Grup Pakai/Tanpa (Seledri, Bawang goreng) wajib dipilih kasir sendiri: tidak ada pilihan default
+const mustPick = (g) => g.options.some((o) => /^pakai\b/i.test(o.name)) && g.options.some((o) => /^tanpa\b/i.test(o.name));
+const missing = computed(() => choiceGroups.value.filter((g) => !choices.value[g.name]).map((g) => g.name));
+const tried = ref(false);
 const extraGroups = computed(() => groups.value.filter((g) => g.kind === "extra"));
 
 // Reset setiap kali dialog dibuka untuk produk baru
@@ -52,9 +56,11 @@ watch(
     choices.value = Object.fromEntries(
       choiceGroups.value.map((g) => [
         g.name,
-        picked.find((o) => o.group === g.name && g.options.some((x) => x.name === o.name))?.name ?? g.options[0].name,
+        picked.find((o) => o.group === g.name && g.options.some((x) => x.name === o.name))?.name ??
+          (mustPick(g) ? "" : g.options[0].name),
       ])
     );
+    tried.value = false;
     paketBakso.value = e?.paket?.bakso ?? paket.value.bakso[0] ?? "";
     paketMie.value = e?.paket?.mie ?? paket.value.mie[0] ?? "";
   },
@@ -63,7 +69,8 @@ watch(
 
 // Ganti jenis: grup pilihan yang belum punya nilai diberi opsi pertama
 watch(choiceGroups, (list) => {
-  for (const g of list) if (!g.options.some((o) => o.name === choices.value[g.name])) choices.value[g.name] = g.options[0].name;
+  for (const g of list)
+    if (!g.options.some((o) => o.name === choices.value[g.name])) choices.value[g.name] = mustPick(g) ? "" : g.options[0].name;
 });
 
 // Produk yang benar-benar ditambahkan: untuk paket, baris kombinasi yang cocok
@@ -103,6 +110,12 @@ function toggleExtra(name) {
 
 function submit() {
   if (!targetProduct.value || !available.value) return;
+  if (missing.value.length) {
+    tried.value = true;
+    // tampilkan grup pertama yang belum dipilih
+    requestAnimationFrame(() => document.querySelector("[data-missing='true']")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    return;
+  }
   emit("add", { product: targetProduct.value, qty: qty.value, options: selectedOptions.value, note: note.value });
 }
 
@@ -196,10 +209,15 @@ const choiceClass = (selected) =>
           </div>
 
           <!-- Produk biasa: grup pilihan dari tabel modifier -->
-          <div v-for="g in choiceGroups" :key="g.name">
+          <div v-for="g in choiceGroups" :key="g.name" :data-missing="!choices[g.name]">
             <h3 class="text-base font-semibold">{{ g.name }}</h3>
-            <p class="mb-2 text-xs text-muted-foreground">Pilih satu</p>
-            <div class="grid grid-cols-3 gap-2">
+            <p
+              class="mb-2 text-xs"
+              :class="tried && !choices[g.name] ? 'font-semibold text-destructive' : 'text-muted-foreground'"
+            >
+              {{ mustPick(g) ? (tried && !choices[g.name] ? "Wajib dipilih: pakai atau tanpa?" : "Wajib pilih satu") : "Pilih satu" }}
+            </p>
+            <div class="grid grid-cols-3 gap-2 rounded-xl" :class="tried && !choices[g.name] ? 'ring-2 ring-destructive ring-offset-2' : ''">
               <button
                 v-for="opt in g.options"
                 :key="opt.id"
@@ -271,9 +289,13 @@ const choiceClass = (selected) =>
                 <Plus class="size-5" />
               </button>
             </div>
-            <Button class="h-12 min-w-0 flex-1 justify-between gap-2 rounded-xl px-4 text-base sm:px-5" :disabled="!available" @click="submit">
+            <Button class="h-12 min-w-0 flex-1 justify-between gap-2 rounded-xl px-4 text-base sm:px-5"
+              :class="missing.length ? 'opacity-60' : ''"
+              :disabled="!available" @click="submit">
               <template v-if="available">
-                <span class="truncate">{{ editing ? "Simpan" : "Tambah pesanan" }}</span>
+                <span class="truncate">{{
+                  missing.length ? "Lengkapi pilihan" : editing ? "Simpan" : "Tambah pesanan"
+                }}</span>
                 <span class="tabular shrink-0">{{ formatRp(unitPrice * qty) }}</span>
               </template>
               <template v-else>Stok habis</template>
