@@ -55,7 +55,7 @@ const WRITE = ['POST', 'PUT', 'PATCH', 'DELETE'];
 app.use('/uploads', requireRole());
 app.use(['/products', '/modifiers'], requireRole(undefined, WRITE));
 app.use(['/reports', '/expenses', '/users'], requireRole());
-app.use('/bills', requireRole(undefined, ['DELETE'])); // hapus pesanan: akun utama saja
+// Batalkan pesanan: akun utama semua pesanan; admin hanya pesanan yang masih di dapur (dicek di route)
 app.use('/shifts', requireRole(undefined, ['GET']));
 
 app.use('/uploads', uploadsRouter);

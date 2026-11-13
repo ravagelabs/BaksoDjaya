@@ -112,7 +112,8 @@ export const getKitchenQueue = async () => {
 
 // Batalkan pesanan (hanya akun utama). Pesanan keluar dari dapur, nomornya kembali,
 // dan tidak dihitung di penjualan. Data tetap tersimpan dengan siapa dan kapan dibatalkan.
-export const cancelBill = async (billId, userId) => {
+// kitchenOnly: admin hanya boleh membatalkan pesanan yang masih di antrean dapur
+export const cancelBill = async (billId, userId, kitchenOnly = false) => {
     const bill = await db.oneOrNone(
         `UPDATE bill
          SET status = 'cancelled',
@@ -121,10 +122,15 @@ export const cancelBill = async (billId, userId) => {
              cancelled_by = $2,
              number_returned_at = COALESCE(number_returned_at, now())
          WHERE id = $1 AND status IN ('pending', 'paid')
+           AND (NOT $3 OR kitchen_status IN ('new', 'cooking', 'ready'))
          RETURNING id, status, kitchen_status;`,
-        [billId, userId]
+        [billId, userId, kitchenOnly]
     );
-    if (!bill) throw new Error('Pesanan tidak ditemukan atau sudah dibatalkan.');
+    if (!bill) {
+        throw new Error(kitchenOnly
+            ? 'Admin hanya bisa membatalkan pesanan yang masih di dapur. Minta akun utama untuk menghapus transaksi ini.'
+            : 'Pesanan tidak ditemukan atau sudah dibatalkan.');
+    }
     return bill;
 };
 

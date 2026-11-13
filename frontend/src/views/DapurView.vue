@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
-import { Volume2, VolumeX } from "@lucide/vue";
+import { Volume2, VolumeX, X } from "@lucide/vue";
+import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import { useLive, unlockSound, soundReady, chime } from "@/lib/live";
 import { api } from "@/lib/api";
 import { minutesSince, orderNo, orderTypeLabel, splitName, optionsText } from "@/lib/format";
@@ -101,6 +102,24 @@ async function advance(b, next) {
     busy.value = null;
   }
 }
+
+// ---- Batalkan pesanan (akun utama & admin). Nomor pager otomatis kembali tersedia. ----
+const cancelTarget = ref(null);
+async function cancelOrder() {
+  const b = cancelTarget.value;
+  cancelTarget.value = null;
+  if (!b) return;
+  busy.value = b.billId;
+  try {
+    await api(`/bills/${b.billId}`, { method: "DELETE" });
+    bills.value = bills.value.filter((x) => x.billId !== b.billId);
+    ui.toast(`Pesanan ${orderNo(b.billId)} dibatalkan`);
+  } catch (e) {
+    ui.toast(e.message, "error");
+  } finally {
+    busy.value = null;
+  }
+}
 </script>
 
 <template>
@@ -193,8 +212,25 @@ async function advance(b, next) {
           >
             {{ busy === b.billId ? "Menyimpan..." : col.action }}
           </button>
+          <button
+            type="button"
+            class="mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+            :disabled="busy === b.billId"
+            @click="cancelTarget = b"
+          >
+            <X class="size-4" /> Batalkan pesanan
+          </button>
         </article>
       </section>
     </div>
+
+    <ConfirmDialog
+      :open="Boolean(cancelTarget)"
+      :title="cancelTarget ? `Batalkan ${label(cancelTarget)}?` : ''"
+      :description="cancelTarget ? `Pesanan ${orderNo(cancelTarget.billId)} dihapus dari dapur dan tidak dihitung di penjualan. Nomor pager langsung tersedia lagi. Kalau sudah dibayar, kembalikan uang pelanggan.` : ''"
+      confirm-label="Batalkan pesanan"
+      @update:open="!$event && (cancelTarget = null)"
+      @confirm="cancelOrder"
+    />
   </div>
 </template>

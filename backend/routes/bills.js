@@ -111,7 +111,7 @@ router.delete('/:billId', async (req, res) => {
     const billId = Number(req.params.billId);
     if (!Number.isInteger(billId)) return res.status(400).json({ error: 'Data tidak valid.' });
     try {
-        const bill = await cancelBill(billId, req.user?.id ?? null);
+        const bill = await cancelBill(billId, req.user?.id ?? null, req.user?.role !== 'owner');
         publish('bill:changed', { billId: bill.id, kitchenStatus: null, status: bill.status });
         res.status(200).json({ message: 'Bill cancelled', data: bill });
     } catch (err) {

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { KeyRound, Plus, Trash2 } from "@lucide/vue";
+import { Copy, Eye, EyeOff, KeyRound, Plus, Sparkles, Trash2 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
@@ -37,6 +37,28 @@ const ownerCount = computed(() => users.value.filter((u) => u.role === "owner").
 // Akun utama terakhir tidak bisa diturunkan / dihapus
 const locked = (u) => isMe(u) || (u.role === "owner" && ownerCount.value <= 1);
 
+// ---- Password: bisa dilihat saat diketik, dibuat otomatis, dan diberikan sekali setelah disimpan ----
+// Password disimpan teracak (hash) di server, jadi tidak bisa dilihat lagi nanti. Lupa? Ganti saja.
+const showPw = ref(false);
+function generatePassword() {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  const pick = () => chars[crypto.getRandomValues(new Uint32Array(1))[0] % chars.length];
+  return Array.from({ length: 4 }, pick).join("") + "-" + Array.from({ length: 4 }, pick).join("");
+}
+
+// Kartu info login setelah akun dibuat / password diganti
+const loginInfo = ref(null); // { name, email, password }
+async function copyLogin() {
+  const i = loginInfo.value;
+  const text = `Login Ravage POS\nEmail: ${i.email}\nPassword: ${i.password}`;
+  try {
+    await navigator.clipboard.writeText(text);
+    ui.toast("Info login disalin");
+  } catch {
+    ui.toast("Gagal menyalin, catat manual ya", "error");
+  }
+}
+
 // ---- Tambah akun ----
 const showAdd = ref(false);
 const form = ref({ name: "", email: "", password: "", role: "user" });
@@ -44,8 +66,9 @@ const formError = ref("");
 const saving = ref(false);
 
 function openAdd() {
-  form.value = { name: "", email: "", password: "", role: "user" };
+  form.value = { name: "", email: "", password: generatePassword(), role: "user" };
   formError.value = "";
+  showPw.value = true;
   showAdd.value = true;
 }
 
@@ -56,6 +79,7 @@ async function createAccount() {
   try {
     await api("/users", { method: "POST", body: form.value });
     ui.toast(`Akun ${form.value.name} dibuat`);
+    loginInfo.value = { name: form.value.name, email: form.value.email, password: form.value.password };
     showAdd.value = false;
     await load();
   } catch (e) {
@@ -84,7 +108,8 @@ const pwError = ref("");
 
 function openPassword(u) {
   pwUser.value = u;
-  newPassword.value = "";
+  newPassword.value = generatePassword();
+  showPw.value = true;
   pwError.value = "";
 }
 
@@ -95,6 +120,7 @@ async function savePassword() {
   try {
     await api(`/users/${pwUser.value.id}`, { method: "PATCH", body: { password: newPassword.value } });
     ui.toast(`Password ${pwUser.value.name} diganti`);
+    loginInfo.value = { name: pwUser.value.name, email: pwUser.value.email, password: newPassword.value };
     pwUser.value = null;
   } catch (e) {
     pwError.value = e.message;
@@ -192,7 +218,15 @@ async function removeAccount() {
           </label>
           <label class="grid gap-1.5">
             <span class="text-sm font-semibold">Password</span>
-            <input v-model="form.password" type="password" required minlength="8" autocomplete="new-password" class="h-11 rounded-xl border bg-card px-4 text-base outline-none focus:border-primary focus:ring-3 focus:ring-ring/20" placeholder="Minimal 8 karakter" />
+            <span class="flex gap-2">
+              <span class="relative flex-1">
+                <input v-model="form.password" :type="showPw ? 'text' : 'password'" required minlength="8" autocomplete="new-password" class="tabular h-11 w-full rounded-xl border bg-card pr-11 pl-4 text-base outline-none focus:border-primary focus:ring-3 focus:ring-ring/20" placeholder="Minimal 8 karakter" />
+                <button type="button" class="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" :aria-label="showPw ? 'Sembunyikan password' : 'Lihat password'" @click.prevent="showPw = !showPw">
+                  <EyeOff v-if="showPw" class="size-4" /><Eye v-else class="size-4" />
+                </button>
+              </span>
+              <Button type="button" variant="secondary" class="h-11 rounded-xl px-3 text-sm" @click="form.password = generatePassword(); showPw = true"><Sparkles class="size-4" /> Buat</Button>
+            </span>
           </label>
           <fieldset class="grid gap-2">
             <legend class="mb-1.5 text-sm font-semibold">Peran</legend>
@@ -225,10 +259,38 @@ async function removeAccount() {
           </DialogDescription>
         </DialogHeader>
         <form class="grid gap-4" @submit.prevent="savePassword">
-          <input v-model="newPassword" type="password" required minlength="8" autocomplete="new-password" class="h-11 rounded-xl border bg-card px-4 text-base outline-none focus:border-primary focus:ring-3 focus:ring-ring/20" placeholder="Password baru, minimal 8 karakter" />
+          <span class="flex gap-2">
+            <span class="relative flex-1">
+              <input v-model="newPassword" :type="showPw ? 'text' : 'password'" required minlength="8" autocomplete="new-password" class="tabular h-11 w-full rounded-xl border bg-card pr-11 pl-4 text-base outline-none focus:border-primary focus:ring-3 focus:ring-ring/20" placeholder="Password baru, minimal 8 karakter" />
+              <button type="button" class="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" :aria-label="showPw ? 'Sembunyikan password' : 'Lihat password'" @click.prevent="showPw = !showPw">
+                <EyeOff v-if="showPw" class="size-4" /><Eye v-else class="size-4" />
+              </button>
+            </span>
+            <Button type="button" variant="secondary" class="h-11 rounded-xl px-3 text-sm" @click="newPassword = generatePassword(); showPw = true"><Sparkles class="size-4" /> Buat</Button>
+          </span>
           <p v-if="pwError" class="text-sm text-destructive">{{ pwError }}</p>
           <Button type="submit" class="h-12 rounded-xl text-base" :disabled="saving">{{ saving ? "Menyimpan..." : "Simpan password" }}</Button>
         </form>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Info login: tampil sekali setelah akun dibuat / password diganti -->
+    <Dialog :open="Boolean(loginInfo)" @update:open="!$event && (loginInfo = null)">
+      <DialogContent v-if="loginInfo" class="p-6 sm:max-w-md sm:p-8">
+        <DialogHeader>
+          <DialogTitle class="text-2xl font-bold">Info login {{ loginInfo.name }}</DialogTitle>
+          <DialogDescription class="text-[15px]">
+            Kirim ke {{ loginInfo.name }} sekarang. Demi keamanan, password tidak bisa dilihat lagi setelah ini, tapi bisa diganti kapan saja.
+          </DialogDescription>
+        </DialogHeader>
+        <dl class="grid gap-3 rounded-xl bg-muted p-4 text-[15px]">
+          <div><dt class="text-sm text-muted-foreground">Email</dt><dd class="font-semibold break-all">{{ loginInfo.email }}</dd></div>
+          <div><dt class="text-sm text-muted-foreground">Password</dt><dd class="tabular text-lg font-semibold">{{ loginInfo.password }}</dd></div>
+        </dl>
+        <div class="grid grid-cols-2 gap-2.5">
+          <Button variant="secondary" class="h-12 rounded-xl text-base" @click="loginInfo = null">Selesai</Button>
+          <Button class="h-12 rounded-xl text-base" @click="copyLogin"><Copy class="size-4" /> Salin info</Button>
+        </div>
       </DialogContent>
     </Dialog>
 
