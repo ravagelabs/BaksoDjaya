@@ -10,9 +10,11 @@ defineProps({
   loading: { type: Boolean, default: false },
   error: { type: String, default: "" },
   title: { type: String, default: "Pembayaran tercatat" },
+  description: { type: String, default: "Struk dicetak 2 rangkap: untuk pelanggan dan untuk dapur." },
+  reprintLabel: { type: String, default: "Cetak ulang struk (2x)" },
 });
 
-const emit = defineEmits(["update:open", "printBill", "printSlip"]);
+const emit = defineEmits(["update:open", "printBill"]);
 </script>
 
 <template>
@@ -20,7 +22,7 @@ const emit = defineEmits(["update:open", "printBill", "printSlip"]);
     <DialogContent class="max-h-[88vh] overflow-y-auto p-8 sm:max-w-md">
       <DialogHeader>
         <DialogTitle class="text-2xl font-bold">{{ title }}</DialogTitle>
-        <DialogDescription class="text-[15px]">Cetak struk untuk pelanggan dan nota untuk dapur.</DialogDescription>
+        <DialogDescription class="text-[15px]">{{ description }}</DialogDescription>
       </DialogHeader>
 
       <p v-if="loading" class="text-sm text-muted-foreground">Memuat struk...</p>
@@ -60,10 +62,9 @@ const emit = defineEmits(["update:open", "printBill", "printSlip"]);
           <span class="tabular text-2xl font-bold">{{ formatRp(bill.grand_total) }}</span>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
-          <Button variant="secondary" class="h-12 rounded-xl text-base" @click="emit('printSlip')"><Printer /> Nota dapur</Button>
-          <Button variant="secondary" class="h-12 rounded-xl text-base" @click="emit('printBill')"><Printer /> Struk</Button>
-          <Button class="col-span-2 h-12 rounded-xl text-base" @click="emit('update:open', false)">Selesai</Button>
+        <div class="grid gap-3">
+          <Button variant="secondary" class="h-12 rounded-xl text-base" @click="emit('printBill')"><Printer /> {{ reprintLabel }}</Button>
+          <Button class="h-12 rounded-xl text-base" @click="emit('update:open', false)">Selesai</Button>
         </div>
       </template>
     </DialogContent>

@@ -1,6 +1,8 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from "vue";
-import { X } from "@lucide/vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { AlarmClock, X } from "@lucide/vue";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import { useLive } from "@/lib/live";
 import { api } from "@/lib/api";
@@ -95,6 +97,29 @@ async function advance(b, next) {
   }
 }
 
+// ---- Batas waktu: pesanan maksimal 15 menit dari masuk dapur sampai siap ----
+const MAX_MINUTES = 15;
+const isLate = (b) =>
+  (b.kitchen_status === "new" || b.kitchen_status === "cooking") && minutesSince(b.sent_to_kitchen_at, now.value) >= MAX_MINUTES;
+const lateBills = computed(() => bills.value.filter(isLate));
+
+// Popup muncul sekali per pesanan yang baru lewat 15 menit
+const alerted = ref(new Set());
+const showLate = ref(false);
+const lateToShow = ref([]);
+watch(lateBills, (list) => {
+  const fresh = list.filter((b) => !alerted.value.has(b.billId));
+  if (!fresh.length) return;
+  lateToShow.value = list;
+  showLate.value = true;
+});
+function ackLate() {
+  const next = new Set(alerted.value);
+  for (const b of lateBills.value) next.add(b.billId);
+  alerted.value = next;
+  showLate.value = false;
+}
+
 // ---- Batalkan pesanan (akun utama & admin). Nomor pager otomatis kembali tersedia. ----
 const cancelTarget = ref(null);
 async function cancelOrder() {
@@ -153,14 +178,19 @@ async function cancelOrder() {
           v-for="b in byStatus[col.key]"
           :key="b.billId"
           class="mt-5 rounded-[20px] border bg-[#fbfaf8] p-6 transition-shadow duration-500"
-          :class="fresh.has(b.billId) ? 'border-cta shadow-[0_0_0_4px_rgb(217_72_15/0.16)]' : ''"
+          :class="isLate(b) ? 'border-destructive bg-destructive/5 shadow-[0_0_0_4px_rgb(220_38_38/0.12)]' : fresh.has(b.billId) ? 'border-cta shadow-[0_0_0_4px_rgb(217_72_15/0.16)]' : ''"
         >
           <header class="flex items-baseline justify-between">
             <h3 class="flex items-center gap-2 text-2xl font-semibold">
               {{ label(b) }}
               <span v-if="fresh.has(b.billId)" class="rounded-full bg-cta px-2 py-0.5 text-xs font-semibold text-cta-foreground">Baru</span>
             </h3>
-            <span class="tabular text-[15px] font-medium" :class="col.time">{{ minutesSince(b.sent_to_kitchen_at, now) }} menit</span>
+            <span
+              class="tabular flex items-center gap-1.5 text-[15px] font-medium"
+              :class="isLate(b) ? 'rounded-full bg-destructive px-2.5 py-0.5 font-semibold text-white' : col.time"
+            >
+              <AlarmClock v-if="isLate(b)" class="size-4" />{{ minutesSince(b.sent_to_kitchen_at, now) }} menit
+            </span>
           </header>
           <!-- Nomor pager + nomor pesanan selalu tampil berdua supaya tidak tertukar -->
           <p v-if="b.table_code" class="tabular mt-0.5 text-sm text-muted-foreground">
@@ -204,6 +234,30 @@ async function cancelOrder() {
         </article>
       </section>
     </div>
+
+    <!-- Peringatan: pesanan lewat 15 menit -->
+    <Dialog :open="showLate" @update:open="!$event && ackLate()">
+      <DialogContent class="p-6 sm:max-w-md sm:p-8">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-3 text-2xl font-bold text-destructive">
+            <AlarmClock class="size-7" /> Pesanan lewat {{ MAX_MINUTES }} menit
+          </DialogTitle>
+          <DialogDescription class="text-[15px]">Segera selesaikan pesanan berikut.</DialogDescription>
+        </DialogHeader>
+        <ul class="flex max-h-[45dvh] flex-col divide-y overflow-y-auto rounded-xl border">
+          <li v-for="b in lateToShow" :key="b.billId" class="flex items-center justify-between gap-3 px-4 py-3">
+            <span>
+              <span class="block text-lg font-semibold">{{ label(b) }}</span>
+              <span class="block text-sm text-muted-foreground">
+                Pesanan {{ orderNo(b.billId) }} · {{ b.kitchen_status === "cooking" ? "Dimasak" : "Belum dimasak" }}
+              </span>
+            </span>
+            <span class="tabular shrink-0 font-semibold text-destructive">{{ minutesSince(b.sent_to_kitchen_at, now) }} menit</span>
+          </li>
+        </ul>
+        <Button class="h-12 rounded-xl text-base" @click="ackLate">Oke, segera diproses</Button>
+      </DialogContent>
+    </Dialog>
 
     <ConfirmDialog
       :open="Boolean(cancelTarget)"

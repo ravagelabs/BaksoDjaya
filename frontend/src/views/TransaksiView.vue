@@ -179,7 +179,7 @@ function openSlip(b) {
       :title="`Nota pesanan ${orderNo(slipBill?.billId)}`"
       @print="printOrderSlip(slipBill)"
     />
-    <PrintPopup v-model:open="showPrint" :bill="printData" title="Struk transaksi" @print-bill="printBill(printData)" />
+    <PrintPopup v-model:open="showPrint" :bill="printData" title="Struk transaksi" description="Cetak ulang struk pesanan ini." reprint-label="Cetak struk" @print-bill="printBill(printData)" />
     <ConfirmDialog
       :open="Boolean(delBill)"
       :title="`Hapus pesanan ${orderNo(delBill?.billId)}?`"

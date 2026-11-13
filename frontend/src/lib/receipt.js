@@ -1,7 +1,8 @@
-import { rupiah, orderTypeLabel, PAYMENT_LABELS, OUTLET_NAME, optionsText, orderNo } from "@/lib/format";
+import { rupiah, orderTypeLabel, PAYMENT_LABELS, OUTLET_NAME, BANK_ACCOUNT, optionsText, orderNo } from "@/lib/format";
 
 // ESC/POS builder: raw printer commands for a 58mm receipt (32 chars per line, Font A)
-export function buildEscposReceipt(bill) {
+// copyLabel: tulisan kecil di atas struk, mis. "PELANGGAN" / "DAPUR" saat dicetak 2 rangkap
+export function buildEscposReceipt(bill, { copyLabel = "" } = {}) {
   const W = 32;
   const bytes = [];
   const enc = new TextEncoder();
@@ -47,6 +48,13 @@ export function buildEscposReceipt(bill) {
   cmd(0x1b, 0x45, 0x01);       // ESC E 1  bold on
   write(`${OUTLET_NAME.toUpperCase()}\n`);
   cmd(0x1b, 0x45, 0x00);       // bold off
+  if (copyLabel) write(`[ ${copyLabel} ]\n`);
+  // Nomor pager besar supaya dapur & pelanggan langsung lihat
+  if (bill.table_code) {
+    cmd(0x1d, 0x21, 0x11);     // GS ! 0x11  teks 2x lebar dan tinggi
+    write(`NO. ${bill.table_code}\n`);
+    cmd(0x1d, 0x21, 0x00);     // ukuran normal
+  }
   write(`Pesanan ${orderNo(bill.billId)}\n`);
   cmd(0x1b, 0x61, 0x00);       // ESC a 0  left
   write(line());
@@ -67,6 +75,8 @@ export function buildEscposReceipt(bill) {
   write(row("TOTAL", rupiah.format(bill.grand_total)));
   cmd(0x1b, 0x45, 0x00);       // bold off
   if (bill.payment_method) write(row("Bayar", PAYMENT_LABELS[bill.payment_method] ?? bill.payment_method));
+  if (bill.payment_method === "transfer") write(row("No. rekening", BANK_ACCOUNT));
+  if (bill.note) write(wrap(`Catatan pesanan: ${bill.note}`));
   cmd(0x1b, 0x61, 0x01);       // center
   write("Terima kasih!\n");
   cmd(0x1b, 0x64, 0x02);       // ESC d 2  feed 2 lines past the last print
@@ -113,7 +123,7 @@ export function escposToHtml(bytes) {
       else if (c === 0x1b && op === 0x45) { bold = bytes[i + 2] === 1; i += 2; }
       else if (c === 0x1b && op === 0x64) { i += 2; }
       else if (c === 0x1d && op === 0x21) { big = bytes[i + 2] !== 0; i += 2; }
-      else if (c === 0x1d && op === 0x56) { i += 3; }
+      else if (c === 0x1d && op === 0x56) { i += 3; if (buf.length) flush(); lines.push('<div style="break-after:page;height:0"></div>'); }
       else i += 1;
       continue;
     }
@@ -155,6 +165,16 @@ function sendToPrinter(bytes, title) {
 }
 
 export const printBill = (bill) => sendToPrinter(buildEscposReceipt(bill), `Struk ${orderNo(bill.billId)}`);
+
+// Setelah bayar: struk dicetak 2 rangkap dalam satu kali cetak (pelanggan + dapur), jadi tidak perlu nota terpisah
+export function printBillTwice(bill) {
+  const a = buildEscposReceipt(bill, { copyLabel: "PELANGGAN" });
+  const b = buildEscposReceipt(bill, { copyLabel: "DAPUR" });
+  const both = new Uint8Array(a.length + b.length);
+  both.set(a, 0);
+  both.set(b, a.length);
+  sendToPrinter(both, `Struk ${orderNo(bill.billId)}`);
+}
 
 // Nota pesanan: dicetak saat pesanan masuk dapur, ditaruh di meja sampai pelanggan membayar.
 // Format 58mm sama dengan struk, tapi tanpa metode bayar dan dengan tanda "BELUM DIBAYAR".

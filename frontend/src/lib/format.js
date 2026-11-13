@@ -1,5 +1,7 @@
 export const OUTLET_TZ = "Asia/Jakarta";
 export const OUTLET_NAME = "Bakso Djaya";
+// Rekening tujuan untuk pembayaran Transfer (tampil di layar bayar dan di struk)
+export const BANK_ACCOUNT = "8015566899";
 export const OUTLET_BRANCH = "Outlet utama";
 
 export const rupiah = new Intl.NumberFormat("id-ID", {

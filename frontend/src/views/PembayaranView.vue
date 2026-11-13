@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import PrintPopup from "@/components/PrintPopup.vue";
 import NumberPickerDialog from "@/components/NumberPickerDialog.vue";
 import { api } from "@/lib/api";
-import { formatRp, number, orderNo, orderTypeLabel, splitName, optionsText, PAYMENT_LABELS, PAYMENT_METHODS } from "@/lib/format";
-import { printBill, printOrderSlip } from "@/lib/receipt";
+import { formatRp, number, orderNo, orderTypeLabel, splitName, optionsText, PAYMENT_LABELS, PAYMENT_METHODS, BANK_ACCOUNT } from "@/lib/format";
+import { printBillTwice } from "@/lib/receipt";
 import { useOrderStore } from "@/stores/order";
 import { useUiStore } from "@/stores/ui";
 
@@ -26,7 +26,7 @@ const method = ref("qris");
 // Petunjuk singkat untuk metode non-tunai
 const METHOD_HINT = {
   qris: "Tunjukkan QRIS ke pelanggan, lalu konfirmasi setelah pembayaran masuk.",
-  transfer: "Cek mutasi rekening, lalu konfirmasi setelah dana masuk.",
+  transfer: "Minta pelanggan transfer ke rekening di bawah, cek mutasi, lalu konfirmasi setelah dana masuk.",
   gofood: "Pesanan GoFood: pembayaran diselesaikan lewat aplikasi GoFood.",
   grabfood: "Pesanan GrabFood: pembayaran diselesaikan lewat aplikasi GrabFood.",
 };
@@ -104,6 +104,15 @@ async function confirm() {
   }
 }
 
+async function copyAccount() {
+  try {
+    await navigator.clipboard.writeText(BANK_ACCOUNT);
+    ui.toast("Nomor rekening disalin");
+  } catch {
+    ui.toast(`No. rekening: ${BANK_ACCOUNT}`);
+  }
+}
+
 // ---- Setelah lunas: nomor pager, lalu struk ----
 const paidId = ref(null);
 const showNumber = ref(false);
@@ -120,6 +129,8 @@ async function openPrint() {
   printError.value = "";
   try {
     printData.value = (await api(`/bills/${paidId.value}`)).data;
+    // Langsung cetak 2 rangkap (pelanggan + dapur), kasir tidak perlu menekan tombol lagi
+    printBillTwice(printData.value);
   } catch (e) {
     printError.value = e.message;
   } finally {
@@ -235,7 +246,16 @@ function closePrint(open) {
           </div>
         </template>
 
-        <p v-else class="mt-5 rounded-2xl bg-muted/60 px-5 py-4 text-[15px]">{{ METHOD_HINT[method] }}</p>
+        <div v-else class="mt-5 rounded-2xl bg-muted/60 px-5 py-4 text-[15px]">
+          <p>{{ METHOD_HINT[method] }}</p>
+          <div v-if="method === 'transfer'" class="mt-3 flex items-center justify-between gap-3 rounded-xl bg-card px-4 py-3">
+            <span>
+              <span class="block text-sm text-muted-foreground">No. rekening</span>
+              <span class="tabular block text-2xl font-bold tracking-wide">{{ BANK_ACCOUNT }}</span>
+            </span>
+            <button type="button" class="h-10 shrink-0 rounded-full bg-secondary px-4 text-sm font-semibold hover:bg-secondary-hover" @click="copyAccount">Salin</button>
+          </div>
+        </div>
 
         <p v-if="error" class="mt-4 text-sm text-destructive">{{ error }}</p>
 
@@ -251,8 +271,7 @@ function closePrint(open) {
       :loading="printLoading"
       :error="printError"
       @update:open="closePrint"
-      @print-bill="printBill(printData)"
-      @print-slip="printOrderSlip(printData)"
+      @print-bill="printBillTwice(printData)"
     />
     <NumberPickerDialog :open="showNumber" :bill-id="paidId" @picked="afterNumber" @skip="afterNumber(null)" />
   </div>
