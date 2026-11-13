@@ -120,7 +120,7 @@ async function removeAccount() {
 </script>
 
 <template>
-  <section class="mt-10 rounded-[20px] bg-muted/50 p-5 md:p-6">
+  <section class="mt-6 rounded-[20px] bg-muted/50 p-5 md:p-6">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 class="text-xl font-semibold">Akun</h2>
