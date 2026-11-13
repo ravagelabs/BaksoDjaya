@@ -148,6 +148,7 @@ const inKitchen = computed(() => Boolean(order.kitchenStatus));
 
 // Alur: pilih menu -> Bayar -> pesanan otomatis masuk dapur -> beri nomor pager ke pelanggan
 //       -> pager dibunyikan dari alatnya saat siap -> pager dikembalikan (halaman Nomor / "Sudah diambil")
+const itemCount = computed(() => order.lines.reduce((sum, l) => sum + l.qty, 0));
 const primaryAction = computed(() => ({ label: "Bayar", run: goPay }));
 
 const flowHint = computed(() => {
@@ -300,9 +301,13 @@ function goPay() {
       >
         <ChevronDown class="size-4" /> Kembali ke menu
       </button>
-      <div class="px-4 pt-4 md:px-6 md:pt-5">
-        <div class="flex items-start justify-between gap-3">
-          <h2 class="text-2xl font-bold leading-tight">{{ title }}</h2>
+      <!-- Bagian atas dibuat ringkas supaya daftar item dapat ruang paling banyak (tablet landscape) -->
+      <div class="px-4 pt-3 md:px-5 md:pt-4">
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="text-xl font-bold leading-tight">
+            {{ title }}
+            <span v-if="!order.isEmpty" class="tabular ml-1 text-sm font-medium text-muted-foreground">· {{ itemCount }} item</span>
+          </h2>
           <div class="flex shrink-0 items-center">
             <button
               v-if="inKitchen"
@@ -323,14 +328,15 @@ function goPay() {
           </div>
         </div>
 
-        <div class="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Tipe pesanan">
+        <div class="mt-2.5 flex items-center gap-2">
+        <div class="grid min-w-0 flex-1 grid-cols-2 gap-1 rounded-xl bg-muted p-1" role="radiogroup" aria-label="Tipe pesanan">
           <button
             v-for="t in KASIR_ORDER_TYPES"
             :key="t.value"
             type="button"
             role="radio"
             :aria-checked="order.orderType === t.value"
-            class="h-11 rounded-lg text-[15px] transition-colors"
+            class="h-9 truncate rounded-lg px-1 text-sm transition-colors"
             :class="order.orderType === t.value ? 'bg-card font-semibold text-primary shadow-xs' : 'text-muted-foreground hover:text-foreground'"
             @click="chooseType(t.value)"
           >
@@ -338,23 +344,23 @@ function goPay() {
           </button>
         </div>
 
-        <div class="mt-2.5 flex flex-wrap gap-2">
-          <span v-if="order.table" class="flex h-10 items-center rounded-full bg-secondary px-5 text-sm font-semibold">
-            No. {{ order.table.code }}
-          </span>
-          <button
-            type="button"
-            class="flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium"
-            :class="order.customer ? 'bg-secondary text-primary' : 'border border-dashed text-muted-foreground hover:bg-muted'"
-            @click="openCustomer"
-          >
-            <UserRound class="size-4" /> {{ order.customer ? order.customer.name : "Pelanggan" }}
-          </button>
+        <span v-if="order.table" class="tabular flex h-11 shrink-0 items-center rounded-xl bg-secondary px-3 text-sm font-semibold">
+          No. {{ order.table.code }}
+        </span>
+        <button
+          type="button"
+          class="flex h-11 max-w-36 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm font-medium"
+          :class="order.customer ? 'bg-secondary text-primary' : 'border border-dashed text-muted-foreground hover:bg-muted'"
+          :aria-label="order.customer ? `Pelanggan: ${order.customer.name}` : 'Tambah pelanggan'"
+          @click="openCustomer"
+        >
+          <UserRound class="size-4 shrink-0" /> <span class="truncate">{{ order.customer ? order.customer.name : "Pelanggan" }}</span>
+        </button>
         </div>
-        <p class="mt-2.5 text-sm text-muted-foreground">{{ flowHint }}</p>
+        <p v-if="inKitchen" class="mt-2 text-sm text-muted-foreground">{{ flowHint }}</p>
       </div>
 
-      <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-3 md:px-6">
+      <div class="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain border-t px-4 md:px-5">
         <div v-if="order.isEmpty" class="flex h-full flex-col items-center justify-center pb-10 text-center">
           <p class="text-[17px] font-semibold">Belum ada item</p>
           <p class="mt-1 text-[15px] text-muted-foreground">Ketuk menu<span class="hidden md:inline"> di kiri</span> untuk mulai.</p>
@@ -364,19 +370,19 @@ function goPay() {
           <li v-for="line in order.lines" :key="line.key" class="border-b last:border-b-0">
             <button
               type="button"
-              class="flex w-full items-start gap-3 py-3 text-left"
+              class="flex w-full items-start gap-2.5 py-2.5 text-left"
               :aria-expanded="activeLine === line.key"
               @click="toggleLine(line.key)"
             >
-              <span class="tabular w-8 shrink-0 text-[17px] font-semibold">{{ line.qty }}x</span>
+              <span class="tabular w-7 shrink-0 text-base font-semibold">{{ line.qty }}x</span>
               <span class="min-w-0 flex-1">
-                <span class="block text-[17px] font-semibold leading-snug">{{ splitName(line.name).title }}</span>
-                <span v-if="lineDetail(line)" class="mt-0.5 block text-[15px] text-muted-foreground">{{ lineDetail(line) }}</span>
-                <span v-if="line.note" class="mt-0.5 block text-[15px] text-muted-foreground">{{ line.note }}</span>
+                <span class="block text-base font-semibold leading-snug">{{ splitName(line.name).title }}</span>
+                <span v-if="lineDetail(line)" class="block text-sm leading-snug text-muted-foreground">{{ lineDetail(line) }}</span>
+                <span v-if="line.note" class="block text-sm leading-snug text-muted-foreground">{{ line.note }}</span>
               </span>
-              <span class="tabular shrink-0 pt-0.5 text-base">{{ number.format(line.price * line.qty) }}</span>
+              <span class="tabular shrink-0 text-[15px]">{{ number.format(line.price * line.qty) }}</span>
             </button>
-            <div v-if="activeLine === line.key" class="flex items-center gap-3 pb-4 pl-11">
+            <div v-if="activeLine === line.key" class="flex items-center gap-2 pb-3 pl-9">
               <div class="flex h-11 items-center rounded-xl bg-muted px-1">
                 <button type="button" class="flex size-9 items-center justify-center rounded-lg hover:bg-card" aria-label="Kurangi" @click="order.changeQty(line.key, -1)">
                   <Minus class="size-4" />
@@ -404,7 +410,7 @@ function goPay() {
           </li>
         </ul>
 
-        <div v-if="!order.isEmpty" class="border-t py-4">
+        <div v-if="!order.isEmpty" class="border-t py-3">
           <textarea
             v-if="editingNote || order.note"
             :value="order.note"
@@ -417,7 +423,7 @@ function goPay() {
           <button
             v-else
             type="button"
-            class="text-[17px] font-medium text-primary hover:underline"
+            class="text-[15px] font-medium text-primary hover:underline"
             @click="editingNote = true"
           >
             + Tambah catatan pesanan
@@ -425,22 +431,22 @@ function goPay() {
         </div>
       </div>
 
-      <div class="border-t px-4 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] md:px-6 md:pb-5">
-        <dl class="tabular grid grid-cols-[1fr_auto] gap-y-1.5 text-[15px]">
-          <dt class="text-muted-foreground">Subtotal</dt>
-          <dd class="text-right">{{ formatRp(order.subtotal) }}</dd>
-          <dt class="text-muted-foreground">Pajak / biaya</dt>
-          <dd class="text-right">{{ formatRp(order.tax) }}</dd>
-          <dt class="mt-2 self-end text-xl font-semibold">Total</dt>
-          <dd class="mt-2 text-right text-[34px] font-bold leading-none tracking-tight">{{ formatRp(order.total) }}</dd>
-        </dl>
+      <div class="border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-5 md:pb-4">
+        <!-- Subtotal & pajak hanya tampil kalau ada pajak/biaya -->
+        <p v-if="order.tax" class="tabular flex justify-between text-sm text-muted-foreground">
+          <span>Subtotal {{ formatRp(order.subtotal) }}</span><span>Pajak {{ formatRp(order.tax) }}</span>
+        </p>
+        <div class="tabular flex items-baseline justify-between">
+          <span class="text-lg font-semibold">Total</span>
+          <span class="text-[28px] font-bold leading-tight tracking-tight">{{ formatRp(order.total) }}</span>
+        </div>
 
         <!-- Kiri: aksi sekunder, kanan: aksi utama (satu baris supaya daftar pesanan lebih panjang) -->
-        <div class="mt-4 flex gap-2.5">
+        <div class="mt-2.5 flex gap-2.5">
           <Button
             v-if="inKitchen"
             variant="secondary"
-            class="h-13 rounded-xl px-3 text-[15px] font-semibold"
+            class="h-12 rounded-xl px-3 text-[15px] font-semibold"
             :disabled="order.isEmpty || order.saving || !order.dirty"
             @click="sendToKitchen"
           >
@@ -450,7 +456,7 @@ function goPay() {
           <Button
             v-else
             variant="secondary"
-            class="size-13 rounded-xl p-0"
+            class="size-12 rounded-xl p-0"
             title="Simpan sebagai draft"
             aria-label="Simpan sebagai draft"
             :disabled="order.isEmpty || order.saving"
@@ -459,7 +465,7 @@ function goPay() {
             <FilePenLine class="size-5" />
           </Button>
           <Button
-            class="h-13 min-w-0 flex-1 justify-between rounded-xl px-4 text-base font-semibold"
+            class="h-12 min-w-0 flex-1 justify-between rounded-xl px-4 text-base font-semibold"
             :disabled="order.isEmpty || order.saving"
             @click="primaryAction.run"
           >
