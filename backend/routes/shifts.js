@@ -7,7 +7,10 @@ const router = express.Router();
 router.get('/', async (req, res) => {
     try {
         const isOwner = req.user?.role === 'owner';
-        const shifts = await getShifts(isOwner ? null : req.user.id);
+        const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+        const from = DATE_RE.test(req.query.from ?? '') ? req.query.from : null;
+        const to = DATE_RE.test(req.query.to ?? '') ? req.query.to : from;
+        const shifts = await getShifts(isOwner ? null : req.user.id, from, to);
         res.status(200).json({ message: 'Shifts retrieved successfully', data: shifts });
     } catch (err) {
         console.error('Error in GET /shifts:', err);

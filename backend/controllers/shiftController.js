@@ -24,13 +24,15 @@ const SHIFT_SELECT = `
     CROSS JOIN LATERAL (${SUMMARY('s.created_at', 's.ended_at')}) sm`;
 
 // employeeId = null: semua shift (akun utama). Selain itu hanya shift milik karyawan tersebut.
-export const getShifts = async (employeeId = null, limit = 30) => {
+// from/to: tanggal (YYYY-MM-DD, zona Asia/Jakarta) mulai shift; kosong = 30 shift terakhir
+export const getShifts = async (employeeId = null, from = null, to = null, limit = 200) => {
     return await db.any(
         `${SHIFT_SELECT}
          WHERE ($1::text IS NULL OR s.employee_id = $1)
+           AND ($2::date IS NULL OR (s.created_at AT TIME ZONE 'Asia/Jakarta')::date BETWEEN $2::date AND COALESCE($3::date, $2::date))
          ORDER BY s.id DESC
-         LIMIT $2;`,
-        [employeeId, limit]
+         LIMIT $4;`,
+        [employeeId, from, to, from ? limit : 30]
     );
 };
 

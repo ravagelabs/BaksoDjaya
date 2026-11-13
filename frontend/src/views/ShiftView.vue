@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
 import { LogOut, Printer, RefreshCw } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { formatRp, number, dateTime, paymentRows } from "@/lib/format";
+import { formatRp, number, dateTime, paymentRows, todayISO } from "@/lib/format";
 import { printShiftReport } from "@/lib/receipt";
 import { useUiStore } from "@/stores/ui";
 
@@ -15,13 +15,16 @@ const isOwner = computed(() => ui.user?.role === "owner");
 const current = ref(null);
 const shifts = ref([]);
 const loading = ref(true);
+// Filter riwayat: default hari ini
+const from = ref(todayISO());
+const to = ref(todayISO());
 const error = ref("");
 
 async function load() {
   loading.value = true;
   error.value = "";
   try {
-    const [c, h] = await Promise.all([api("/shifts/current"), api("/shifts")]);
+    const [c, h] = await Promise.all([api("/shifts/current"), api(`/shifts?from=${from.value}&to=${to.value}`)]);
     current.value = c.data;
     shifts.value = h.data;
   } catch (e) {
@@ -31,6 +34,14 @@ async function load() {
   }
 }
 onMounted(load);
+watch([from, to], () => {
+  if (from.value && to.value && from.value <= to.value) load();
+});
+function setToday() {
+  from.value = todayISO();
+  to.value = todayISO();
+}
+const historyTotal = computed(() => shifts.value.reduce((sum, s) => sum + s.total, 0));
 
 function duration(from, to) {
   const m = Math.max(0, Math.floor((new Date(to) - new Date(from)) / 60000));
@@ -98,8 +109,20 @@ const openId = ref(null);
 
       <!-- Riwayat -->
       <section class="mt-7">
-        <h2 class="text-xl font-semibold md:text-2xl">Riwayat shift</h2>
-        <p v-if="!shifts.length" class="mt-3 text-[15px] text-muted-foreground">Belum ada shift yang diakhiri.</p>
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-semibold md:text-2xl">Riwayat shift</h2>
+            <p v-if="shifts.length" class="tabular text-sm text-muted-foreground">{{ shifts.length }} shift · total {{ formatRp(historyTotal) }}</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <input v-model="from" type="date" :max="todayISO()" aria-label="Dari tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
+            <span class="text-muted-foreground">s/d</span>
+            <input v-model="to" type="date" :max="todayISO()" aria-label="Sampai tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
+            <Button variant="secondary" class="h-11 rounded-xl px-4" @click="setToday">Hari ini</Button>
+          </div>
+        </div>
+        <p v-if="from > to" class="mt-3 text-[15px] text-destructive">Tanggal awal tidak boleh setelah tanggal akhir.</p>
+        <p v-else-if="!shifts.length" class="mt-3 text-[15px] text-muted-foreground">Belum ada shift yang diakhiri di tanggal ini.</p>
         <ul v-else class="mt-3 flex flex-col divide-y rounded-[20px] border">
           <li v-for="s in shifts" :key="s.id">
             <div class="flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-4">
