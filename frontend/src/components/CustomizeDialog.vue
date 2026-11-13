@@ -29,10 +29,9 @@ const isVariant = computed(() => Boolean(props.product?.isVariant));
 
 const isPaket = computed(() => Boolean(props.product?.isPaket));
 const paket = computed(() => (isPaket.value ? catalog.paketOptions(props.product.name) : { bakso: [], mie: [] }));
+// Grup pilihan dari tabel modifier (paket juga: mis. Seledri, Bawang goreng)
 const groups = computed(() =>
-  props.product && !isPaket.value
-    ? catalog.modifierGroups(props.product.category, isVariant.value ? variantId.value : props.product.id)
-    : []
+  props.product ? catalog.modifierGroups(props.product.category, isVariant.value ? variantId.value : props.product.id) : []
 );
 const choiceGroups = computed(() => groups.value.filter((g) => g.kind === "choice"));
 const extraGroups = computed(() => groups.value.filter((g) => g.kind === "extra"));

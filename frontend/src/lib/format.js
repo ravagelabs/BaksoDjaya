@@ -88,8 +88,10 @@ export const splitName = (name = "") => {
 };
 
 // Baris kecil di bawah nama item: opsi terpilih
+// Pilihan standar "Pakai ..." (mis. Pakai seledri) tidak ditulis; dapur cukup melihat pengecualiannya ("Tanpa seledri")
 export const optionsText = (options = []) =>
   options
+    .filter((o) => !/^pakai /i.test(o.name))
     .map((o) => (o.price ? `${o.name} (+${number.format(o.price)})` : o.name))
     .join(", ");
 
