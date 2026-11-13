@@ -49,7 +49,7 @@ useLive(() => load());
 const total = computed(() => bills.value.reduce((s, b) => s + b.grand_total, 0));
 const itemCount = (b) => b.billItems.reduce((s, i) => s + i.qty, 0);
 const where = (b) =>
-  [b.table_code ? `Meja ${b.table_code}` : orderTypeLabel(b.order_type), b.customer_name].filter(Boolean).join(" · ");
+  [b.table_code ? `No. ${b.table_code}` : orderTypeLabel(b.order_type), b.customer_name].filter(Boolean).join(" · ");
 
 function openInKasir(b, pay = false) {
   guard(() => {

@@ -22,7 +22,7 @@ const filter = ref(null); // null | available | occupied | waiting_payment
 
 const STATUS = {
   available: { label: "Tersedia", card: "bg-[#f8f7f4]", text: "text-muted-foreground", chip: "bg-muted text-foreground" },
-  occupied: { label: "Terisi", card: "bg-secondary", text: "text-primary", chip: "bg-secondary text-primary" },
+  occupied: { label: "Dipakai", card: "bg-secondary", text: "text-primary", chip: "bg-secondary text-primary" },
   waiting_payment: { label: "Menunggu bayar", card: "bg-warning-soft", text: "text-warning", chip: "bg-warning-soft text-warning" },
 };
 
@@ -88,13 +88,13 @@ function open(t) {
 
 <template>
   <div class="h-full overflow-y-auto overscroll-contain px-8 py-7">
-    <h1 class="text-[32px] font-bold leading-tight">Ruang makan</h1>
+    <h1 class="text-[32px] font-bold leading-tight">Nomor pesanan</h1>
     <p class="mt-1 text-[15px] text-muted-foreground">
-      {{ tables.length }} meja · {{ counts.available }} tersedia · {{ counts.occupied }} terisi ·
+      {{ tables.length }} nomor · {{ counts.available }} tersedia · {{ counts.occupied }} dipakai ·
       {{ counts.waiting_payment }} menunggu bayar
     </p>
 
-    <div class="mt-6 flex flex-wrap gap-3" role="group" aria-label="Filter status meja">
+    <div class="mt-6 flex flex-wrap gap-3" role="group" aria-label="Filter status nomor">
       <button
         v-for="(s, key) in STATUS"
         :key="key"
@@ -108,7 +108,7 @@ function open(t) {
       </button>
     </div>
 
-    <p v-if="loading" class="mt-8 text-[15px] text-muted-foreground">Memuat meja...</p>
+    <p v-if="loading" class="mt-8 text-[15px] text-muted-foreground">Memuat nomor...</p>
     <p v-else-if="error" class="mt-8 text-[15px] text-destructive">{{ error }}</p>
     <div v-else class="mt-7 grid grid-cols-2 gap-6 lg:grid-cols-3 xl:grid-cols-4">
       <button
@@ -121,7 +121,6 @@ function open(t) {
       >
         <span class="flex items-baseline justify-between">
           <span class="tabular text-[40px] font-semibold leading-none">{{ t.code }}</span>
-          <span class="text-[15px] text-muted-foreground">{{ t.seats }} kursi</span>
         </span>
         <span class="mt-5 text-xl font-semibold" :class="STATUS[t.status].text">{{ STATUS[t.status].label }}</span>
         <span class="tabular mt-3 text-[17px] text-muted-foreground">{{ subline(t) }}</span>

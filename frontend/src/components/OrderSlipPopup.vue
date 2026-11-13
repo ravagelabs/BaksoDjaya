@@ -9,7 +9,7 @@ defineProps({
   open: { type: Boolean, default: false },
   bill: { type: Object, default: null },
   title: { type: String, default: "Nota pesanan" },
-  description: { type: String, default: "Taruh nota di meja sampai pelanggan membayar." },
+  description: { type: String, default: "Simpan nota sampai pelanggan membayar." },
   updated: { type: Boolean, default: false },
 });
 const emit = defineEmits(["update:open", "print"]);
@@ -28,7 +28,7 @@ const emit = defineEmits(["update:open", "print"]);
           <p class="font-semibold">{{ OUTLET_NAME.toUpperCase() }}</p>
           <p>{{ updated ? "NOTA PESANAN (DIPERBARUI)" : "NOTA PESANAN" }}</p>
           <p class="my-1 text-2xl font-bold tracking-wide">
-            {{ bill.table_code ? `MEJA ${bill.table_code}` : orderTypeLabel(bill.order_type).toUpperCase() }}
+            {{ bill.table_code ? `NO. ${bill.table_code}` : orderTypeLabel(bill.order_type).toUpperCase() }}
           </p>
           <p>Pesanan {{ orderNo(bill.billId) }} · {{ timeOnly(bill.sent_to_kitchen_at ?? bill.created_at) }}</p>
         </div>

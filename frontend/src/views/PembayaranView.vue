@@ -71,7 +71,7 @@ const error = ref("");
 
 const meta = computed(() =>
   [
-    order.table ? `Meja ${order.table.code}` : null,
+    order.table ? `No. ${order.table.code}` : null,
     orderTypeLabel(order.orderType),
     order.customer?.name,
     ui.user?.name?.split(" ")[0],

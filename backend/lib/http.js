@@ -79,7 +79,7 @@ const TRANSLATIONS = [
 ];
 
 // Pola pesan error Postgres / koneksi — jangan pernah dikirim ke browser
-const DB_ERROR = /(relation|column|function|type|schema|constraint|operator) ".*"|does not exist|violates|duplicate key|syntax error|invalid input syntax|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|password authentication|connection terminated|too many clients|deadlock/i;
+const DB_ERROR = /(relation|column|function|type|schema|constraint|operator) ".*"|does not exist|violates|duplicate key|syntax error|invalid input syntax|invalid input value|enum|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|password authentication|connection terminated|too many clients|deadlock/i;
 
 export function toClientMessage(message) {
     if (typeof message !== 'string' || !message.trim()) return GENERIC;

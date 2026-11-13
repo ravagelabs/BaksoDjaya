@@ -145,19 +145,22 @@ const title = computed(() => (order.billId ? `Pesanan ${orderNo(order.billId)}` 
 const inKitchen = computed(() => Boolean(order.kitchenStatus));
 const isDineIn = computed(() => order.orderType === "dine_in");
 
-// Alur 1, dine-in:   pilih menu -> pilih meja -> kirim ke dapur -> bayar
-// Alur 2, take away: pilih menu -> bayar -> otomatis masuk dapur
+// Alur dine-in (pager): pilih menu -> pilih nomor -> Bayar (langsung masuk dapur)
+//                       atau "Ke dapur" dulu (cetak nota), bayar belakangan
+// Alur take away:       pilih menu -> bayar -> otomatis masuk dapur
 const primaryAction = computed(() => {
-  if (!isDineIn.value || inKitchen.value) return { label: "Bayar", run: goPay };
-  if (!order.table) return { label: "Pilih meja", run: () => (showSetup.value = true) };
-  return { label: "Kirim ke dapur", run: sendToKitchen };
+  if (isDineIn.value && !order.table && !inKitchen.value) return { label: "Pilih nomor", run: () => (showSetup.value = true) };
+  return { label: "Bayar", run: goPay };
 });
+
+// Tombol "Ke dapur" di samping Bayar: hanya dine-in yang sudah punya nomor dan belum di dapur
+const showKitchenButton = computed(() => isDineIn.value && Boolean(order.table) && !inKitchen.value);
 
 const flowHint = computed(() => {
   if (!isDineIn.value) return "Take away dibayar dulu, lalu otomatis masuk antrean dapur.";
-  if (inKitchen.value) return "Sudah di dapur. Bayar setelah pelanggan selesai.";
-  if (!order.table) return "Pilih meja, lalu kirim ke dapur.";
-  return "Kirim ke dapur sekarang, bayar setelah pelanggan selesai.";
+  if (inKitchen.value) return "Sudah di dapur. Nomor berbunyi saat pesanan siap.";
+  if (!order.table) return "Pilih nomor untuk pelanggan.";
+  return "Bayar sekarang, atau kirim ke dapur dulu dan bayar belakangan.";
 });
 
 function chooseType(type) {
@@ -348,7 +351,7 @@ function goPay() {
             :class="order.table ? 'bg-secondary text-primary hover:bg-secondary-hover' : 'border border-dashed border-primary/50 text-primary hover:bg-secondary'"
             @click="showSetup = true"
           >
-            {{ order.table ? `Meja ${order.table.code}${order.guests ? ` · ${order.guests} tamu` : ""}` : "Pilih meja" }}
+            {{ order.table ? `No. ${order.table.code}` : "Pilih nomor" }}
           </button>
           <button
             type="button"
@@ -444,7 +447,7 @@ function goPay() {
         </dl>
 
         <!-- Kiri: aksi sekunder, kanan: aksi utama (satu baris supaya daftar pesanan lebih panjang) -->
-        <div class="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-2.5">
+        <div class="mt-4 flex gap-2.5">
           <Button
             v-if="inKitchen"
             variant="secondary"
@@ -467,7 +470,16 @@ function goPay() {
             <FilePenLine class="size-5" />
           </Button>
           <Button
-            class="h-13 justify-between rounded-xl px-4 text-base font-semibold"
+            v-if="showKitchenButton"
+            variant="secondary"
+            class="h-13 min-w-0 flex-1 gap-2 rounded-xl px-3 text-[15px] font-semibold"
+            :disabled="order.isEmpty || order.saving"
+            @click="sendToKitchen"
+          >
+            <Printer class="size-5 shrink-0" /> <span class="truncate">Ke dapur</span>
+          </Button>
+          <Button
+            class="h-13 min-w-0 flex-[1.4] justify-between rounded-xl px-4 text-base font-semibold"
             :disabled="order.isEmpty || order.saving"
             @click="primaryAction.run"
           >

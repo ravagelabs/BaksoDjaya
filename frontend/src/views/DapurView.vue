@@ -45,7 +45,7 @@ const { connected } = useLive(async (type, data) => {
 const COLUMNS = [
   { key: "new", title: "Baru", action: "Mulai masak", next: "cooking", time: "text-primary", primary: true },
   { key: "cooking", title: "Dimasak", action: "Tandai siap", next: "ready", time: "text-[#8a5a12]", primary: true },
-  { key: "ready", title: "Siap saji", action: "Sudah disajikan", next: "served", time: "text-success", primary: false },
+  { key: "ready", title: "Siap · bunyikan nomor", action: "Sudah diambil", next: "served", time: "text-success", primary: false },
 ];
 
 async function load() {
@@ -75,7 +75,7 @@ const byStatus = computed(() => {
   return groups;
 });
 
-const label = (b) => (b.table_code ? `Meja ${b.table_code}` : `${orderTypeLabel(b.order_type)} ${orderNo(b.billId)}`);
+const label = (b) => (b.table_code ? `No. ${b.table_code}` : `${orderTypeLabel(b.order_type)} ${orderNo(b.billId)}`);
 
 // Catatan pelanggan: catatan pesanan + catatan per item
 function notes(b) {

@@ -42,7 +42,7 @@ const isManager = computed(() => MANAGER_ROLES.includes(props.user.role));
 
 const NAV_ALL = [
   { to: "/kasir", label: "Kasir" },
-  { to: "/meja", label: "Meja" },
+  { to: "/meja", label: "Nomor" },
   { to: "/dapur", label: "Dapur" },
   { to: "/transaksi", label: "Transaksi" },
   { to: "/laporan", label: "Laporan", manager: true },

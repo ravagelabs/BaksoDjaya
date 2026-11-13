@@ -47,11 +47,11 @@ export function buildEscposReceipt(bill) {
   cmd(0x1b, 0x45, 0x01);       // ESC E 1  bold on
   write(`${OUTLET_NAME.toUpperCase()}\n`);
   cmd(0x1b, 0x45, 0x00);       // bold off
-  write(`Bill #${bill.billId}\n`);
+  write(`Pesanan ${orderNo(bill.billId)}\n`);
   cmd(0x1b, 0x61, 0x00);       // ESC a 0  left
   write(line());
   write(`Tanggal: ${clean(date)}\n`);
-  write(`Tipe: ${orderTypeLabel(bill.order_type)}${bill.table_code ? ` / Meja ${bill.table_code}` : ""}\n`);
+  write(`Tipe: ${orderTypeLabel(bill.order_type)}${bill.table_code ? ` / No. ${bill.table_code}` : ""}\n`);
   if (bill.customer_name) write(`Pelanggan: ${clean(bill.customer_name)}\n`);
   write(line());
 
@@ -84,7 +84,77 @@ export function openInRawBT(bytes) {
     `intent:base64,${b64}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end`;
 }
 
-export const printBill = (bill) => openInRawBT(buildEscposReceipt(bill));
+// Ubah perintah ESC/POS jadi HTML struk 58mm (dipakai untuk cetak lewat browser di non-Android).
+// Mendukung perintah yang dipakai builder di file ini: init, rata, tebal, ukuran 2x, feed, potong.
+export function escposToHtml(bytes) {
+  const dec = new TextDecoder();
+  const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const lines = [];
+  let align = "left";
+  let bold = false;
+  let big = false;
+  let buf = [];
+  let lineStyle = null; // gaya diambil dari awal baris
+  const flush = () => {
+    const text = dec.decode(new Uint8Array(buf));
+    const st = lineStyle ?? { align, bold, big };
+    lines.push(
+      `<div style="text-align:${st.align};font-weight:${st.bold ? 700 : 400};${st.big ? "font-size:20px;line-height:1.25;font-weight:700;" : ""}">${esc(text) || "&nbsp;"}</div>`
+    );
+    buf = [];
+    lineStyle = null;
+  };
+  for (let i = 0; i < bytes.length; i++) {
+    const c = bytes[i];
+    if (c === 0x1b || c === 0x1d) {
+      const op = bytes[i + 1];
+      if (c === 0x1b && op === 0x40) { align = "left"; bold = false; big = false; i += 1; }
+      else if (c === 0x1b && op === 0x61) { const n = bytes[i + 2]; align = n === 1 ? "center" : n === 2 ? "right" : "left"; i += 2; }
+      else if (c === 0x1b && op === 0x45) { bold = bytes[i + 2] === 1; i += 2; }
+      else if (c === 0x1b && op === 0x64) { i += 2; }
+      else if (c === 0x1d && op === 0x21) { big = bytes[i + 2] !== 0; i += 2; }
+      else if (c === 0x1d && op === 0x56) { i += 3; }
+      else i += 1;
+      continue;
+    }
+    if (c === 0x0a) { flush(); continue; }
+    if (!buf.length && !lineStyle) lineStyle = { align, bold, big };
+    buf.push(c);
+  }
+  if (buf.length) flush();
+  return lines.join("");
+}
+
+// Cetak lewat dialog print browser (Safari/Chrome di Mac, iPad, Windows) memakai iframe tersembunyi
+export function printInBrowser(bytes, title = "Struk") {
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  document.body.appendChild(frame);
+  const doc = frame.contentDocument;
+  doc.open();
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
+    @page { size: 58mm auto; margin: 3mm; }
+    html, body { margin: 0; background: #fff; color: #000; }
+    body { width: 52mm; font: 12px/1.35 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre-wrap; }
+  </style></head><body>${escposToHtml(bytes)}</body></html>`);
+  doc.close();
+  const run = () => {
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setTimeout(() => frame.remove(), 1000);
+  };
+  if (doc.readyState === "complete") setTimeout(run, 50);
+  else frame.onload = run;
+}
+
+// Android: kirim ke RawBT (printer USB/Bluetooth). Perangkat lain: dialog print browser.
+function sendToPrinter(bytes, title) {
+  if (canAutoPrint()) openInRawBT(bytes);
+  else printInBrowser(bytes, title);
+}
+
+export const printBill = (bill) => sendToPrinter(buildEscposReceipt(bill), `Struk ${orderNo(bill.billId)}`);
 
 // Nota pesanan: dicetak saat pesanan masuk dapur, ditaruh di meja sampai pelanggan membayar.
 // Format 58mm sama dengan struk, tapi tanpa metode bayar dan dengan tanda "BELUM DIBAYAR".
@@ -121,7 +191,7 @@ export function buildOrderSlip(bill, { updated = false } = {}) {
 
   const time = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" })
     .format(new Date(bill.sent_to_kitchen_at ?? bill.created_at ?? Date.now()));
-  const where = bill.table_code ? `MEJA ${bill.table_code}` : orderTypeLabel(bill.order_type).toUpperCase();
+  const where = bill.table_code ? `NO. ${bill.table_code}` : orderTypeLabel(bill.order_type).toUpperCase();
 
   cmd(0x1b, 0x40);             // init
   cmd(0x1b, 0x61, 0x01);       // center
@@ -165,7 +235,9 @@ export function buildOrderSlip(bill, { updated = false } = {}) {
   return new Uint8Array(bytes);
 }
 
-export const printOrderSlip = (bill, opts) => openInRawBT(buildOrderSlip(bill, opts));
+export const printOrderSlip = (bill, opts) => sendToPrinter(buildOrderSlip(bill, opts), `Nota ${orderNo(bill.billId)}`);
 
-// RawBT hanya ada di Android; di laptop cukup tampilkan pratinjau
-export const canAutoPrint = () => /Android/i.test(navigator.userAgent);
+// RawBT hanya ada di Android; di perangkat lain pratinjau tampil dan cetak lewat browser
+export function canAutoPrint() {
+  return /Android/i.test(navigator.userAgent);
+}

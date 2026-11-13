@@ -85,7 +85,7 @@ async function exportCsv() {
   try {
     const bills = (await api(`/bills?status=paid&date=${date.value}`)).data;
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const rows = [["No", "Waktu", "Tipe", "Meja", "Pelanggan", "Kasir", "Metode", "Item", "Total"]];
+    const rows = [["No", "Waktu", "Tipe", "Nomor", "Pelanggan", "Kasir", "Metode", "Item", "Total"]];
     for (const b of [...bills].reverse()) {
       rows.push([
         b.billId,

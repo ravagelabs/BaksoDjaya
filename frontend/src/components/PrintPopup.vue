@@ -30,7 +30,7 @@ const emit = defineEmits(["update:open", "printBill"]);
         <div class="grid gap-1 text-[15px]">
           <p class="font-semibold">Pesanan {{ orderNo(bill.billId) }}</p>
           <p class="text-muted-foreground">
-            {{ orderTypeLabel(bill.order_type) }}<template v-if="bill.table_code"> · Meja {{ bill.table_code }}</template>
+            {{ orderTypeLabel(bill.order_type) }}<template v-if="bill.table_code"> · No. {{ bill.table_code }}</template>
             <template v-if="bill.customer_name"> · {{ bill.customer_name }}</template>
           </p>
           <p class="text-muted-foreground">{{ dateTime(bill.paid_at ?? bill.created_at) }}</p>
