@@ -292,3 +292,22 @@ export async function renameAccount(code, name) {
 
 export const isCashAccount = async (code) =>
     Boolean(await db.oneOrNone(`SELECT 1 FROM fin_account WHERE code = $1 AND is_cash;`, [code]));
+
+// Mulai dari nol sebelum go-live: hapus semua transaksi uji coba.
+// Dihapus: pesanan (+ item), pelanggan, biaya, semua jurnal (termasuk saldo awal & aset), shift yang sudah selesai.
+// Tetap: menu, harga, modifier, nomor meja, akun login, logo, dan daftar kas/bank (Bank BCA, Petty cash).
+export async function resetTransactions() {
+    return db.tx(async (t) => {
+        const counts = await t.one(`SELECT
+            (SELECT count(*) FROM bill)::int AS bills,
+            (SELECT count(*) FROM expense)::int AS expenses,
+            (SELECT count(*) FROM journal_entry)::int AS journals,
+            (SELECT count(*) FROM shift WHERE ended_at IS NOT NULL)::int AS shifts;`);
+        await t.none(`TRUNCATE bill_item, bill, customer RESTART IDENTITY;`);
+        await t.none(`TRUNCATE expense RESTART IDENTITY;`);
+        await t.none(`TRUNCATE journal_line, journal_entry RESTART IDENTITY;`);
+        await t.none(`DELETE FROM shift WHERE ended_at IS NOT NULL;`);
+        await t.none(`UPDATE shift SET created_at = now() WHERE ended_at IS NULL;`);
+        return counts;
+    });
+}

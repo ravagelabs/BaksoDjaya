@@ -1,5 +1,5 @@
 import express from 'express';
-import { loadAccounts, getFinanceReport, addJournal, deleteJournal, createCashAccount, renameAccount } from '../controllers/financeController.js';
+import { loadAccounts, getFinanceReport, addJournal, deleteJournal, createCashAccount, renameAccount, resetTransactions } from '../controllers/financeController.js';
 
 // Keuangan (akun utama saja, dicek di index.js)
 const router = express.Router();
@@ -63,6 +63,19 @@ router.delete('/journal/:id', async (req, res) => {
     } catch (err) {
         console.error('Error in DELETE /finance/journal/:id:', err);
         res.status(400).json({ error: err.message || 'Jurnal gagal dihapus.' });
+    }
+});
+
+// Nolkan semua transaksi (sebelum go-live). Wajib kirim { confirm: "RESET" }.
+router.post('/reset', async (req, res) => {
+    if (req.body?.confirm !== 'RESET') return res.status(400).json({ error: 'Ketik RESET untuk konfirmasi.' });
+    try {
+        const data = await resetTransactions();
+        console.warn(`Reset transaksi oleh ${req.user?.email ?? req.user?.id}:`, data);
+        res.status(200).json({ message: 'Transactions reset', data });
+    } catch (err) {
+        console.error('Error in POST /finance/reset:', err);
+        res.status(500).json({ error: 'Reset gagal. Data tidak berubah.' });
     }
 });
 

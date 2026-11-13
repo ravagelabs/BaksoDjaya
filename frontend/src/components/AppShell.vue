@@ -60,6 +60,7 @@ onUnmounted(() => document.documentElement.classList.remove("app-locked"));
 
 // manager: hanya untuk role pengelola (sama dengan MANAGER_ROLES di backend/lib/http.js)
 const MANAGER_ROLES = ["owner"];
+const showFab = computed(() => !["/kasir", "/transaksi/bayar"].some((p) => route.path.startsWith(p)));
 const isManager = computed(() => MANAGER_ROLES.includes(props.user.role));
 
 // Akun utama mulai dari Beranda (ringkasan bisnis); admin langsung Kasir
@@ -248,28 +249,6 @@ async function confirmLogout({ print = false } = {}) {
       </nav>
 
       <div class="ml-auto flex shrink-0 items-center gap-4 md:ml-0">
-        <!-- Aksi cepat (akun utama) -->
-        <DropdownMenu v-if="isManager">
-          <DropdownMenuTrigger
-            class="flex size-10 items-center justify-center rounded-full bg-cta text-white outline-none hover:bg-cta-hover focus-visible:ring-3 focus-visible:ring-white/40"
-            aria-label="Tambah cepat"
-          >
-            <Plus class="size-5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" class="w-60">
-            <DropdownMenuLabel class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Keuangan</DropdownMenuLabel>
-            <DropdownMenuItem @select="ui.quickAction = 'biaya'"><Receipt /> Catat biaya</DropdownMenuItem>
-            <DropdownMenuItem @select="ui.quickAction = 'transfer'"><ArrowLeftRight /> Transfer kas & bank</DropdownMenuItem>
-            <DropdownMenuItem @select="ui.quickAction = 'aset'"><Package /> Tambah aset</DropdownMenuItem>
-            <DropdownMenuItem @select="ui.quickAction = 'kasbank'"><Landmark /> Tambah kas / bank</DropdownMenuItem>
-            <DropdownMenuItem @select="ui.quickAction = 'jurnal'"><BookOpen /> Catat jurnal</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Toko</DropdownMenuLabel>
-            <DropdownMenuItem @select="router.push({ path: '/pengaturan', query: { bagian: 'menu', aksi: 'tambah' } })"><UtensilsCrossed /> Tambah menu</DropdownMenuItem>
-            <DropdownMenuItem @select="router.push({ path: '/pengaturan', query: { bagian: 'akun', aksi: 'tambah' } })"><UserPlus /> Tambah akun karyawan</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
         <!-- Logo outlet (Pengaturan → Toko); kalau belum ada, nama outlet -->
         <img
           v-if="settings.logo"
@@ -341,6 +320,28 @@ async function confirmLogout({ print = false } = {}) {
         <Button variant="secondary" class="h-12 rounded-xl text-base" @click="showReminder = false">Nanti, ingatkan lagi</Button>
       </DialogContent>
     </Dialog>
+
+    <!-- Aksi cepat (akun utama): tombol bulat di pojok kanan bawah. Disembunyikan di Kasir/Pembayaran supaya tidak menutupi tombol Bayar. -->
+    <DropdownMenu v-if="isManager && showFab">
+      <DropdownMenuTrigger
+        class="fixed right-[calc(1.25rem+env(safe-area-inset-right))] bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-50 flex size-14 items-center justify-center rounded-full bg-cta text-white shadow-lg shadow-black/25 outline-none transition-transform hover:bg-cta-hover active:scale-95 focus-visible:ring-4 focus-visible:ring-cta/40 md:right-8 md:bottom-8"
+        aria-label="Tambah cepat"
+      >
+        <Plus class="size-7" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="top" :side-offset="10" class="w-60">
+        <DropdownMenuLabel class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Keuangan</DropdownMenuLabel>
+        <DropdownMenuItem @select="ui.quickAction = 'biaya'"><Receipt /> Catat biaya</DropdownMenuItem>
+        <DropdownMenuItem @select="ui.quickAction = 'transfer'"><ArrowLeftRight /> Transfer kas & bank</DropdownMenuItem>
+        <DropdownMenuItem @select="ui.quickAction = 'aset'"><Package /> Tambah aset</DropdownMenuItem>
+        <DropdownMenuItem @select="ui.quickAction = 'kasbank'"><Landmark /> Tambah kas / bank</DropdownMenuItem>
+        <DropdownMenuItem @select="ui.quickAction = 'jurnal'"><BookOpen /> Catat jurnal</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Toko</DropdownMenuLabel>
+        <DropdownMenuItem @select="router.push({ path: '/pengaturan', query: { bagian: 'menu', aksi: 'tambah' } })"><UtensilsCrossed /> Tambah menu</DropdownMenuItem>
+        <DropdownMenuItem @select="router.push({ path: '/pengaturan', query: { bagian: 'akun', aksi: 'tambah' } })"><UserPlus /> Tambah akun karyawan</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
 
     <QuickActions v-if="isManager" />
     <ToastHost />

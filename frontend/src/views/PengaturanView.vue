@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Store, UsersRound, UtensilsCrossed } from "@lucide/vue";
 import OutletSection from "@/components/OutletSection.vue";
+import ResetSection from "@/components/ResetSection.vue";
 import { ChevronRight, Pencil, Plus, Search } from "@lucide/vue";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -316,6 +317,7 @@ onMounted(() => catalog.load(true));
 
     <AccountsSection v-if="section === 'akun'" />
     <OutletSection v-if="section === 'toko'" />
+    <ResetSection v-if="section === 'toko'" />
 
     <!-- Isi grup -->
     <Dialog :open="Boolean(openGroup)" @update:open="!$event && (openGroupKey = null)">

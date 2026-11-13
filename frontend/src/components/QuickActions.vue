@@ -19,6 +19,8 @@ const EXPENSE_CATEGORIES = [
 
 const accounts = ref([]);
 const cashAccounts = computed(() => accounts.value.filter((a) => a.cash));
+// Untuk bayar biaya/aset: kas & bank saja (Saldo QRIS hanya penampung, dicairkan lewat transfer)
+const payAccounts = computed(() => cashAccounts.value.filter((a) => !a.code.startsWith("1-13")));
 const fixedAccounts = computed(() => accounts.value.filter((a) => a.fixed));
 const accountName = (code) => accounts.value.find((a) => a.code === code)?.name ?? code;
 
@@ -206,7 +208,7 @@ const input =
               <input :value="f.amount" inputmode="numeric" required placeholder="0" :class="[input, 'tabular']" @input="fmtInput($event, (v) => (f.amount = v))" />
             </label>
             <label class="grid gap-1 text-sm font-semibold">Dibayar dari
-              <select v-model="f.paid_from" :class="input"><option v-for="a in cashAccounts" :key="a.code" :value="a.code">{{ a.name }}</option></select>
+              <select v-model="f.paid_from" :class="input"><option v-for="a in payAccounts" :key="a.code" :value="a.code">{{ a.name }}</option></select>
             </label>
           </div>
         </template>
@@ -247,7 +249,7 @@ const input =
             </label>
             <label class="grid gap-1 text-sm font-semibold">Dibayar dari
               <select v-model="f.source" :class="input">
-                <option v-for="a in cashAccounts" :key="a.code" :value="a.code">{{ a.name }}</option>
+                <option v-for="a in payAccounts" :key="a.code" :value="a.code">{{ a.name }}</option>
                 <option value="3-1100">Disetor pemilik (modal)</option>
                 <option value="2-1100">Belum dibayar (utang)</option>
               </select>
