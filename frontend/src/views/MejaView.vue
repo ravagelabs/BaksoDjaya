@@ -35,7 +35,7 @@ const STATUS = {
 const KITCHEN = {
   new: "Baru masuk dapur",
   cooking: "Sedang dimasak",
-  ready: "Siap, bunyikan nomor",
+  ready: "Siap diambil",
   served: "Sudah diambil",
 };
 const kitchenLabel = (t) => KITCHEN[t.kitchen_status] ?? "Belum masuk dapur";

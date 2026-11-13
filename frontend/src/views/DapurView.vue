@@ -45,7 +45,7 @@ const { connected } = useLive(async (type, data) => {
 const COLUMNS = [
   { key: "new", title: "Baru", action: "Mulai masak", next: "cooking", time: "text-primary", primary: true },
   { key: "cooking", title: "Dimasak", action: "Tandai siap", next: "ready", time: "text-[#8a5a12]", primary: true },
-  { key: "ready", title: "Siap · bunyikan nomor", action: "Sudah diambil · nomor kembali", next: "served", time: "text-success", primary: false },
+  { key: "ready", title: "Siap diambil", action: "Sudah diambil · nomor kembali", next: "served", time: "text-success", primary: false },
 ];
 
 async function load() {
@@ -162,6 +162,10 @@ async function advance(b, next) {
             </h3>
             <span class="tabular text-[15px] font-medium" :class="col.time">{{ minutesSince(b.sent_to_kitchen_at, now) }} menit</span>
           </header>
+          <!-- Nomor pager + nomor pesanan selalu tampil berdua supaya tidak tertukar -->
+          <p v-if="b.table_code" class="tabular mt-0.5 text-sm text-muted-foreground">
+            Pesanan {{ orderNo(b.billId) }} · {{ orderTypeLabel(b.order_type) }}
+          </p>
 
           <ul class="mt-4 flex flex-col gap-2">
             <li v-for="i in b.billItems" :key="i.id">

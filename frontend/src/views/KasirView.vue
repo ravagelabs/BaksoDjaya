@@ -145,7 +145,7 @@ const title = computed(() => (order.billId ? `Pesanan ${orderNo(order.billId)}` 
 const inKitchen = computed(() => Boolean(order.kitchenStatus));
 
 // Alur: pilih menu -> Bayar -> pesanan otomatis masuk dapur -> beri nomor pager ke pelanggan
-//       -> nomor berbunyi saat siap -> pager dikembalikan (halaman Nomor)
+//       -> pager dibunyikan dari alatnya saat siap -> pager dikembalikan (halaman Nomor / "Sudah diambil")
 const primaryAction = computed(() => ({ label: "Bayar", run: goPay }));
 
 const flowHint = computed(() => {
