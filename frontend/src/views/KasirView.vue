@@ -366,12 +366,13 @@ function pickTypeAndPay(type) {
         </span>
         <button
           type="button"
-          class="flex h-11 max-w-36 shrink-0 items-center gap-1.5 rounded-xl px-3 text-sm font-medium"
-          :class="order.customer ? 'bg-secondary text-primary' : 'border border-dashed text-muted-foreground hover:bg-muted'"
+          class="flex h-11 max-w-36 shrink-0 items-center justify-center gap-1.5 rounded-xl text-sm font-medium"
+          :title="order.customer ? order.customer.name : 'Tambah pelanggan'"
+          :class="order.customer ? 'bg-secondary px-3 text-primary' : 'w-11 border border-dashed text-muted-foreground hover:bg-muted'"
           :aria-label="order.customer ? `Pelanggan: ${order.customer.name}` : 'Tambah pelanggan'"
           @click="openCustomer"
         >
-          <UserRound class="size-4 shrink-0" /> <span class="truncate">{{ order.customer ? order.customer.name : "Pelanggan" }}</span>
+          <UserRound class="size-5 shrink-0" /> <span v-if="order.customer" class="truncate">{{ order.customer.name }}</span>
         </button>
         </div>
         <p v-if="inKitchen" class="mt-2 text-sm text-muted-foreground">{{ flowHint }}</p>
@@ -514,15 +515,14 @@ function pickTypeAndPay(type) {
             class="flex h-36 flex-col items-center justify-center gap-3 rounded-2xl border-2 bg-card text-xl font-bold transition hover:border-primary hover:bg-secondary"
             @click="pickTypeAndPay('dine_in')"
           >
-            <Utensils class="size-10" /> Dine-in
-            <span class="-mt-2 text-sm font-normal text-muted-foreground">Makan di sini</span>
+            <Utensils class="size-10" /> Makan di tempat
           </button>
           <button
             type="button"
             class="flex h-36 flex-col items-center justify-center gap-3 rounded-2xl border-2 bg-card text-xl font-bold transition hover:border-primary hover:bg-secondary"
             @click="pickTypeAndPay('pickup')"
           >
-            <ShoppingBag class="size-10" /> Take away
+            <ShoppingBag class="size-10" /> Bungkus
             <span class="-mt-2 text-sm font-normal text-muted-foreground">Bawa pulang</span>
           </button>
         </div>

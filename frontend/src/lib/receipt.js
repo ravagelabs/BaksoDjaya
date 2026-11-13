@@ -163,8 +163,16 @@ export function escposToHtml(bytes) {
   const flush = () => {
     const text = dec.decode(new Uint8Array(buf));
     const st = lineStyle ?? { align, bold, big, inv };
+    // Ukuran meniru printer 58mm: normal 32 huruf/baris, besar (2x) 16 huruf, tinggi (2x) tetap 32 huruf
+    const size =
+      st.big === 2
+        ? "font-size:20px;line-height:1.2;font-weight:700;"
+        : st.big
+          ? "display:block;transform:scaleY(1.8);transform-origin:top;margin-bottom:0.95em;font-weight:700;"
+          : "";
+    const body = esc(text) || "&nbsp;";
     lines.push(
-      `<div style="text-align:${st.align};font-weight:${st.bold ? 700 : 400};white-space:pre-wrap;${st.inv ? "background:#000;color:#fff;" : ""}${st.big === 2 ? "font-size:22px;line-height:1.25;font-weight:700;" : st.big ? "font-size:16px;line-height:1.35;font-weight:600;" : ""}">${esc(text) || "&nbsp;"}</div>`
+      `<div style="text-align:${st.align};font-weight:${st.bold ? 700 : 400};${size}">${st.inv ? `<span style="background:#000;color:#fff">${body}</span>` : body}</div>`
     );
     buf = [];
     lineStyle = null;
@@ -211,7 +219,7 @@ export function printInBrowser(bytes, title = "Struk") {
   doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title><style>
     @page { size: 58mm auto; margin: 3mm; }
     html, body { margin: 0; background: #fff; color: #000; }
-    body { width: 52mm; font: 12px/1.35 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre-wrap; }
+    body { width: 52mm; font: 10px/1.35 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre-wrap; }
   </style></head><body>${escposToHtml(bytes)}</body></html>`);
   doc.close();
   const run = () => {
@@ -264,8 +272,10 @@ export function buildKitchenSlip(bill) {
   const time = new Intl.DateTimeFormat("id-ID", { timeStyle: "short" })
     .format(new Date(bill.paid_at ?? bill.sent_to_kitchen_at ?? bill.created_at ?? Date.now()));
 
-  const INV = (on) => cmd(0x1d, 0x42, on ? 1 : 0); // putih di atas hitam (judul kategori)
+  const INV = (on) => cmd(0x1d, 0x42, on ? 1 : 0); // putih di atas hitam
   const BOLD = (on) => cmd(0x1b, 0x45, on ? 1 : 0);
+  const CENTER = () => cmd(0x1b, 0x61, 0x01);
+  const LEFT = () => cmd(0x1b, 0x61, 0x00);
   const catalog = (() => {
     try {
       return useCatalogStore();
@@ -273,79 +283,75 @@ export function buildKitchenSlip(bill) {
       return null;
     }
   })();
-  const categoryOf = (i) => clean(i.category ?? catalog?.byId?.(i.product_id)?.category ?? "Lainnya") || "Lainnya";
-  // Urutan kategori di dapur: paket, bakso, mie, lainnya, minuman paling bawah
-  const ORDER = ["paket", "bakso", "mie"];
-  const rank = (c) => {
-    const k = c.toLowerCase();
-    if (k === "minuman") return 99;
-    const i = ORDER.indexOf(k);
-    return i === -1 ? 50 : i;
+  const categoryOf = (i) => String(i.category ?? catalog?.byId?.(i.product_id)?.category ?? "").toLowerCase();
+  // Urutan: paket, bakso, mie, lainnya, minuman paling bawah
+  const rank = (i) => ({ paket: 0, bakso: 1, mie: 2, minuman: 9 })[categoryOf(i)] ?? 5;
+  const items = [...bill.billItems].sort((a, b) => rank(a) - rank(b));
+  const totalQty = items.reduce((s, i) => s + Number(i.qty || 0), 0);
+  const isTakeaway = bill.order_type === "pickup";
+  const typeLine = isTakeaway ? "BUNGKUS" : "MAKAN DI TEMPAT";
+  // Blok hitam selebar kertas (teks besar 16 huruf)
+  const banner = (text) => {
+    const t = clean(text).slice(0, 16);
+    const pad = Math.max(0, 16 - t.length);
+    return " ".repeat(Math.floor(pad / 2)) + t + " ".repeat(Math.ceil(pad / 2));
   };
-  const groups = new Map();
-  for (const i of bill.billItems) {
-    const c = categoryOf(i);
-    if (!groups.has(c)) groups.set(c, []);
-    groups.get(c).push(i);
-  }
-  const cats = [...groups.keys()].sort((a, b) => rank(a) - rank(b));
-  const totalQty = bill.billItems.reduce((s, i) => s + Number(i.qty || 0), 0);
 
-  // Kepala: tanpa logo, nomor meja besar
+  // Kepala: tanpa logo. Nomor meja dan cara makan besar supaya tidak salah bungkus.
   cmd(0x1b, 0x40);
-  cmd(0x1b, 0x61, 0x01); // tengah
-  TALL();
+  CENTER();
   BOLD(true);
-  write("DAPUR\n");
   BIG();
-  write(bill.table_code ? `NO. ${clean(bill.table_code)}\n` : `${orderTypeLabel(bill.order_type).toUpperCase()}\n`);
-  TALL();
-  write(`${orderTypeLabel(bill.order_type).toUpperCase()}  ${clean(time)}\n`);
-  BOLD(false);
+  if (bill.table_code) write(`NO. ${clean(bill.table_code)}\n`);
+  INV(true);
+  write(banner(typeLine) + "\n");
+  INV(false);
   NORMAL();
-  write(`Pesanan ${orderNo(bill.billId)}\n`);
-  cmd(0x1b, 0x61, 0x00); // kiri
+  BOLD(false);
+  write(`Jam ${clean(time)}  -  Pesanan ${orderNo(bill.billId)}\n`);
+  LEFT();
   write("=".repeat(32) + "\n");
 
-  // Per kategori: judul hitam, lalu kolom JML | MENU
-  for (const c of cats) {
-    const items = groups.get(c);
-    const n = items.reduce((s, i) => s + Number(i.qty || 0), 0);
+  // Tiap menu: jumlah + nama besar; pilihan di bawahnya. "Tanpa ..." dicetak JANGAN di blok hitam.
+  items.forEach((i, idx) => {
+    const { head, parts } = title(i.name);
     BIG();
     BOLD(true);
-    INV(true);
-    write(` ${c.toUpperCase()} (${n})`.slice(0, 16).padEnd(16) + "\n");
-    INV(false);
-    NORMAL();
-    write("JML MENU\n");
-    for (const i of items) {
-      const { head, parts } = title(i.name);
-      BIG();
-      BOLD(true);
-      const q = String(i.qty).padEnd(2);
-      const lines = wrap(head.toUpperCase(), 13).split("\n").filter(Boolean);
-      lines.forEach((l, k) => write(`${k === 0 ? q : "  "} ${l}\n`));
-      TALL();
-      for (const p of parts) write(wrap(`+ ${p.toUpperCase()}`, 32, "      "));
-      const opts = optionsText(i.options);
-      if (opts) for (const o of opts.split(", ")) write(wrap(`- ${o.replace(/ \(\+[\d.]+\)$/, "").toUpperCase()}`, 32, "      "));
-      if (i.note) write(wrap(`! ${i.note.toUpperCase()}`, 32, "      "));
-      BOLD(false);
-      NORMAL();
-      write("-".repeat(32) + "\n");
+    const q = `${i.qty}`;
+    wrap(head.toUpperCase(), 16 - q.length - 1)
+      .split("\n")
+      .filter(Boolean)
+      .forEach((l, k) => write(`${k === 0 ? q : " ".repeat(q.length)} ${l}\n`));
+    TALL();
+    for (const p of parts) write(wrap(p.toUpperCase(), 32, "   "));
+    const opts = optionsText(i.options);
+    for (const o of opts ? opts.split(", ") : []) {
+      const label = o.replace(/ \(\+[\d.]+\)$/, "").toUpperCase();
+      if (label.startsWith("TANPA ")) {
+        INV(true);
+        write(` JANGAN ${label.slice(6)} `);
+        INV(false);
+        write("\n");
+      } else write(wrap(label, 32, "   "));
     }
-  }
+    if (i.note) write(wrap(`CATATAN: ${i.note.toUpperCase()}`, 32, "   "));
+    BOLD(false);
+    NORMAL();
+    if (idx < items.length - 1) write("-".repeat(32) + "\n");
+  });
+
+  write("=".repeat(32) + "\n");
   if (bill.note) {
     TALL();
     BOLD(true);
     write(wrap(`CATATAN: ${bill.note.toUpperCase()}`, 32));
     BOLD(false);
     NORMAL();
-    write("-".repeat(32) + "\n");
   }
+  CENTER();
   TALL();
   BOLD(true);
-  write(`TOTAL ${totalQty} PORSI\n`);
+  write(`${totalQty} PORSI - ${typeLine}\n`);
   BOLD(false);
   NORMAL();
   cmd(0x1b, 0x64, 0x04);

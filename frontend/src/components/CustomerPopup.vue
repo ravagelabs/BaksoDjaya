@@ -16,8 +16,8 @@ const props = defineProps({
 const emit = defineEmits(["update:open", "saveCustomer", "selectCustomer"]);
 
 const TYPES = [
-  { value: "dine_in", label: "Dine-in" },
-  { value: "pickup", label: "Take away" },
+  { value: "dine_in", label: "Makan di tempat" },
+  { value: "pickup", label: "Bungkus" },
   { value: "delivery", label: "Delivery" },
 ];
 

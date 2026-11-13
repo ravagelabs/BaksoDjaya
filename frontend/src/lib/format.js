@@ -48,13 +48,13 @@ export const minutesSince = (iso, now = Date.now()) =>
 export const orderNo = (id) => (id ? `#${String(id).padStart(3, "0")}` : "");
 
 export const ORDER_TYPES = [
-  { value: "dine_in", label: "Dine-in" },
-  { value: "pickup", label: "Take away" },
+  { value: "dine_in", label: "Makan di tempat" },
+  { value: "pickup", label: "Bungkus" },
   { value: "delivery", label: "Delivery" },
 ];
 // Dua alur pemesanan di kasir
 export const KASIR_ORDER_TYPES = ORDER_TYPES.slice(0, 2);
-export const orderTypeLabel = (v) => ORDER_TYPES.find((t) => t.value === v)?.label ?? "Dine-in";
+export const orderTypeLabel = (v) => ORDER_TYPES.find((t) => t.value === v)?.label ?? "Makan di tempat";
 
 // Peran akun: owner = Akun utama (semua akses), user = Admin (kasir dan staf)
 export const ROLE_LABELS = { owner: "Akun utama", user: "Admin", employee: "Admin", customer: "Pelanggan" };
