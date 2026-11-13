@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, watch, watchEffect, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ChevronDown, History, LogOut, Undo2 } from "@lucide/vue";
+import { ArrowLeftRight, BookOpen, ChevronDown, History, Landmark, LogOut, Package, Plus, Receipt, Undo2, UserPlus, UtensilsCrossed } from "@lucide/vue";
+import QuickActions from "@/components/QuickActions.vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLive } from "@/lib/live";
@@ -247,6 +248,28 @@ async function confirmLogout({ print = false } = {}) {
       </nav>
 
       <div class="ml-auto flex shrink-0 items-center gap-4 md:ml-0">
+        <!-- Aksi cepat (akun utama) -->
+        <DropdownMenu v-if="isManager">
+          <DropdownMenuTrigger
+            class="flex size-10 items-center justify-center rounded-full bg-cta text-white outline-none hover:bg-cta-hover focus-visible:ring-3 focus-visible:ring-white/40"
+            aria-label="Tambah cepat"
+          >
+            <Plus class="size-5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" class="w-60">
+            <DropdownMenuLabel class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Keuangan</DropdownMenuLabel>
+            <DropdownMenuItem @select="ui.quickAction = 'biaya'"><Receipt /> Catat biaya</DropdownMenuItem>
+            <DropdownMenuItem @select="ui.quickAction = 'transfer'"><ArrowLeftRight /> Transfer kas & bank</DropdownMenuItem>
+            <DropdownMenuItem @select="ui.quickAction = 'aset'"><Package /> Tambah aset</DropdownMenuItem>
+            <DropdownMenuItem @select="ui.quickAction = 'kasbank'"><Landmark /> Tambah kas / bank</DropdownMenuItem>
+            <DropdownMenuItem @select="ui.quickAction = 'jurnal'"><BookOpen /> Catat jurnal</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Toko</DropdownMenuLabel>
+            <DropdownMenuItem @select="router.push({ path: '/pengaturan', query: { bagian: 'menu', aksi: 'tambah' } })"><UtensilsCrossed /> Tambah menu</DropdownMenuItem>
+            <DropdownMenuItem @select="router.push({ path: '/pengaturan', query: { bagian: 'akun', aksi: 'tambah' } })"><UserPlus /> Tambah akun karyawan</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <!-- Logo outlet (Pengaturan → Toko); kalau belum ada, nama outlet -->
         <img
           v-if="settings.logo"
@@ -319,6 +342,7 @@ async function confirmLogout({ print = false } = {}) {
       </DialogContent>
     </Dialog>
 
+    <QuickActions v-if="isManager" />
     <ToastHost />
   </div>
 </template>

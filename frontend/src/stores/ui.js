@@ -7,6 +7,10 @@ export const useUiStore = defineStore("ui", () => {
   const user = ref(null);
   // Naik 1 setiap ada permintaan "Akhiri shift" dari halaman lain (AppShell membuka popup shift)
   const endShiftRequest = ref(0);
+  // Aksi cepat dari tombol + (biaya, transfer, aset, kasbank, jurnal); null = tertutup
+  const quickAction = ref(null);
+  // Naik 1 setiap ada data keuangan baru, supaya Beranda & Keuangan memuat ulang
+  const financeVersion = ref(0);
   let seq = 0;
 
   function toast(message, tone = "default") {
@@ -18,5 +22,5 @@ export const useUiStore = defineStore("ui", () => {
   }
 
   return {
-    endShiftRequest, toasts, toast, user };
+    endShiftRequest, quickAction, financeVersion, toasts, toast, user };
 });

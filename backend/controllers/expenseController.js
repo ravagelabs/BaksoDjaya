@@ -1,4 +1,5 @@
 import db from "../db/db.js";
+import { isCashAccount } from "./financeController.js";
 
 // Kategori biaya operasional untuk laporan laba rugi
 export const EXPENSE_CATEGORIES = [
@@ -7,7 +8,7 @@ export const EXPENSE_CATEGORIES = [
 ];
 
 const COLUMNS = `id, spent_on::text AS spent_on, category, name, amount, paid_from, created_at`;
-const PAID_FROM = ['1-1100', '1-1200', '1-1300'];
+
 
 // Satu tanggal (date) atau rentang (from-to)
 export const getExpenses = async (from, to = from) => {
@@ -29,7 +30,7 @@ export const addExpense = async (name, amount, date, category, paidFrom) => {
         `INSERT INTO expense (name, amount, spent_on, category, paid_from)
          VALUES ($1, $2, COALESCE($3::date, (now() AT TIME ZONE 'Asia/Jakarta')::date), $4, $5)
          RETURNING ${COLUMNS};`,
-        [name.trim(), amount, date || null, cat, PAID_FROM.includes(paidFrom) ? paidFrom : '1-1100']
+        [name.trim(), amount, date || null, cat, (await isCashAccount(paidFrom)) ? paidFrom : '1-1100']
     );
 };
 

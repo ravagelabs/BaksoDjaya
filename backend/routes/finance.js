@@ -1,11 +1,38 @@
 import express from 'express';
-import { ACCOUNTS, getFinanceReport, addJournal, deleteJournal } from '../controllers/financeController.js';
+import { loadAccounts, getFinanceReport, addJournal, deleteJournal, createCashAccount, renameAccount } from '../controllers/financeController.js';
 
 // Keuangan (akun utama saja, dicek di index.js)
 const router = express.Router();
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-router.get('/accounts', (req, res) => res.status(200).json({ message: 'Accounts', data: ACCOUNTS }));
+router.get('/accounts', async (req, res) => {
+    try {
+        res.status(200).json({ message: 'Accounts', data: await loadAccounts() });
+    } catch (err) {
+        console.error('Error in GET /finance/accounts:', err);
+        res.status(500).json({ error: 'Daftar akun belum bisa dimuat.' });
+    }
+});
+
+// Tambah kas / bank / petty cash
+router.post('/accounts', async (req, res) => {
+    try {
+        res.status(201).json({ message: 'Account created', data: await createCashAccount(req.body ?? {}, req.user?.id) });
+    } catch (err) {
+        console.error('Error in POST /finance/accounts:', err);
+        res.status(400).json({ error: err.message || 'Akun gagal dibuat.' });
+    }
+});
+
+router.patch('/accounts/:code', async (req, res) => {
+    try {
+        await renameAccount(req.params.code, req.body?.name);
+        res.status(200).json({ message: 'Account updated' });
+    } catch (err) {
+        console.error('Error in PATCH /finance/accounts/:code:', err);
+        res.status(400).json({ error: err.message || 'Akun gagal diubah.' });
+    }
+});
 
 router.get('/report', async (req, res) => {
     try {

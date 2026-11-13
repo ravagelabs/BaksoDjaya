@@ -1,5 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { Copy, Eye, EyeOff, KeyRound, Plus, Sparkles, Trash2 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,6 +32,7 @@ async function load() {
   }
 }
 onMounted(load);
+
 
 const isMe = (u) => u.id === ui.user?.id;
 const ownerCount = computed(() => users.value.filter((u) => u.role === "owner").length);
@@ -143,6 +145,18 @@ async function removeAccount() {
     ui.toast(e.message, "error");
   }
 }
+// Dari tombol + di header (?bagian=akun&aksi=tambah) langsung buka form tambah akun
+const route = useRoute();
+const router = useRouter();
+watch(
+  () => route.query.aksi,
+  (aksi) => {
+    if (aksi !== "tambah") return;
+    openAdd();
+    router.replace({ query: { ...route.query, aksi: undefined } });
+  },
+  { immediate: true }
+);
 </script>
 
 <template>

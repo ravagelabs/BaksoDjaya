@@ -105,6 +105,21 @@ function openNew() {
   showForm.value = true;
 }
 
+// Dari tombol + di header: ?aksi=tambah langsung membuka form
+watch(
+  () => route.query.aksi,
+  (aksi) => {
+    if (aksi !== "tambah") return;
+    if (route.query.bagian === "akun") section.value = "akun"; // form akun dibuka oleh AccountsSection
+    else {
+      section.value = "menu";
+      openNew();
+      router.replace({ query: { ...route.query, aksi: undefined } });
+    }
+  },
+  { immediate: true }
+);
+
 function openEdit(p) {
   editing.value = p;
   showForm.value = true;

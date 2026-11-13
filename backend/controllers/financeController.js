@@ -2,36 +2,14 @@ import db from "../db/db.js";
 
 const TZ = 'Asia/Jakarta';
 
-// ---- Bagan akun (sederhana, sesuai usaha F&B kecil) ----
-// type: asset | liability | equity | revenue | cogs | expense ; cash: akun kas & setara kas
-export const ACCOUNTS = [
-    { code: '1-1100', name: 'Kas (tunai)', type: 'asset', cash: true },
-    { code: '1-1200', name: 'Bank', type: 'asset', cash: true },
-    { code: '1-1300', name: 'Saldo QRIS', type: 'asset', cash: true },
-    { code: '1-1400', name: 'Piutang GoFood', type: 'asset' },
-    { code: '1-1500', name: 'Piutang GrabFood', type: 'asset' },
-    { code: '1-1600', name: 'Persediaan bahan', type: 'asset' },
-    { code: '1-2100', name: 'Peralatan usaha', type: 'asset', group: 'investing' },
-    { code: '2-1100', name: 'Utang usaha', type: 'liability' },
-    { code: '2-1200', name: 'Utang pinjaman', type: 'liability', group: 'financing' },
-    { code: '3-1100', name: 'Modal pemilik', type: 'equity', group: 'financing' },
-    { code: '3-1200', name: 'Prive (penarikan pemilik)', type: 'equity', group: 'financing' },
-    { code: '4-1100', name: 'Pendapatan penjualan', type: 'revenue' },
-    { code: '4-9100', name: 'Pendapatan lain-lain', type: 'revenue' },
-    { code: '5-1100', name: 'HPP bahan baku', type: 'cogs' },
-    { code: '5-1200', name: 'HPP kemasan', type: 'cogs' },
-    { code: '6-1100', name: 'Beban gaji karyawan', type: 'expense' },
-    { code: '6-1200', name: 'Beban sewa tempat', type: 'expense' },
-    { code: '6-1300', name: 'Beban listrik & air', type: 'expense' },
-    { code: '6-1400', name: 'Beban gas', type: 'expense' },
-    { code: '6-1500', name: 'Beban transport', type: 'expense' },
-    { code: '6-1600', name: 'Beban marketing', type: 'expense' },
-    { code: '6-1700', name: 'Beban perawatan', type: 'expense' },
-    { code: '6-1800', name: 'Beban komisi aplikasi', type: 'expense' },
-    { code: '6-9100', name: 'Beban lain-lain', type: 'expense' },
-];
-const BY_CODE = Object.fromEntries(ACCOUNTS.map((a) => [a.code, a]));
-export const isAccount = (code) => Boolean(BY_CODE[code]);
+// ---- Bagan akun: disimpan di tabel fin_account (kas/bank bisa ditambah sendiri) ----
+export async function loadAccounts() {
+    const rows = await db.any(
+        `SELECT code, name, type, is_cash AS cash, grp AS "group", fixed_asset AS fixed FROM fin_account ORDER BY code;`
+    );
+    return rows;
+}
+const indexBy = (accounts) => Object.fromEntries(accounts.map((a) => [a.code, a]));
 
 // Biaya (halaman Beranda) → akun
 const EXPENSE_ACCOUNT = {
@@ -44,10 +22,10 @@ const PAYMENT_ACCOUNT = {
     cash: '1-1100', transfer: '1-1200', card: '1-1200', qris: '1-1300', gofood: '1-1400', grabfood: '1-1500',
 };
 const PAYMENT_NAME = { cash: 'tunai', transfer: 'transfer', card: 'kartu', qris: 'QRIS', gofood: 'GoFood', grabfood: 'GrabFood' };
-export const CASH_SOURCES = ['1-1100', '1-1200', '1-1300'];
 
 // Semua jurnal sampai tanggal `to` (penjualan harian per metode, biaya, jurnal manual)
-async function journalUntil(to) {
+async function journalUntil(to, BY_CODE) {
+    const isAccount = (code) => Boolean(BY_CODE[code]);
     const sales = await db.any(
         `SELECT (COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::date::text AS date,
                 LOWER(b.payment_method::text) AS method, COUNT(*)::int AS count, SUM(b.grand_total)::bigint AS total
@@ -63,7 +41,7 @@ async function journalUntil(to) {
         [to]
     );
     const manual = await db.any(
-        `SELECT e.id, e.entry_date::text AS date, e.description,
+        `SELECT e.id, e.entry_date::text AS date, e.description, e.kind,
                 json_agg(json_build_object('account', l.account_code, 'debit', l.debit, 'credit', l.credit) ORDER BY l.id) AS lines
          FROM journal_entry e JOIN journal_line l ON l.entry_id = e.id
          WHERE e.entry_date <= $1::date
@@ -94,7 +72,7 @@ async function journalUntil(to) {
     }
     for (const m of manual) {
         entries.push({
-            key: `J-${m.id}`, id: m.id, date: m.date, source: 'manual', ref: `JU #${m.id}`, description: m.description,
+            key: `J-${m.id}`, id: m.id, date: m.date, source: 'manual', kind: m.kind, ref: `JU #${m.id}`, description: m.description,
             lines: m.lines.map((l) => ({ account: l.account, debit: Number(l.debit), credit: Number(l.credit) })),
         });
     }
@@ -103,7 +81,7 @@ async function journalUntil(to) {
 }
 
 // Saldo normal: aset & beban di debit, lainnya di kredit
-const normal = (code, debit, credit) => {
+const normal = (BY_CODE, code, debit, credit) => {
     const t = BY_CODE[code]?.type;
     return t === 'asset' || t === 'expense' || t === 'cogs' ? debit - credit : credit - debit;
 };
@@ -121,15 +99,18 @@ function balances(entries, filter = () => true) {
     return map;
 }
 
-const accountRows = (map, types) =>
+const accountRows = (ACCOUNTS, BY_CODE, map, types) =>
     ACCOUNTS.filter((a) => types.includes(a.type) && map[a.code])
-        .map((a) => ({ code: a.code, name: a.name, amount: normal(a.code, map[a.code].debit, map[a.code].credit) }))
+        .map((a) => ({ code: a.code, name: a.name, amount: normal(BY_CODE, a.code, map[a.code].debit, map[a.code].credit) }))
         .filter((r) => r.amount !== 0);
 
 const sum = (rows) => rows.reduce((s, r) => s + r.amount, 0);
 
 export async function getFinanceReport(type, from, to) {
-    const all = await journalUntil(to);
+    const ACCOUNTS = await loadAccounts();
+    const BY_CODE = indexBy(ACCOUNTS);
+    const rowsOf = (map, types) => accountRows(ACCOUNTS, BY_CODE, map, types);
+    const all = await journalUntil(to, BY_CODE);
     const inRange = (e) => e.date >= from && e.date <= to;
     const before = (e) => e.date < from;
 
@@ -137,11 +118,28 @@ export async function getFinanceReport(type, from, to) {
         return { entries: all.filter(inRange) };
     }
 
+    if (type === 'assets') {
+        // Daftar aset: pembelian aset (jurnal jenis 'aset') + saldo per akun aset tetap
+        const m = balances(all);
+        const items = all
+            .filter((e) => e.kind === 'aset')
+            .map((e) => {
+                const line = e.lines.find((l) => BY_CODE[l.account]?.fixed && l.debit);
+                return line ? { id: e.id, date: e.date, name: e.description, account: line.account, accountName: BY_CODE[line.account].name, amount: line.debit, source: e.lines.find((l) => l.credit)?.account } : null;
+            })
+            .filter(Boolean)
+            .reverse();
+        const byAccount = ACCOUNTS.filter((a) => a.fixed).map((a) => ({
+            code: a.code, name: a.name, amount: m[a.code] ? m[a.code].debit - m[a.code].credit : 0,
+        }));
+        return { items, byAccount, total: byAccount.reduce((s, a) => s + a.amount, 0) };
+    }
+
     if (type === 'pl') {
         const m = balances(all, inRange);
-        const revenue = accountRows(m, ['revenue']);
-        const cogs = accountRows(m, ['cogs']);
-        const expense = accountRows(m, ['expense']);
+        const revenue = rowsOf(m, ['revenue']);
+        const cogs = rowsOf(m, ['cogs']);
+        const expense = rowsOf(m, ['expense']);
         const totalRevenue = sum(revenue);
         const totalCogs = sum(cogs);
         const totalExpense = sum(expense);
@@ -155,10 +153,10 @@ export async function getFinanceReport(type, from, to) {
     if (type === 'bs') {
         // Neraca per tanggal `to`
         const m = balances(all);
-        const assets = accountRows(m, ['asset']);
-        const liabilities = accountRows(m, ['liability']);
-        const equity = accountRows(m, ['equity']);
-        const profit = sum(accountRows(m, ['revenue'])) - sum(accountRows(m, ['cogs'])) - sum(accountRows(m, ['expense']));
+        const assets = rowsOf(m, ['asset']);
+        const liabilities = rowsOf(m, ['liability']);
+        const equity = rowsOf(m, ['equity']);
+        const profit = sum(rowsOf(m, ['revenue'])) - sum(rowsOf(m, ['cogs'])) - sum(rowsOf(m, ['expense']));
         const totalAssets = sum(assets);
         const totalLiabilities = sum(liabilities);
         const totalEquity = sum(equity) + profit;
@@ -201,10 +199,11 @@ export async function getFinanceReport(type, from, to) {
             const others = e.lines.filter((l) => !isCash(l.account));
             const counter = others[0]?.account;
             const acct = BY_CODE[counter];
-            const group = acct?.group === 'investing' ? 'investing' : acct?.group === 'financing' || acct?.type === 'equity' || counter === '2-1200' ? 'financing' : 'operating';
+            const group = acct?.group === 'investing' ? 'investing' : acct?.group === 'financing' || acct?.type === 'equity' ? 'financing' : 'operating';
             const label =
                 acct?.type === 'revenue' ? 'Penerimaan dari penjualan' :
                 counter === '1-1400' || counter === '1-1500' ? 'Pencairan dari GoFood / GrabFood' :
+                acct?.group === 'investing' ? (cashNet < 0 ? `Pembelian ${acct.name.toLowerCase()}` : `Penjualan ${acct.name.toLowerCase()}`) :
                 acct ? (cashNet < 0 ? `Pembayaran ${acct.name.replace(/^Beban /, '').replace(/^HPP /, '')}` : `Penerimaan ${acct.name}`) : 'Lain-lain';
             groups[group][label] = (groups[group][label] ?? 0) + cashNet;
         }
@@ -223,7 +222,10 @@ export async function getFinanceReport(type, from, to) {
     throw new Error('Jenis laporan tidak dikenal.');
 }
 
-export async function addJournal({ date, description, lines }, userId) {
+const KINDS = ['umum', 'transfer', 'aset', 'saldo_awal'];
+export async function addJournal({ date, description, lines, kind }, userId) {
+    const BY_CODE = indexBy(await loadAccounts());
+    const isAccount = (code) => Boolean(BY_CODE[code]);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? '')) throw new Error('Tanggal tidak valid.');
     if (!description?.trim()) throw new Error('Keterangan wajib diisi.');
     const clean = (lines ?? [])
@@ -239,8 +241,8 @@ export async function addJournal({ date, description, lines }, userId) {
     if (d !== c) throw new Error('Total debit dan kredit harus sama.');
     return db.tx(async (t) => {
         const e = await t.one(
-            `INSERT INTO journal_entry (entry_date, description, created_by) VALUES ($1, $2, $3) RETURNING id;`,
-            [date, description.trim(), userId ?? null]
+            `INSERT INTO journal_entry (entry_date, description, created_by, kind) VALUES ($1, $2, $3, $4) RETURNING id;`,
+            [date, description.trim(), userId ?? null, KINDS.includes(kind) ? kind : 'umum']
         );
         for (const l of clean) {
             await t.none(`INSERT INTO journal_line (entry_id, account_code, debit, credit) VALUES ($1, $2, $3, $4);`, [e.id, l.account, l.debit, l.credit]);
@@ -253,3 +255,40 @@ export async function deleteJournal(id) {
     const r = await db.result('DELETE FROM journal_entry WHERE id = $1', [id]);
     if (!r.rowCount) throw new Error('Jurnal tidak ditemukan.');
 }
+
+// Tambah akun kas / bank / petty cash (opsional saldo awal dari Modal pemilik)
+export async function createCashAccount({ name, kind, opening, date }, userId) {
+    const clean = String(name ?? '').trim();
+    if (!clean) throw new Error('Nama akun wajib diisi.');
+    if (clean.length > 60) throw new Error('Nama akun terlalu panjang.');
+    const prefix = kind === 'bank' ? '1-12' : '1-11'; // 1-11xx kas & petty cash, 1-12xx bank
+    const used = await db.any(`SELECT code FROM fin_account WHERE code LIKE $1;`, [`${prefix}%`]);
+    let n = 1;
+    while (used.some((u) => u.code === `${prefix}${String(n).padStart(2, '0')}`)) n++;
+    if (n > 99) throw new Error('Akun sudah terlalu banyak.');
+    const code = `${prefix}${String(n).padStart(2, '0')}`;
+    if (await db.oneOrNone(`SELECT 1 FROM fin_account WHERE LOWER(name) = LOWER($1);`, [clean])) {
+        throw new Error('Nama akun sudah dipakai.');
+    }
+    await db.none(`INSERT INTO fin_account (code, name, type, is_cash) VALUES ($1, $2, 'asset', true);`, [code, clean]);
+    const amount = Math.round(Number(opening) || 0);
+    if (amount > 0) {
+        await addJournal({
+            date: /^\d{4}-\d{2}-\d{2}$/.test(date ?? '') ? date : new Date().toISOString().slice(0, 10),
+            description: `Saldo awal ${clean}`,
+            kind: 'saldo_awal',
+            lines: [{ account: code, debit: amount }, { account: '3-1100', credit: amount }],
+        }, userId);
+    }
+    return { code, name: clean };
+}
+
+export async function renameAccount(code, name) {
+    const clean = String(name ?? '').trim();
+    if (!clean) throw new Error('Nama akun wajib diisi.');
+    const r = await db.result(`UPDATE fin_account SET name = $2 WHERE code = $1 AND is_cash;`, [code, clean]);
+    if (!r.rowCount) throw new Error('Akun tidak ditemukan.');
+}
+
+export const isCashAccount = async (code) =>
+    Boolean(await db.oneOrNone(`SELECT 1 FROM fin_account WHERE code = $1 AND is_cash;`, [code]));

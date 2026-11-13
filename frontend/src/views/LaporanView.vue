@@ -75,6 +75,8 @@ async function load() {
 }
 
 onMounted(load);
+// Biaya/transfer/aset baru dari tombol + → muat ulang
+watch(() => ui.financeVersion, () => load());
 watch([from, to], load);
 
 const dayMonth = (iso) => new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
@@ -108,38 +110,7 @@ const bars = computed(() => {
   }));
 });
 
-// ---- Biaya operasional ----
-const adding = ref(false);
-const exp = ref({ date: todayISO(), category: "Bahan baku", name: "", amount: "" });
-const expSaving = ref(false);
-
-function openAdd() {
-  exp.value = { date: to.value, category: exp.value.category || "Bahan baku", name: "", amount: "", paid_from: exp.value.paid_from || "1-1100" };
-  adding.value = true;
-}
-
-function onAmount(e) {
-  const digits = e.target.value.replace(/\D/g, "");
-  exp.value.amount = digits ? number.format(Number(digits)) : "";
-  e.target.value = exp.value.amount;
-}
-
-async function addExpense() {
-  const amount = Number(String(exp.value.amount).replace(/\D/g, ""));
-  if (!exp.value.name.trim() || !amount) return;
-  expSaving.value = true;
-  try {
-    await api("/expenses", { method: "POST", body: { name: exp.value.name, amount, date: exp.value.date, category: exp.value.category, paid_from: exp.value.paid_from } });
-    ui.toast(`Biaya ${exp.value.name} dicatat`);
-    adding.value = false;
-    await load();
-  } catch (e) {
-    ui.toast(e.message, "error");
-  } finally {
-    expSaving.value = false;
-  }
-}
-
+// ---- Biaya operasional (dicatat lewat tombol + / Catat biaya) ----
 async function removeExpense(e) {
   try {
     await api(`/expenses/${e.id}`, { method: "DELETE" });
@@ -427,36 +398,10 @@ async function exportCsv() {
             <h2 class="text-xl font-semibold md:text-2xl">Biaya operasional</h2>
             <p class="text-sm text-muted-foreground">Catat pengeluaran supaya laba bersih akurat</p>
           </div>
-          <Button v-if="!adding" class="h-11 rounded-xl px-4" @click="openAdd"><Plus /> Catat biaya</Button>
+          <Button class="h-11 rounded-xl px-4" @click="ui.quickAction = 'biaya'"><Plus /> Catat biaya</Button>
         </div>
 
-        <form v-if="adding" class="mt-5 grid gap-3 rounded-xl bg-muted/60 p-4 md:grid-cols-[9.5rem_11rem_minmax(0,1fr)_9rem_9rem]" @submit.prevent="addExpense">
-          <label class="grid gap-1 text-sm font-semibold">Tanggal
-            <input v-model="exp.date" type="date" :max="todayISO()" required class="h-11 w-full min-w-0 rounded-lg border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" />
-          </label>
-          <label class="grid gap-1 text-sm font-semibold">Kategori
-            <select v-model="exp.category" class="h-11 w-full min-w-0 rounded-lg border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary">
-              <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
-            </select>
-          </label>
-          <label class="grid gap-1 text-sm font-semibold">Keterangan
-            <input v-model="exp.name" required placeholder="Contoh: Daging sapi 5 kg" class="h-11 w-full min-w-0 rounded-lg border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" />
-          </label>
-          <label class="grid gap-1 text-sm font-semibold">Jumlah (Rp)
-            <input :value="exp.amount" inputmode="numeric" required placeholder="0" class="tabular h-11 w-full min-w-0 rounded-lg border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" @input="onAmount" />
-          </label>
-          <label class="grid gap-1 text-sm font-semibold">Dibayar dari
-            <select v-model="exp.paid_from" class="h-11 w-full min-w-0 rounded-lg border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary">
-              <option value="1-1100">Kas (tunai)</option>
-              <option value="1-1200">Bank</option>
-              <option value="1-1300">Saldo QRIS</option>
-            </select>
-          </label>
-          <div class="flex gap-2 md:col-span-5 md:justify-end">
-            <Button type="button" variant="secondary" class="h-11 flex-1 rounded-lg md:flex-none md:px-6" @click="adding = false">Batal</Button>
-            <Button type="submit" class="h-11 flex-1 rounded-lg md:flex-none md:px-6" :disabled="expSaving">{{ expSaving ? "Menyimpan..." : "Simpan biaya" }}</Button>
-          </div>
-        </form>
+
 
         <p v-if="!expenses.length" class="mt-5 text-[15px] text-muted-foreground">Belum ada biaya di periode ini.</p>
         <ul v-else class="mt-4 flex flex-col divide-y">

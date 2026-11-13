@@ -1,12 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { FileText, Plus, Trash2, TriangleAlert, CheckCircle2, X } from "@lucide/vue";
+import { ArrowLeftRight, FileText, Landmark, Package, Plus, Trash2, TriangleAlert, CheckCircle2 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import { api } from "@/lib/api";
-import { assetUrl, number, todayISO } from "@/lib/format";
+import { assetUrl, todayISO } from "@/lib/format";
 import { printReport, acc } from "@/lib/pdf";
 import { useSettingsStore } from "@/stores/settings";
 import { useUiStore } from "@/stores/ui";
@@ -23,6 +22,7 @@ const TABS = [
   { key: "bs", label: "Neraca", title: "Neraca" },
   { key: "cash", label: "Kas & Bank", title: "Laporan Kas & Bank" },
   { key: "cf", label: "Arus Kas", title: "Laporan Arus Kas" },
+  { key: "assets", label: "Aset", title: "Daftar Aset" },
   { key: "journal", label: "Jurnal Umum", title: "Jurnal Umum" },
 ];
 const tab = ref(TABS.some((t) => t.key === route.query.laporan) ? route.query.laporan : "pl");
@@ -73,7 +73,7 @@ const dayLabel = (iso) =>
 const shortDay = (iso) =>
   new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
 const periodLabel = computed(() =>
-  tab.value === "bs" ? `Per ${dayLabel(to.value)}` : from.value === to.value ? dayLabel(from.value) : `${dayLabel(from.value)} – ${dayLabel(to.value)}`
+  tab.value === "bs" || tab.value === "assets" ? `Per ${dayLabel(to.value)}` : from.value === to.value ? dayLabel(from.value) : `${dayLabel(from.value)} – ${dayLabel(to.value)}`
 );
 
 // ---- Data ----
@@ -107,6 +107,18 @@ watch(tab, () => {
   data.value = null;
   load();
 });
+// Data baru dari tombol + (biaya, transfer, aset, jurnal) → muat ulang laporan & daftar akun
+watch(
+  () => ui.financeVersion,
+  async () => {
+    load();
+    try {
+      accounts.value = (await api("/finance/accounts")).data;
+    } catch {
+      // abaikan
+    }
+  }
+);
 
 const money = (n) => acc(n);
 
@@ -174,6 +186,19 @@ function exportPdf() {
       },
     ];
     doc.note = "Kas = Kas (tunai) + Bank + Saldo QRIS. Pemindahan antar akun kas tidak dihitung sebagai arus kas.";
+  } else if (tab.value === "assets") {
+    doc.sections = [
+      { heading: "Nilai aset tetap per jenis", rows: [...d.byAccount.map((a) => ({ label: `${a.code}  ${a.name}`, value: a.amount, indent: 1 })), { label: "Total aset tetap", value: d.total, grand: true }] },
+      {
+        heading: "Daftar pembelian aset",
+        table: {
+          columns: ["Tanggal", "Nama aset", "Jenis", "Dibayar dari", "Nilai"],
+          align: ["left", "left", "left", "left", "right"],
+          rows: d.items.map((i) => [shortDay(i.date), i.name, i.accountName, accountName(i.source), i.amount]),
+        },
+      },
+    ];
+    doc.period = `Per ${dayLabel(to.value)}`;
   } else if (tab.value === "journal") {
     const rows = [];
     for (const e of d.entries) {
@@ -194,75 +219,6 @@ function exportPdf() {
     ];
   }
   printReport(doc);
-}
-
-// ---- Jurnal manual ----
-const TEMPLATES = [
-  { key: "modal", label: "Setor modal", description: "Setoran modal pemilik", debit: "1-1100", credit: "3-1100" },
-  { key: "setor", label: "Setor tunai ke bank", description: "Setor tunai ke bank", debit: "1-1200", credit: "1-1100" },
-  { key: "qris", label: "Pencairan QRIS", description: "Pencairan saldo QRIS ke bank", debit: "1-1200", credit: "1-1300" },
-  { key: "gofood", label: "Pencairan GoFood", description: "Pencairan GoFood ke bank", debit: "1-1200", credit: "1-1400" },
-  { key: "grabfood", label: "Pencairan GrabFood", description: "Pencairan GrabFood ke bank", debit: "1-1200", credit: "1-1500" },
-  { key: "prive", label: "Prive / ambil uang pemilik", description: "Penarikan oleh pemilik", debit: "3-1200", credit: "1-1100" },
-  { key: "alat", label: "Beli peralatan", description: "Pembelian peralatan usaha", debit: "1-2100", credit: "1-1100" },
-  { key: "bebas", label: "Jurnal bebas", description: "", debit: "", credit: "" },
-];
-const showJournal = ref(false);
-const jForm = ref({ date: todayISO(), description: "", lines: [] });
-const jSaving = ref(false);
-const jError = ref("");
-
-function openJournal(t = TEMPLATES[0]) {
-  jForm.value = {
-    template: t.key,
-    date: to.value > todayISO() ? todayISO() : to.value,
-    description: t.description,
-    lines: [
-      { account: t.debit, debit: "", credit: "" },
-      { account: t.credit, debit: "", credit: "" },
-    ],
-  };
-  jError.value = "";
-  showJournal.value = true;
-}
-// Template sederhana: cukup isi satu jumlah, debit & kredit terisi sama
-const simple = computed(() => jForm.value.template && jForm.value.template !== "bebas");
-const simpleAmount = ref("");
-watch(showJournal, (v) => v && (simpleAmount.value = ""));
-const parse = (v) => Number(String(v ?? "").replace(/\D/g, "")) || 0;
-const fmtInput = (e, set) => {
-  const d = e.target.value.replace(/\D/g, "");
-  const v = d ? number.format(Number(d)) : "";
-  e.target.value = v;
-  set(v);
-};
-const jTotals = computed(() => {
-  if (simple.value) return { d: parse(simpleAmount.value), c: parse(simpleAmount.value) };
-  return {
-    d: jForm.value.lines.reduce((s, l) => s + parse(l.debit), 0),
-    c: jForm.value.lines.reduce((s, l) => s + parse(l.credit), 0),
-  };
-});
-
-async function saveJournal() {
-  jError.value = "";
-  const lines = simple.value
-    ? [
-        { account: jForm.value.lines[0].account, debit: parse(simpleAmount.value), credit: 0 },
-        { account: jForm.value.lines[1].account, debit: 0, credit: parse(simpleAmount.value) },
-      ]
-    : jForm.value.lines.map((l) => ({ account: l.account, debit: parse(l.debit), credit: parse(l.credit) }));
-  jSaving.value = true;
-  try {
-    await api("/finance/journal", { method: "POST", body: { date: jForm.value.date, description: jForm.value.description, lines } });
-    ui.toast("Jurnal disimpan");
-    showJournal.value = false;
-    load();
-  } catch (e) {
-    jError.value = e.message;
-  } finally {
-    jSaving.value = false;
-  }
 }
 
 const delEntry = ref(null);
@@ -295,7 +251,7 @@ const journalTotals = computed(() => {
         <p class="mt-1 text-[15px] text-muted-foreground">Laporan keuangan dari penjualan, biaya, dan jurnal.</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button variant="secondary" class="h-12 rounded-xl px-5 text-base" @click="openJournal()"><Plus /> Catat jurnal</Button>
+        <Button variant="secondary" class="h-12 rounded-xl px-5 text-base" @click="ui.quickAction = 'jurnal'"><Plus /> Catat jurnal</Button>
         <Button class="h-12 rounded-xl px-5 text-base font-semibold" :disabled="!data || loading" @click="exportPdf"><FileText /> Unduh PDF</Button>
       </div>
     </div>
@@ -407,7 +363,11 @@ const journalTotals = computed(() => {
 
       <!-- Kas & Bank -->
       <div v-else-if="tab === 'cash'" class="mt-4 grid gap-6">
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="flex flex-wrap gap-2">
+          <Button variant="secondary" class="h-11 rounded-xl px-4" @click="ui.quickAction = 'kasbank'"><Landmark class="size-4" /> Tambah kas / bank</Button>
+          <Button variant="secondary" class="h-11 rounded-xl px-4" @click="ui.quickAction = 'transfer'"><ArrowLeftRight class="size-4" /> Transfer antar kas</Button>
+        </div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <div v-for="a in data.accounts" :key="a.code" class="rounded-xl bg-muted/60 p-4">
             <p class="text-sm text-muted-foreground">{{ a.name }}</p>
             <p class="tabular mt-1 text-2xl font-bold">{{ money(a.closing) }}</p>
@@ -465,6 +425,45 @@ const journalTotals = computed(() => {
         <p class="mt-3 text-sm text-muted-foreground">Kas = Kas (tunai) + Bank + Saldo QRIS. Pemindahan antar akun kas tidak dihitung.</p>
       </div>
 
+      <!-- Aset -->
+      <div v-else-if="tab === 'assets'" class="mt-4 grid gap-6">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div class="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
+            <div v-for="a in data.byAccount" :key="a.code" class="rounded-xl bg-muted/60 p-4">
+              <p class="text-sm text-muted-foreground">{{ a.name }}</p>
+              <p class="tabular mt-1 text-xl font-bold">{{ money(a.amount) }}</p>
+            </div>
+          </div>
+          <Button class="h-11 rounded-xl px-4" @click="ui.quickAction = 'aset'"><Package class="size-4" /> Tambah aset</Button>
+        </div>
+        <p class="tabular text-[15px]"><span class="font-semibold">Total aset tetap {{ money(data.total) }}</span></p>
+        <p v-if="!data.items.length" class="text-[15px] text-muted-foreground">Belum ada aset yang dicatat.</p>
+        <div v-else class="overflow-x-auto">
+          <table class="tabular w-full min-w-[640px] text-[14px]">
+            <thead>
+              <tr class="border-b-2 border-foreground text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th class="py-2 pr-2">Tanggal</th><th class="pr-2">Nama aset</th><th class="pr-2">Jenis</th><th class="pr-2">Dibayar dari</th><th class="pr-2 text-right">Nilai</th><th class="w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="i in data.items" :key="i.id" class="border-b">
+                <td class="py-2 pr-2 whitespace-nowrap">{{ shortDay(i.date) }}</td>
+                <td class="pr-2 font-medium">{{ i.name }}</td>
+                <td class="pr-2">{{ i.accountName }}</td>
+                <td class="pr-2 text-muted-foreground">{{ accountName(i.source) }}</td>
+                <td class="pr-2 text-right">{{ money(i.amount) }}</td>
+                <td class="text-right">
+                  <button type="button" class="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive" :aria-label="`Hapus ${i.name}`" @click="delEntry = { id: i.id, ref: i.name }">
+                    <Trash2 class="size-4" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-sm text-muted-foreground">Nilai sesuai harga beli (belum dikurangi penyusutan).</p>
+      </div>
+
       <!-- Jurnal Umum -->
       <div v-else-if="tab === 'journal'" class="mt-4">
         <p v-if="!data.entries.length" class="text-[15px] text-muted-foreground">Belum ada jurnal di periode ini.</p>
@@ -514,72 +513,6 @@ const journalTotals = computed(() => {
         </p>
       </div>
     </article>
-
-    <!-- Catat jurnal -->
-    <Dialog v-model:open="showJournal">
-      <DialogContent class="max-h-[90dvh] overflow-y-auto p-6 sm:max-w-xl sm:p-8">
-        <DialogHeader>
-          <DialogTitle class="text-2xl font-bold">Catat jurnal</DialogTitle>
-          <DialogDescription class="text-[15px]">Pilih jenis transaksi, lalu isi tanggal dan jumlah.</DialogDescription>
-        </DialogHeader>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="t in TEMPLATES"
-            :key="t.key"
-            type="button"
-            class="h-9 rounded-full px-3 text-sm transition-colors"
-            :class="jForm.template === t.key ? 'bg-primary font-semibold text-primary-foreground' : 'bg-muted hover:bg-secondary'"
-            @click="openJournal(t)"
-          >
-            {{ t.label }}
-          </button>
-        </div>
-        <form class="grid gap-3" @submit.prevent="saveJournal">
-          <div class="grid grid-cols-[10rem_1fr] gap-3">
-            <label class="grid gap-1 text-sm font-semibold">Tanggal
-              <input v-model="jForm.date" type="date" required class="h-11 rounded-xl border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" />
-            </label>
-            <label class="grid gap-1 text-sm font-semibold">Keterangan
-              <input v-model="jForm.description" required placeholder="Contoh: Setoran modal awal" class="h-11 rounded-xl border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" />
-            </label>
-          </div>
-
-          <template v-if="simple">
-            <div class="grid gap-2 rounded-xl bg-muted/60 p-3 text-[15px]">
-              <p><span class="text-muted-foreground">Masuk ke (debit):</span> <span class="font-semibold">{{ accountName(jForm.lines[0].account) }}</span></p>
-              <p><span class="text-muted-foreground">Dari (kredit):</span> <span class="font-semibold">{{ accountName(jForm.lines[1].account) }}</span></p>
-            </div>
-            <label class="grid gap-1 text-sm font-semibold">Jumlah (Rp)
-              <input :value="simpleAmount" inputmode="numeric" required placeholder="0" class="tabular h-12 rounded-xl border bg-card px-3 text-lg font-normal outline-none focus:border-primary" @input="fmtInput($event, (v) => (simpleAmount = v))" />
-            </label>
-          </template>
-
-          <template v-else>
-            <div v-for="(l, i) in jForm.lines" :key="i" class="grid grid-cols-[1fr_7.5rem_7.5rem_2.25rem] items-center gap-2">
-              <select v-model="l.account" required class="h-11 min-w-0 rounded-xl border bg-card px-2 text-[14px] outline-none focus:border-primary">
-                <option value="" disabled>Pilih akun</option>
-                <option v-for="a in accounts" :key="a.code" :value="a.code">{{ a.code }} {{ a.name }}</option>
-              </select>
-              <input :value="l.debit" inputmode="numeric" placeholder="Debit" class="tabular h-11 min-w-0 rounded-xl border bg-card px-2 text-right text-[14px] outline-none focus:border-primary" @input="fmtInput($event, (v) => { l.debit = v; if (v) l.credit = ''; })" />
-              <input :value="l.credit" inputmode="numeric" placeholder="Kredit" class="tabular h-11 min-w-0 rounded-xl border bg-card px-2 text-right text-[14px] outline-none focus:border-primary" @input="fmtInput($event, (v) => { l.credit = v; if (v) l.debit = ''; })" />
-              <button type="button" class="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted disabled:opacity-30" :disabled="jForm.lines.length <= 2" aria-label="Hapus baris" @click="jForm.lines.splice(i, 1)">
-                <X class="size-4" />
-              </button>
-            </div>
-            <button type="button" class="w-fit text-sm font-medium text-primary hover:underline" @click="jForm.lines.push({ account: '', debit: '', credit: '' })">+ Tambah baris</button>
-            <p class="tabular text-sm" :class="jTotals.d === jTotals.c && jTotals.d ? 'text-success' : 'text-muted-foreground'">
-              Debit {{ money(jTotals.d) }} · Kredit {{ money(jTotals.c) }}
-              {{ jTotals.d === jTotals.c && jTotals.d ? "· seimbang" : "· harus sama" }}
-            </p>
-          </template>
-
-          <p v-if="jError" class="text-sm text-destructive">{{ jError }}</p>
-          <Button type="submit" class="h-12 rounded-xl text-base" :disabled="jSaving || !jTotals.d || jTotals.d !== jTotals.c">
-            {{ jSaving ? "Menyimpan..." : "Simpan jurnal" }}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
 
     <ConfirmDialog
       :open="Boolean(delEntry)"
