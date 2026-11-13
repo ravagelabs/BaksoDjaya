@@ -117,7 +117,14 @@ export const setKitchenStatus = async (billId, kitchenStatus) => {
     const bill = await db.oneOrNone(
         `UPDATE bill
          SET kitchen_status = $1,
-             sent_to_kitchen_at = COALESCE(sent_to_kitchen_at, now())
+             sent_to_kitchen_at = COALESCE(sent_to_kitchen_at, now()),
+             -- "Sudah diambil": pelanggan menukar pager dengan pesanannya, jadi nomor otomatis kembali
+             -- (hanya untuk pesanan lunas; yang belum bayar tetap memegang nomornya)
+             number_returned_at = CASE
+                 WHEN $1 = 'served' AND table_id IS NOT NULL AND status = 'paid'
+                     THEN COALESCE(number_returned_at, now())
+                 ELSE number_returned_at
+             END
          WHERE id = $2
          RETURNING id, kitchen_status, sent_to_kitchen_at;`,
         [kitchenStatus, billId]

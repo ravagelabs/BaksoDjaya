@@ -92,8 +92,8 @@ function open(t) {
   selectedId.value = t.id;
 }
 
-async function returnNumber() {
-  const t = selected.value;
+async function returnNumber(table = selected.value) {
+  const t = table;
   if (!t || returning.value) return;
   returning.value = true;
   try {
@@ -149,16 +149,12 @@ function openInKasir() {
     <p v-if="loading" class="mt-8 text-[15px] text-muted-foreground">Memuat nomor...</p>
     <p v-else-if="error" class="mt-8 text-[15px] text-destructive">{{ error }}</p>
     <div v-else class="mt-6 grid grid-cols-2 gap-3 md:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+      <div v-for="t in visible" :key="t.id" class="flex min-h-40 flex-col rounded-[20px]" :class="STATUS[t.status].card">
       <component
         :is="t.status === 'available' ? 'div' : 'button'"
-        v-for="t in visible"
-        :key="t.id"
         :type="t.status === 'available' ? undefined : 'button'"
-        class="flex min-h-40 flex-col rounded-[20px] p-5 text-left md:p-6"
-        :class="[
-          STATUS[t.status].card,
-          t.status === 'available' ? '' : 'transition hover:brightness-[0.98] focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none',
-        ]"
+        class="flex flex-1 flex-col rounded-[20px] p-5 text-left md:p-6"
+        :class="t.status === 'available' ? '' : 'pb-3 transition hover:brightness-[0.98] focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none md:pb-3'"
         @click="open(t)"
       >
         <span class="flex items-baseline justify-between gap-2">
@@ -177,6 +173,17 @@ function openInKasir() {
           <span class="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{{ itemSummary(t) }}</span>
         </template>
       </component>
+      <!-- Satu ketukan: pager kembali, nomor langsung tersedia lagi -->
+      <button
+        v-if="t.status !== 'available'"
+        type="button"
+        class="mx-3 mb-3 flex h-11 items-center justify-center gap-2 rounded-xl bg-card text-[15px] font-semibold shadow-xs transition hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
+        :disabled="returning"
+        @click="returnNumber(t)"
+      >
+        <Undo2 class="size-4" /> Kembalikan
+      </button>
+      </div>
     </div>
 
     <!-- Detail nomor: isi pesanan + kembalikan nomor -->
@@ -229,7 +236,7 @@ function openInKasir() {
         </div>
 
         <div class="grid gap-2.5">
-          <Button class="h-13 rounded-xl text-base font-semibold" :disabled="returning" @click="returnNumber">
+          <Button class="h-13 rounded-xl text-base font-semibold" :disabled="returning" @click="returnNumber()">
             <Undo2 class="size-5" /> {{ returning ? "Menyimpan..." : "Kembalikan nomor" }}
           </Button>
           <Button
