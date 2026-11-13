@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import { Undo2 } from "@lucide/vue";
+import { Undo2, X } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/api";
@@ -105,6 +105,22 @@ async function returnNumber(table = selected.value) {
     ui.toast(e.message, "error");
   } finally {
     returning.value = false;
+  }
+}
+
+// Batalkan pesanan (akun utama & admin): keluar dari dapur, nomor langsung tersedia lagi
+const cancelTarget = ref(null);
+async function cancelOrder() {
+  const t = cancelTarget.value;
+  cancelTarget.value = null;
+  if (!t) return;
+  try {
+    await api(`/bills/${t.bill_id}`, { method: "DELETE" });
+    ui.toast(`Pesanan ${orderNo(t.bill_id)} dibatalkan, nomor ${t.code} tersedia lagi`);
+    selectedId.value = null;
+    await load();
+  } catch (e) {
+    ui.toast(e.message, "error");
   }
 }
 
@@ -247,6 +263,14 @@ function openInKasir() {
           >
             Bayar pesanan ini
           </Button>
+          <Button
+            v-if="selected.kitchen_status !== 'served'"
+            variant="ghost"
+            class="h-11 rounded-xl text-[15px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+            @click="cancelTarget = selected"
+          >
+            <X class="size-4" /> Batalkan pesanan
+          </Button>
           <p class="text-center text-sm text-muted-foreground">
             Tekan saat pelanggan mengembalikan pager. Nomor langsung bisa dipakai lagi.
           </p>
@@ -254,6 +278,14 @@ function openInKasir() {
       </DialogContent>
     </Dialog>
 
+    <ConfirmDialog
+      :open="Boolean(cancelTarget)"
+      :title="cancelTarget ? `Batalkan pesanan ${orderNo(cancelTarget.bill_id)}?` : ''"
+      description="Pesanan keluar dari dapur, tidak dihitung di penjualan, dan nomornya langsung tersedia lagi. Kalau sudah dibayar, kembalikan uang pelanggan."
+      confirm-label="Batalkan pesanan"
+      @update:open="!$event && (cancelTarget = null)"
+      @confirm="cancelOrder"
+    />
     <ConfirmDialog
       v-model:open="confirmOpen"
       title="Ganti pesanan di kasir?"

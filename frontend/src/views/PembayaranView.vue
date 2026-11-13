@@ -7,7 +7,7 @@ import PrintPopup from "@/components/PrintPopup.vue";
 import NumberPickerDialog from "@/components/NumberPickerDialog.vue";
 import { api } from "@/lib/api";
 import { formatRp, number, orderNo, orderTypeLabel, splitName, optionsText, PAYMENT_LABELS, PAYMENT_METHODS, BANK_ACCOUNT } from "@/lib/format";
-import { printBillCopy } from "@/lib/receipt";
+import { printBill, printKitchenSlip } from "@/lib/receipt";
 import { useOrderStore } from "@/stores/order";
 import { useUiStore } from "@/stores/ui";
 
@@ -123,15 +123,6 @@ function afterNumber(table) {
   openPrint();
 }
 
-// Cetak struk per pencetan: pertama untuk pelanggan, kedua untuk dapur
-const printCount = ref(0);
-const printLabel = computed(() =>
-  printCount.value === 0 ? "Cetak struk pelanggan" : printCount.value === 1 ? "Cetak struk dapur" : "Cetak ulang struk"
-);
-function printNext() {
-  printBillCopy(printData.value, printCount.value % 2 === 0 ? "PELANGGAN" : "DAPUR");
-  printCount.value += 1;
-}
 
 async function openPrint() {
   showPrint.value = true;
@@ -139,7 +130,6 @@ async function openPrint() {
   printError.value = "";
   try {
     printData.value = (await api(`/bills/${paidId.value}`)).data;
-    printCount.value = 0;
   } catch (e) {
     printError.value = e.message;
   } finally {
@@ -280,10 +270,9 @@ function closePrint(open) {
       :loading="printLoading"
       :error="printError"
       @update:open="closePrint"
-      description="Pencet 2x: struk pertama untuk pelanggan, struk kedua untuk dapur."
-      :reprint-label="printLabel"
-      :printed="printCount"
-      @print-bill="printNext"
+      kitchen
+      @print-bill="printBill(printData)"
+      @print-kitchen="printKitchenSlip(printData)"
     />
     <NumberPickerDialog :open="showNumber" :bill-id="paidId" @picked="afterNumber" @skip="afterNumber(null)" />
   </div>

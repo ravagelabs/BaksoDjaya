@@ -1,5 +1,5 @@
 <script setup>
-import { Printer } from "@lucide/vue";
+import { ChefHat, Printer } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatRp, number, dateTime, orderNo, orderTypeLabel, PAYMENT_LABELS, optionsText } from "@/lib/format";
@@ -10,12 +10,12 @@ defineProps({
   loading: { type: Boolean, default: false },
   error: { type: String, default: "" },
   title: { type: String, default: "Pembayaran tercatat" },
-  description: { type: String, default: "Struk dicetak 2 rangkap: untuk pelanggan dan untuk dapur." },
+  description: { type: String, default: "Cetak struk untuk pelanggan dan struk dapur (tulisan besar, tanpa harga)." },
   reprintLabel: { type: String, default: "Cetak struk" },
-  printed: { type: Number, default: -1 }, // jumlah struk yang sudah dicetak (-1 = tidak ditampilkan)
+  kitchen: { type: Boolean, default: false }, // tampilkan tombol "Struk dapur" terpisah
 });
 
-const emit = defineEmits(["update:open", "printBill"]);
+const emit = defineEmits(["update:open", "printBill", "printKitchen"]);
 </script>
 
 <template>
@@ -64,16 +64,12 @@ const emit = defineEmits(["update:open", "printBill"]);
         </div>
 
         <div class="grid gap-3">
-          <!-- Sebelum 2 struk tercetak, tombol cetak jadi aksi utama -->
-          <Button
-            :variant="printed >= 0 && printed < 2 ? 'default' : 'secondary'"
-            class="h-12 rounded-xl text-base"
-            @click="emit('printBill')"
-          >
-            <Printer /> {{ reprintLabel }}
-            <span v-if="printed >= 0 && printed < 2" class="tabular ml-1 opacity-80">({{ printed + 1 }}/2)</span>
-          </Button>
-          <Button :variant="printed >= 0 && printed < 2 ? 'secondary' : 'default'" class="h-12 rounded-xl text-base" @click="emit('update:open', false)">Selesai</Button>
+          <div v-if="kitchen" class="grid grid-cols-2 gap-3">
+            <Button variant="secondary" class="h-14 rounded-xl text-base font-semibold" @click="emit('printBill')"><Printer /> Struk pelanggan</Button>
+            <Button variant="secondary" class="h-14 rounded-xl text-base font-semibold" @click="emit('printKitchen')"><ChefHat /> Struk dapur</Button>
+          </div>
+          <Button v-else variant="secondary" class="h-12 rounded-xl text-base" @click="emit('printBill')"><Printer /> {{ reprintLabel }}</Button>
+          <Button class="h-12 rounded-xl text-base" @click="emit('update:open', false)">Selesai</Button>
         </div>
       </template>
     </DialogContent>

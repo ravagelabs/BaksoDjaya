@@ -122,13 +122,13 @@ export const cancelBill = async (billId, userId, kitchenOnly = false) => {
              cancelled_by = $2,
              number_returned_at = COALESCE(number_returned_at, now())
          WHERE id = $1 AND status IN ('pending', 'paid')
-           AND (NOT $3 OR kitchen_status IN ('new', 'cooking', 'ready'))
+           AND (NOT $3 OR status = 'pending' OR kitchen_status IN ('new', 'cooking', 'ready'))
          RETURNING id, status, kitchen_status;`,
         [billId, userId, kitchenOnly]
     );
     if (!bill) {
         throw new Error(kitchenOnly
-            ? 'Admin hanya bisa membatalkan pesanan yang masih di dapur. Minta akun utama untuk menghapus transaksi ini.'
+            ? 'Admin hanya bisa membatalkan pesanan yang belum selesai. Minta akun utama untuk menghapus transaksi ini.'
             : 'Pesanan tidak ditemukan atau sudah dibatalkan.');
     }
     return bill;

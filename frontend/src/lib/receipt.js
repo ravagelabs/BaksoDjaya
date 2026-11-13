@@ -102,14 +102,14 @@ export function escposToHtml(bytes) {
   const lines = [];
   let align = "left";
   let bold = false;
-  let big = false;
+  let big = 0;
   let buf = [];
   let lineStyle = null; // gaya diambil dari awal baris
   const flush = () => {
     const text = dec.decode(new Uint8Array(buf));
     const st = lineStyle ?? { align, bold, big };
     lines.push(
-      `<div style="text-align:${st.align};font-weight:${st.bold ? 700 : 400};${st.big ? "font-size:20px;line-height:1.25;font-weight:700;" : ""}">${esc(text) || "&nbsp;"}</div>`
+      `<div style="text-align:${st.align};font-weight:${st.bold ? 700 : 400};${st.big === 2 ? "font-size:22px;line-height:1.25;font-weight:700;" : st.big ? "font-size:16px;line-height:1.35;font-weight:600;" : ""}">${esc(text) || "&nbsp;"}</div>`
     );
     buf = [];
     lineStyle = null;
@@ -118,11 +118,11 @@ export function escposToHtml(bytes) {
     const c = bytes[i];
     if (c === 0x1b || c === 0x1d) {
       const op = bytes[i + 1];
-      if (c === 0x1b && op === 0x40) { align = "left"; bold = false; big = false; i += 1; }
+      if (c === 0x1b && op === 0x40) { align = "left"; bold = false; big = 0; i += 1; }
       else if (c === 0x1b && op === 0x61) { const n = bytes[i + 2]; align = n === 1 ? "center" : n === 2 ? "right" : "left"; i += 2; }
       else if (c === 0x1b && op === 0x45) { bold = bytes[i + 2] === 1; i += 2; }
       else if (c === 0x1b && op === 0x64) { i += 2; }
-      else if (c === 0x1d && op === 0x21) { big = bytes[i + 2] !== 0; i += 2; }
+      else if (c === 0x1d && op === 0x21) { big = bytes[i + 2] === 0x11 ? 2 : bytes[i + 2] ? 1 : 0; i += 2; }
       else if (c === 0x1d && op === 0x56) { i += 3; if (buf.length) flush(); lines.push('<div style="break-after:page;height:0"></div>'); }
       else i += 1;
       continue;
@@ -165,6 +165,77 @@ function sendToPrinter(bytes, title) {
 }
 
 export const printBill = (bill) => sendToPrinter(buildEscposReceipt(bill), `Struk ${orderNo(bill.billId)}`);
+
+// Struk dapur: tulisan besar, tanpa harga. Hanya nomor, menu, dan keterangan (mudah dibaca semua umur).
+// Lebar 58mm: teks 2x = 16 huruf per baris, teks tinggi 2x = 32 huruf per baris.
+export function buildKitchenSlip(bill) {
+  const bytes = [];
+  const enc = new TextEncoder();
+  const write = (s) => bytes.push(...enc.encode(s));
+  const cmd = (...b) => bytes.push(...b);
+  const clean = (s) => String(s ?? "").replace(/\u00a0/g, " ");
+  const wrap = (text, width, indent = "") => {
+    const words = clean(text).split(" ");
+    const lines = [];
+    let cur = "";
+    for (const w of words) {
+      if (!cur) cur = w;
+      else if ((indent + cur + " " + w).length <= width) cur += " " + w;
+      else {
+        lines.push(cur);
+        cur = w;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.map((l) => indent + l + "\n").join("");
+  };
+  const BIG = () => cmd(0x1d, 0x21, 0x11); // lebar & tinggi 2x
+  const TALL = () => cmd(0x1d, 0x21, 0x01); // tinggi 2x
+  const NORMAL = () => cmd(0x1d, 0x21, 0x00);
+  const title = (name) => {
+    const [head, ...rest] = clean(name).split(" - ");
+    return { head, parts: rest.length ? rest.join(" - ").split(" + ") : [] };
+  };
+  const time = new Intl.DateTimeFormat("id-ID", { timeStyle: "short" })
+    .format(new Date(bill.paid_at ?? bill.sent_to_kitchen_at ?? bill.created_at ?? Date.now()));
+
+  cmd(0x1b, 0x40);
+  cmd(0x1b, 0x61, 0x01);       // tengah
+  write("STRUK DAPUR\n");
+  BIG();
+  cmd(0x1b, 0x45, 0x01);
+  write(bill.table_code ? `NO. ${bill.table_code}\n` : `${orderTypeLabel(bill.order_type).toUpperCase()}\n`);
+  cmd(0x1b, 0x45, 0x00);
+  NORMAL();
+  write(`${orderTypeLabel(bill.order_type)} - ${clean(time)} - ${orderNo(bill.billId)}\n`);
+  cmd(0x1b, 0x61, 0x00);       // kiri
+  write("=".repeat(32) + "\n");
+
+  for (const i of bill.billItems) {
+    const { head, parts } = title(i.name);
+    BIG();
+    cmd(0x1b, 0x45, 0x01);
+    write(wrap(`${i.qty}x ${head.toUpperCase()}`, 16));
+    cmd(0x1b, 0x45, 0x00);
+    TALL();
+    for (const p of parts) write(wrap(`- ${p.toUpperCase()}`, 32, " "));
+    const opts = optionsText(i.options);
+    if (opts) for (const o of opts.split(", ")) write(wrap(`- ${o.replace(/ \(\+[\d.]+\)$/, "").toUpperCase()}`, 32, " "));
+    if (i.note) write(wrap(`! ${i.note.toUpperCase()}`, 32, " "));
+    NORMAL();
+    write("-".repeat(32) + "\n");
+  }
+  if (bill.note) {
+    TALL();
+    write(wrap(`CATATAN: ${bill.note.toUpperCase()}`, 32));
+    NORMAL();
+  }
+  cmd(0x1b, 0x64, 0x03);
+  cmd(0x1d, 0x56, 0x42, 0x00);
+  return new Uint8Array(bytes);
+}
+
+export const printKitchenSlip = (bill) => sendToPrinter(buildKitchenSlip(bill), `Dapur ${orderNo(bill.billId)}`);
 
 // Satu struk dengan label rangkap (PELANGGAN / DAPUR)
 export const printBillCopy = (bill, copyLabel) =>
