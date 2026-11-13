@@ -5,7 +5,6 @@ import { ArrowRight, ChevronDown, FilePenLine, Pencil, ShoppingBag, Minus, Plus,
 import { Button } from "@/components/ui/button";
 import ProductCard from "@/components/ProductCard.vue";
 import CustomizeDialog from "@/components/CustomizeDialog.vue";
-import OrderSetupDialog from "@/components/OrderSetupDialog.vue";
 import CustomerPopup from "@/components/CustomerPopup.vue";
 import OrderSlipPopup from "@/components/OrderSlipPopup.vue";
 import { printOrderSlip, canAutoPrint } from "@/lib/receipt";
@@ -102,8 +101,7 @@ function lineDetail(line) {
 // ---- Catatan pesanan ----
 const editingNote = ref(false);
 
-// ---- Meja, tipe, pelanggan ----
-const showSetup = ref(false);
+// ---- Tipe, pelanggan ----
 const showCustomer = ref(false);
 const customers = ref([]);
 const customersLoading = ref(false);
@@ -145,37 +143,23 @@ function selectCustomer(c) {
 // ---- Aksi ----
 const title = computed(() => (order.billId ? `Pesanan ${orderNo(order.billId)}` : "Pesanan baru"));
 const inKitchen = computed(() => Boolean(order.kitchenStatus));
-const isDineIn = computed(() => order.orderType === "dine_in");
 
-// Alur dine-in (pager): pilih menu -> pilih nomor -> Bayar (langsung masuk dapur)
-//                       atau "Ke dapur" dulu (cetak nota), bayar belakangan
-// Alur take away:       pilih menu -> bayar -> otomatis masuk dapur
-const primaryAction = computed(() => {
-  if (isDineIn.value && !order.table && !inKitchen.value) return { label: "Pilih nomor", run: () => (showSetup.value = true) };
-  return { label: "Bayar", run: goPay };
-});
-
-// Tombol "Ke dapur" di samping Bayar: hanya dine-in yang sudah punya nomor dan belum di dapur
-const showKitchenButton = computed(() => isDineIn.value && Boolean(order.table) && !inKitchen.value);
+// Alur: pilih menu -> Bayar -> pesanan otomatis masuk dapur -> beri nomor pager ke pelanggan
+//       -> nomor berbunyi saat siap -> pager dikembalikan (halaman Nomor)
+const primaryAction = computed(() => ({ label: "Bayar", run: goPay }));
 
 const flowHint = computed(() => {
-  if (!isDineIn.value) return "Take away dibayar dulu, lalu otomatis masuk antrean dapur.";
-  if (inKitchen.value) return "Sudah di dapur. Nomor berbunyi saat pesanan siap.";
-  if (!order.table) return "Pilih nomor untuk pelanggan.";
-  return "Bayar sekarang, atau kirim ke dapur dulu dan bayar belakangan.";
+  if (inKitchen.value) return "Pesanan ini sudah di dapur.";
+  return "Bayar dulu. Pesanan otomatis masuk dapur, lalu beri nomor ke pelanggan.";
 });
 
 function chooseType(type) {
   if (type === order.orderType) return;
   order.setOrderType(type);
-  if (type === "dine_in" && !order.table) showSetup.value = true;
 }
 
+// Hanya untuk pesanan lama yang sudah di dapur dan diubah isinya ("Perbarui")
 async function sendToKitchen() {
-  if (isDineIn.value && !order.table) {
-    showSetup.value = true;
-    return;
-  }
   const updated = inKitchen.value;
   try {
     const id = await order.save(ui.user.id, { sendToKitchen: true });
@@ -353,15 +337,9 @@ function goPay() {
         </div>
 
         <div class="mt-2.5 flex flex-wrap gap-2">
-          <button
-            v-if="isDineIn"
-            type="button"
-            class="h-10 rounded-full px-5 text-sm font-semibold"
-            :class="order.table ? 'bg-secondary text-primary hover:bg-secondary-hover' : 'border border-dashed border-primary/50 text-primary hover:bg-secondary'"
-            @click="showSetup = true"
-          >
-            {{ order.table ? `No. ${order.table.code}` : "Pilih nomor" }}
-          </button>
+          <span v-if="order.table" class="flex h-10 items-center rounded-full bg-secondary px-5 text-sm font-semibold">
+            No. {{ order.table.code }}
+          </span>
           <button
             type="button"
             class="flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium"
@@ -479,15 +457,6 @@ function goPay() {
             <FilePenLine class="size-5" />
           </Button>
           <Button
-            v-if="showKitchenButton"
-            variant="secondary"
-            class="h-13 min-w-0 flex-1 gap-1.5 rounded-xl px-2.5 text-[15px] font-semibold"
-            :disabled="order.isEmpty || order.saving"
-            @click="sendToKitchen"
-          >
-            <Printer class="size-5 shrink-0" /> <span class="truncate">Ke dapur</span>
-          </Button>
-          <Button
             class="h-13 min-w-0 flex-1 justify-between rounded-xl px-4 text-base font-semibold"
             :disabled="order.isEmpty || order.saving"
             @click="primaryAction.run"
@@ -500,7 +469,6 @@ function goPay() {
     </aside>
 
     <CustomizeDialog v-model:open="showCustomize" :product="customizing" :editing="editingLine" @add="addFromDialog" />
-    <OrderSetupDialog v-model:open="showSetup" />
     <OrderSlipPopup
       v-model:open="showSlip"
       :bill="slipBill"

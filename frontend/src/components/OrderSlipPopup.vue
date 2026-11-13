@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatRp, number, orderNo, orderTypeLabel, optionsText, timeOnly, OUTLET_NAME } from "@/lib/format";
 
-// Pratinjau nota pesanan yang ditaruh di meja
+// Pratinjau nota pesanan / nota dapur
 defineProps({
   open: { type: Boolean, default: false },
   bill: { type: Object, default: null },
@@ -49,10 +49,10 @@ const emit = defineEmits(["update:open", "print"]);
         </ul>
         <p v-if="bill.note" class="border-t border-dashed pt-2">Catatan pesanan: {{ bill.note }}</p>
         <div class="mt-2 flex justify-between border-t border-dashed pt-2 font-bold">
-          <span>TOTAL SEMENTARA</span>
+          <span>{{ bill.status === "paid" ? "TOTAL" : "TOTAL SEMENTARA" }}</span>
           <span class="tabular">{{ formatRp(bill.grand_total) }}</span>
         </div>
-        <p class="mt-2 text-center">BELUM DIBAYAR</p>
+        <p class="mt-2 text-center">{{ bill.status === "paid" ? "LUNAS" : "BELUM DIBAYAR" }}</p>
       </div>
 
       <div class="grid grid-cols-2 gap-3">

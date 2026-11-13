@@ -12,7 +12,7 @@ defineProps({
   title: { type: String, default: "Pembayaran tercatat" },
 });
 
-const emit = defineEmits(["update:open", "printBill"]);
+const emit = defineEmits(["update:open", "printBill", "printSlip"]);
 </script>
 
 <template>
@@ -20,20 +20,25 @@ const emit = defineEmits(["update:open", "printBill"]);
     <DialogContent class="max-h-[88vh] overflow-y-auto p-8 sm:max-w-md">
       <DialogHeader>
         <DialogTitle class="text-2xl font-bold">{{ title }}</DialogTitle>
-        <DialogDescription class="text-[15px]">Cetak struk untuk pesanan ini.</DialogDescription>
+        <DialogDescription class="text-[15px]">Cetak struk untuk pelanggan dan nota untuk dapur.</DialogDescription>
       </DialogHeader>
 
       <p v-if="loading" class="text-sm text-muted-foreground">Memuat struk...</p>
       <p v-else-if="error" class="text-sm text-destructive">{{ error }}</p>
 
       <template v-else-if="bill">
-        <div class="grid gap-1 text-[15px]">
-          <p class="font-semibold">Pesanan {{ orderNo(bill.billId) }}</p>
-          <p class="text-muted-foreground">
-            {{ orderTypeLabel(bill.order_type) }}<template v-if="bill.table_code"> · No. {{ bill.table_code }}</template>
-            <template v-if="bill.customer_name"> · {{ bill.customer_name }}</template>
-          </p>
-          <p class="text-muted-foreground">{{ dateTime(bill.paid_at ?? bill.created_at) }}</p>
+        <div class="flex items-center gap-4">
+          <div v-if="bill.table_code" class="flex size-[4.5rem] shrink-0 flex-col items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+            <span class="text-[11px] leading-none opacity-70">Nomor</span>
+            <span class="tabular mt-1 text-3xl font-bold leading-none">{{ bill.table_code }}</span>
+          </div>
+          <div class="grid min-w-0 gap-1 text-[15px]">
+            <p class="font-semibold">Pesanan {{ orderNo(bill.billId) }}</p>
+            <p class="truncate text-muted-foreground">
+              {{ orderTypeLabel(bill.order_type) }}<template v-if="bill.customer_name"> · {{ bill.customer_name }}</template>
+            </p>
+            <p class="text-muted-foreground">{{ dateTime(bill.paid_at ?? bill.created_at) }}</p>
+          </div>
         </div>
 
         <ul class="flex flex-col gap-2 border-y py-4">
@@ -56,8 +61,9 @@ const emit = defineEmits(["update:open", "printBill"]);
         </div>
 
         <div class="grid grid-cols-2 gap-3">
-          <Button variant="secondary" class="h-12 rounded-xl text-base" @click="emit('update:open', false)">Tutup</Button>
-          <Button class="h-12 rounded-xl text-base" @click="emit('printBill')"><Printer /> Cetak struk</Button>
+          <Button variant="secondary" class="h-12 rounded-xl text-base" @click="emit('printSlip')"><Printer /> Nota dapur</Button>
+          <Button variant="secondary" class="h-12 rounded-xl text-base" @click="emit('printBill')"><Printer /> Struk</Button>
+          <Button class="col-span-2 h-12 rounded-xl text-base" @click="emit('update:open', false)">Selesai</Button>
         </div>
       </template>
     </DialogContent>

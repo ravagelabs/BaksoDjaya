@@ -40,7 +40,7 @@ const GENERIC = 'Terjadi kendala di server. Coba lagi sebentar lagi.';
 const TRANSLATIONS = [
     [/^Failed to (retrieve|fetch) products$/, 'Menu belum bisa dimuat.'],
     [/^Failed to (retrieve|fetch) modifiers$/, 'Pilihan menu belum bisa dimuat.'],
-    [/^Failed to (retrieve|fetch) tables$/, 'Data meja belum bisa dimuat.'],
+    [/^Failed to (retrieve|fetch) tables$/, 'Data nomor belum bisa dimuat.'],
     [/^Failed to (retrieve|fetch) report$/, 'Laporan belum bisa dimuat.'],
     [/^Failed to (retrieve|fetch) shifts$/, 'Riwayat shift belum bisa dimuat.'],
     [/^Failed to (retrieve|fetch) customers$/, 'Data pelanggan belum bisa dimuat.'],

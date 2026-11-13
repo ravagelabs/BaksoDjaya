@@ -196,7 +196,8 @@ export function buildOrderSlip(bill, { updated = false } = {}) {
   cmd(0x1b, 0x40);             // init
   cmd(0x1b, 0x61, 0x01);       // center
   write(`${OUTLET_NAME.toUpperCase()}\n`);
-  write(updated ? "NOTA PESANAN (DIPERBARUI)\n" : "NOTA PESANAN\n");
+  const paid = bill.status === "paid" || Boolean(bill.payment_method);
+  write(updated ? "NOTA PESANAN (DIPERBARUI)\n" : paid ? "NOTA DAPUR\n" : "NOTA PESANAN\n");
   cmd(0x1d, 0x21, 0x11);       // GS ! 0x11  teks 2x lebar dan tinggi
   write(`${where}\n`);
   cmd(0x1d, 0x21, 0x00);       // ukuran normal
@@ -223,12 +224,16 @@ export function buildOrderSlip(bill, { updated = false } = {}) {
 
   write(line());
   cmd(0x1b, 0x45, 0x01);
-  write(row("TOTAL SEMENTARA", rupiah.format(bill.grand_total)));
+  write(row(paid ? "TOTAL" : "TOTAL SEMENTARA", rupiah.format(bill.grand_total)));
   cmd(0x1b, 0x45, 0x00);
   cmd(0x1b, 0x61, 0x01);
-  write("BELUM DIBAYAR\n");
-  write("Tunjukkan nota ini ke kasir\n");
-  write("saat membayar.\n");
+  if (paid) {
+    write(`LUNAS${bill.payment_method ? ` - ${PAYMENT_LABELS[bill.payment_method] ?? bill.payment_method}` : ""}\n`);
+  } else {
+    write("BELUM DIBAYAR\n");
+    write("Tunjukkan nota ini ke kasir\n");
+    write("saat membayar.\n");
+  }
   cmd(0x1b, 0x64, 0x02);
   cmd(0x1d, 0x56, 0x42, 0x00);
 

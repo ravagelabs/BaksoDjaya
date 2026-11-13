@@ -4,9 +4,10 @@ import { useRouter } from "vue-router";
 import { ArrowLeft } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import PrintPopup from "@/components/PrintPopup.vue";
+import NumberPickerDialog from "@/components/NumberPickerDialog.vue";
 import { api } from "@/lib/api";
 import { formatRp, number, orderNo, orderTypeLabel, splitName, optionsText, PAYMENT_LABELS, PAYMENT_METHODS } from "@/lib/format";
-import { printBill } from "@/lib/receipt";
+import { printBill, printOrderSlip } from "@/lib/receipt";
 import { useOrderStore } from "@/stores/order";
 import { useUiStore } from "@/stores/ui";
 
@@ -89,22 +90,40 @@ async function confirm() {
   error.value = "";
   try {
     const wasInKitchen = Boolean(order.kitchenStatus);
+    const hadNumber = Boolean(order.table);
     const id = await order.pay(ui.user.id, method.value);
     order.reset();
-    ui.toast(wasInKitchen ? `Pesanan ${orderNo(id)} lunas` : `Pesanan ${orderNo(id)} lunas dan dikirim ke dapur`);
+    ui.toast(wasInKitchen ? `Pesanan ${orderNo(id)} lunas` : `Pesanan ${orderNo(id)} lunas dan masuk dapur`);
     received.value = "";
-    showPrint.value = true;
-    printLoading.value = true;
-    printError.value = "";
-    try {
-      printData.value = (await api(`/bills/${id}`)).data;
-    } catch (e) {
-      printError.value = e.message;
-    } finally {
-      printLoading.value = false;
-    }
+    paidId.value = id;
+    // Setelah lunas: beri nomor pager dulu, baru struk dan nota dapur (supaya nomornya ikut tercetak)
+    if (hadNumber) openPrint();
+    else showNumber.value = true;
   } catch (e) {
     error.value = e.message;
+  }
+}
+
+// ---- Setelah lunas: nomor pager, lalu struk ----
+const paidId = ref(null);
+const showNumber = ref(false);
+
+function afterNumber(table) {
+  showNumber.value = false;
+  if (table) ui.toast(`Nomor ${table.code} untuk pesanan ${orderNo(paidId.value)}`);
+  openPrint();
+}
+
+async function openPrint() {
+  showPrint.value = true;
+  printLoading.value = true;
+  printError.value = "";
+  try {
+    printData.value = (await api(`/bills/${paidId.value}`)).data;
+  } catch (e) {
+    printError.value = e.message;
+  } finally {
+    printLoading.value = false;
   }
 }
 
@@ -233,6 +252,8 @@ function closePrint(open) {
       :error="printError"
       @update:open="closePrint"
       @print-bill="printBill(printData)"
+      @print-slip="printOrderSlip(printData)"
     />
+    <NumberPickerDialog :open="showNumber" :bill-id="paidId" @picked="afterNumber" @skip="afterNumber(null)" />
   </div>
 </template>
