@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { LogOut, Printer, RefreshCw } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -15,9 +15,61 @@ const isOwner = computed(() => ui.user?.role === "owner");
 const current = ref(null);
 const shifts = ref([]);
 const loading = ref(true);
-// Filter riwayat: default hari ini
+// ---- Filter riwayat: tombol cepat + pilih tanggal (Tampilkan). Default hari ini ----
+const addDays = (iso, n) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+const PRESETS = [
+  { key: "today", label: "Hari ini", range: (t) => [t, t] },
+  { key: "yesterday", label: "Kemarin", range: (t) => [addDays(t, -1), addDays(t, -1)] },
+  { key: "7d", label: "7 hari terakhir", range: (t) => [addDays(t, -6), t] },
+  { key: "month", label: "Bulan ini", range: (t) => [`${t.slice(0, 7)}-01`, t] },
+  { key: "custom", label: "Pilih tanggal", range: null },
+];
+const preset = ref("today");
+// Rentang yang sedang ditampilkan
 const from = ref(todayISO());
 const to = ref(todayISO());
+// Rentang yang sedang diisi (Pilih tanggal), baru dipakai setelah tekan Tampilkan
+const draftFrom = ref(todayISO());
+const draftTo = ref(todayISO());
+const historyLoading = ref(false);
+
+function choosePreset(key) {
+  preset.value = key;
+  const p = PRESETS.find((x) => x.key === key);
+  if (!p.range) {
+    draftFrom.value = from.value;
+    draftTo.value = to.value;
+    return;
+  }
+  [from.value, to.value] = p.range(todayISO());
+  loadHistory();
+}
+
+function applyCustom() {
+  if (!draftFrom.value || !draftTo.value || draftFrom.value > draftTo.value) return;
+  from.value = draftFrom.value;
+  to.value = draftTo.value;
+  loadHistory();
+}
+
+const dayLabel = (iso) =>
+  new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
+const rangeLabel = computed(() => (from.value === to.value ? dayLabel(from.value) : `${dayLabel(from.value)} – ${dayLabel(to.value)}`));
+
+async function loadHistory() {
+  historyLoading.value = true;
+  try {
+    shifts.value = (await api(`/shifts?from=${from.value}&to=${to.value}`)).data;
+  } catch (e) {
+    ui.toast(e.message, "error");
+  } finally {
+    historyLoading.value = false;
+  }
+}
 const error = ref("");
 
 async function load() {
@@ -34,13 +86,6 @@ async function load() {
   }
 }
 onMounted(load);
-watch([from, to], () => {
-  if (from.value && to.value && from.value <= to.value) load();
-});
-function setToday() {
-  from.value = todayISO();
-  to.value = todayISO();
-}
 const historyTotal = computed(() => shifts.value.reduce((sum, s) => sum + s.total, 0));
 
 function duration(from, to) {
@@ -109,21 +154,45 @@ const openId = ref(null);
 
       <!-- Riwayat -->
       <section class="mt-7">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 class="text-xl font-semibold md:text-2xl">Riwayat shift</h2>
-            <p v-if="shifts.length" class="tabular text-sm text-muted-foreground">{{ shifts.length }} shift · total {{ formatRp(historyTotal) }}</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <input v-model="from" type="date" :max="todayISO()" aria-label="Dari tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
-            <span class="text-muted-foreground">s/d</span>
-            <input v-model="to" type="date" :max="todayISO()" aria-label="Sampai tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
-            <Button variant="secondary" class="h-11 rounded-xl px-4" @click="setToday">Hari ini</Button>
-          </div>
+        <h2 class="text-xl font-semibold md:text-2xl">Riwayat shift</h2>
+
+        <!-- Periode -->
+        <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Periode riwayat shift">
+          <button
+            v-for="p in PRESETS"
+            :key="p.key"
+            type="button"
+            class="h-11 rounded-full px-4 text-[15px] transition-colors"
+            :class="preset === p.key ? 'bg-primary font-semibold text-primary-foreground' : 'bg-muted hover:bg-secondary'"
+            :aria-pressed="preset === p.key"
+            @click="choosePreset(p.key)"
+          >
+            {{ p.label }}
+          </button>
         </div>
-        <p v-if="from > to" class="mt-3 text-[15px] text-destructive">Tanggal awal tidak boleh setelah tanggal akhir.</p>
-        <p v-else-if="!shifts.length" class="mt-3 text-[15px] text-muted-foreground">Belum ada shift yang diakhiri di tanggal ini.</p>
-        <ul v-else class="mt-3 flex flex-col divide-y rounded-[20px] border">
+        <form v-if="preset === 'custom'" class="mt-3 flex flex-wrap items-end gap-2 rounded-2xl bg-muted/60 p-3" @submit.prevent="applyCustom">
+          <label class="grid gap-1 text-sm font-semibold">Dari tanggal
+            <input v-model="draftFrom" type="date" :max="todayISO()" required class="h-11 rounded-xl border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" />
+          </label>
+          <label class="grid gap-1 text-sm font-semibold">Sampai tanggal
+            <input v-model="draftTo" type="date" :max="todayISO()" required class="h-11 rounded-xl border bg-card px-3 text-[15px] font-normal outline-none focus:border-primary" />
+          </label>
+          <Button type="submit" class="h-11 rounded-xl px-6" :disabled="!draftFrom || !draftTo || draftFrom > draftTo || historyLoading">
+            {{ historyLoading ? "Memuat..." : "Tampilkan" }}
+          </Button>
+          <p v-if="draftFrom > draftTo" class="w-full text-sm text-destructive">Tanggal awal tidak boleh setelah tanggal akhir.</p>
+        </form>
+
+        <!-- Ringkasan periode yang ditampilkan -->
+        <p class="tabular mt-4 text-[15px]" :class="historyLoading ? 'opacity-60' : ''">
+          <span class="font-semibold">{{ rangeLabel }}</span>
+          <span class="text-muted-foreground"> · {{ shifts.length }} shift · total {{ formatRp(historyTotal) }}</span>
+        </p>
+        <p v-if="!shifts.length && !historyLoading" class="mt-2 rounded-xl bg-muted/60 px-4 py-3 text-[15px] text-muted-foreground">
+          Belum ada shift yang diakhiri di periode ini. Shift masuk ke riwayat setelah karyawan menekan
+          <span class="font-semibold text-foreground">Akhiri shift</span>.
+        </p>
+        <ul v-if="shifts.length" class="mt-3 flex flex-col divide-y rounded-[20px] border" :class="historyLoading ? 'opacity-60' : ''">
           <li v-for="s in shifts" :key="s.id">
             <div class="flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-4">
               <button type="button" class="min-w-48 flex-1 text-left" :aria-expanded="openId === s.id" @click="openId = openId === s.id ? null : s.id">
