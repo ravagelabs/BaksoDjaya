@@ -11,6 +11,8 @@ import MenuImage from "@/components/MenuImage.vue";
 const props = defineProps({
   open: { type: Boolean, default: false },
   product: { type: Object, default: null }, // item dari catalog.gridProducts
+  // Mode ubah: baris keranjang yang sedang diedit ({ qty, note, options, paket: { bakso, mie } })
+  editing: { type: Object, default: null },
 });
 const emit = defineEmits(["update:open", "add"]);
 
@@ -31,15 +33,22 @@ const extraGroups = computed(() => groups.value.filter((g) => g.kind === "extra"
 
 // Reset setiap kali dialog dibuka untuk produk baru
 watch(
-  () => [props.open, props.product?.id],
+  () => [props.open, props.product?.id, props.editing],
   ([isOpen]) => {
     if (!isOpen || !props.product) return;
-    qty.value = 1;
-    note.value = "";
-    extras.value = [];
-    choices.value = Object.fromEntries(choiceGroups.value.map((g) => [g.name, g.options[0].name]));
-    paketBakso.value = paket.value.bakso[0] ?? "";
-    paketMie.value = paket.value.mie[0] ?? "";
+    const e = props.editing;
+    qty.value = e?.qty ?? 1;
+    note.value = e?.note ?? "";
+    const picked = e?.options ?? [];
+    extras.value = picked.filter((o) => extraGroups.value.some((g) => g.name === o.group)).map((o) => o.name);
+    choices.value = Object.fromEntries(
+      choiceGroups.value.map((g) => [
+        g.name,
+        picked.find((o) => o.group === g.name && g.options.some((x) => x.name === o.name))?.name ?? g.options[0].name,
+      ])
+    );
+    paketBakso.value = e?.paket?.bakso ?? paket.value.bakso[0] ?? "";
+    paketMie.value = e?.paket?.mie ?? paket.value.mie[0] ?? "";
   },
   { immediate: true }
 );
@@ -89,7 +98,7 @@ const choiceClass = (selected) =>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogContent v-if="product" class="max-h-[88dvh] overflow-y-auto overscroll-contain p-6 sm:max-w-3xl">
       <DialogHeader>
-        <DialogTitle class="text-xl font-bold">Sesuaikan menu</DialogTitle>
+        <DialogTitle class="text-xl font-bold">{{ editing ? "Ubah pesanan" : "Sesuaikan menu" }}</DialogTitle>
         <DialogDescription class="text-sm">Pilihan tersimpan per item, bukan untuk seluruh pesanan.</DialogDescription>
       </DialogHeader>
 
@@ -202,7 +211,7 @@ const choiceClass = (selected) =>
           </div>
 
           <div class="mt-1 flex gap-3">
-            <div class="flex h-12 w-36 shrink-0 items-center justify-between rounded-xl bg-muted px-1">
+            <div class="flex h-12 w-32 shrink-0 items-center justify-between rounded-xl bg-muted px-1 sm:w-36">
               <button
                 type="button"
                 class="flex size-10 items-center justify-center rounded-lg hover:bg-card disabled:opacity-40"
@@ -222,9 +231,10 @@ const choiceClass = (selected) =>
                 <Plus class="size-5" />
               </button>
             </div>
-            <Button class="h-12 flex-1 justify-start rounded-xl px-5 text-base" :disabled="!available" @click="submit">
+            <Button class="h-12 min-w-0 flex-1 justify-between gap-2 rounded-xl px-4 text-base sm:px-5" :disabled="!available" @click="submit">
               <template v-if="available">
-                Tambah pesanan <span class="opacity-70">·</span> <span class="tabular">{{ formatRp(unitPrice * qty) }}</span>
+                <span class="truncate">{{ editing ? "Simpan" : "Tambah pesanan" }}</span>
+                <span class="tabular shrink-0">{{ formatRp(unitPrice * qty) }}</span>
               </template>
               <template v-else>Stok habis</template>
             </Button>

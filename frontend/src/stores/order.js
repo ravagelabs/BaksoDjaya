@@ -57,6 +57,32 @@ export const useOrderStore = defineStore("order", () => {
     touch();
   }
 
+  function replaceLine(oldKey, { product, qty = 1, options = [], note: itemNote = "" }) {
+    const index = lines.value.findIndex((l) => l.key === oldKey);
+    if (index === -1) return addLine({ product, qty, options, note: itemNote });
+    const extras = options.reduce((s, o) => s + (o.price || 0), 0);
+    const cleanNote = itemNote.trim() || null;
+    const key = lineKey(product.id, options, cleanNote);
+    const twin = lines.value.find((l) => l.key === key && l.key !== oldKey);
+    if (twin) {
+      twin.qty += qty;
+      lines.value.splice(index, 1);
+    } else {
+      lines.value.splice(index, 1, {
+        key,
+        product_id: product.id,
+        name: product.name,
+        category: product.category,
+        price: product.price + extras,
+        qty,
+        note: cleanNote,
+        options,
+      });
+    }
+    touch();
+    return key;
+  }
+
   function removeLine(key) {
     lines.value = lines.value.filter((l) => l.key !== key);
     touch();
@@ -225,6 +251,7 @@ export const useOrderStore = defineStore("order", () => {
     isEmpty,
     addLine,
     changeQty,
+    replaceLine,
     removeLine,
     setTable,
     setOrderType,

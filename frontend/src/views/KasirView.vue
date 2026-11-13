@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowRight, ChevronDown, FilePenLine, ShoppingBag, Minus, Plus, Printer, Search, Trash2, UserRound, X } from "@lucide/vue";
+import { ArrowRight, ChevronDown, FilePenLine, Pencil, ShoppingBag, Minus, Plus, Printer, Search, Trash2, UserRound, X } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import ProductCard from "@/components/ProductCard.vue";
 import CustomizeDialog from "@/components/CustomizeDialog.vue";
@@ -51,8 +51,20 @@ const visibleProducts = computed(() => {
 const customizing = ref(null);
 const showCustomize = ref(false);
 
+const editingLine = ref(null); // { key, qty, note, options, paket } saat mengubah baris keranjang
+
 function openCustomize(product) {
+  editingLine.value = null;
   customizing.value = product;
+  showCustomize.value = true;
+}
+
+// Ubah item yang sudah di keranjang: buka dialog yang sama dengan pilihan terisi
+function editLine(line) {
+  const found = catalog.cardForLine(line);
+  if (!found) return;
+  editingLine.value = { key: line.key, qty: line.qty, note: line.note ?? "", options: line.options ?? [], paket: found.paket };
+  customizing.value = found.product;
   showCustomize.value = true;
 }
 
@@ -63,8 +75,14 @@ function quickAdd(product) {
 }
 
 function addFromDialog(item) {
-  order.addLine(item);
+  if (editingLine.value) {
+    const newKey = order.replaceLine(editingLine.value.key, item);
+    if (activeLine.value === editingLine.value.key) activeLine.value = newKey ?? null;
+  } else {
+    order.addLine(item);
+  }
   showCustomize.value = false;
+  editingLine.value = null;
 }
 
 // ---- Baris pesanan ----
@@ -378,6 +396,13 @@ function goPay() {
               </div>
               <button
                 type="button"
+                class="flex h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-medium hover:bg-muted"
+                @click="editLine(line)"
+              >
+                <Pencil class="size-4" /> Ubah
+              </button>
+              <button
+                type="button"
                 class="flex h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-destructive hover:bg-destructive/10"
                 @click="order.removeLine(line.key)"
               >
@@ -453,7 +478,7 @@ function goPay() {
       </div>
     </aside>
 
-    <CustomizeDialog v-model:open="showCustomize" :product="customizing" @add="addFromDialog" />
+    <CustomizeDialog v-model:open="showCustomize" :product="customizing" :editing="editingLine" @add="addFromDialog" />
     <OrderSetupDialog v-model:open="showSetup" />
     <OrderSlipPopup
       v-model:open="showSlip"

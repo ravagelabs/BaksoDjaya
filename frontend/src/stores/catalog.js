@@ -78,6 +78,17 @@ export const useCatalogStore = defineStore("catalog", () => {
     return { bakso, mie };
   }
 
+  // Baris keranjang -> kartu grid + pilihan paketnya (untuk mengubah item yang sudah di keranjang)
+  function cardForLine(line) {
+    const m = line.name.match(PAKET_RE);
+    if (m) {
+      const card = gridProducts.value.find((g) => g.isPaket && g.name === m[1]);
+      return card ? { product: card, paket: { bakso: m[2], mie: m[3] } } : null;
+    }
+    const card = gridProducts.value.find((g) => g.id === line.product_id);
+    return card ? { product: card, paket: null } : null;
+  }
+
   const findPaket = (base, bakso, mie) =>
     products.value.find((p) => p.name === `${base} - BAKSO ${bakso} + ${mie}`);
 
@@ -123,6 +134,7 @@ export const useCatalogStore = defineStore("catalog", () => {
     categories,
     paketOptions,
     findPaket,
+    cardForLine,
     modifierGroups,
     defaultOptions,
     setAvailability,
