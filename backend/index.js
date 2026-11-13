@@ -32,6 +32,11 @@ app.use(cors({
     credentials: true,
 }))
 
+// Verifikasi aplikasi Android (Ravage POS dari PWABuilder): tanpa ini app menampilkan address bar browser
+app.get('/.well-known/assetlinks.json', (req, res) => {
+    res.type('application/json').sendFile(path.join(__dirname, 'well-known', 'assetlinks.json'));
+});
+
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Foto menu yang di-upload dari halaman Pengaturan

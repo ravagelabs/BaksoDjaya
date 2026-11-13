@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "id.ravagelabs.pos",
+    "sha256_cert_fingerprints": ["D6:77:D9:AA:32:BA:8D:6B:80:EB:1C:B5:A2:E3:FC:5E:AB:52:5C:8C:55:47:2F:BA:E1:B6:AC:BD:78:02:52:B0"]
+  }
+}]
