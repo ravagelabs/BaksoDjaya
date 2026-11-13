@@ -89,10 +89,14 @@ export const splitName = (name = "") => {
 
 // Baris kecil di bawah nama item: opsi terpilih
 // Pilihan standar "Pakai ..." (mis. Pakai seledri) tidak ditulis; dapur cukup melihat pengecualiannya ("Tanpa seledri")
+// Pilihan "Pakai" tidak ditulis; "Tanpa" ditulis lengkap dengan nama grupnya ("Tanpa seledri")
 export const optionsText = (options = []) =>
   options
-    .filter((o) => !/^pakai /i.test(o.name))
-    .map((o) => (o.price ? `${o.name} (+${number.format(o.price)})` : o.name))
+    .filter((o) => !/^pakai\b/i.test(o.name))
+    .map((o) => {
+      const name = /^tanpa$/i.test(o.name) && o.group ? `Tanpa ${o.group.toLowerCase()}` : o.name;
+      return o.price ? `${name} (+${number.format(o.price)})` : name;
+    })
     .join(", ");
 
 // Foto yang di-upload disimpan backend di /uploads; di dev frontend dan backend beda port

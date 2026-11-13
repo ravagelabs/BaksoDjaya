@@ -32,3 +32,21 @@ export const createModifier = async (input) => {
         [group, input.kind, name, price, categories, productIds, Number.isInteger(input.sort) ? input.sort : 0]
     );
 };
+
+// Ubah nama / harga / urutan satu pilihan
+export const updateModifier = async (id, input = {}) => {
+    const name = typeof input.name === 'string' ? input.name.trim() : null;
+    const price = input.price === undefined ? null : Number(input.price);
+    if (price !== null && (!Number.isInteger(price) || price < 0)) throw new Error('Harga pilihan tidak valid.');
+    const row = await db.oneOrNone(
+        `UPDATE modifier
+         SET name = COALESCE(NULLIF($2, ''), name),
+             price = COALESCE($3, price),
+             sort = COALESCE($4, sort)
+         WHERE id = $1
+         RETURNING id, group_name, kind, name, price, categories, product_ids, sort;`,
+        [id, name, price, Number.isInteger(input.sort) ? input.sort : null]
+    );
+    if (!row) throw new Error('Pilihan tidak ditemukan.');
+    return row;
+};

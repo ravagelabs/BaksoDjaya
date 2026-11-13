@@ -1,5 +1,5 @@
 import express from 'express';
-import { getModifiers, createModifier } from '../controllers/modifierController.js';
+import { getModifiers, createModifier, updateModifier } from '../controllers/modifierController.js';
 
 const router = express.Router();
 
@@ -20,6 +20,17 @@ router.post('/', async (req, res) => {
     } catch (err) {
         console.error('Error in POST /modifiers:', err);
         res.status(400).json({ error: err.message || 'Pilihan gagal disimpan.' });
+    }
+});
+
+router.patch('/:id', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isInteger(id)) return res.status(400).json({ error: 'Pilihan tidak ditemukan.' });
+        res.status(200).json({ message: 'Modifier updated', data: await updateModifier(id, req.body ?? {}) });
+    } catch (err) {
+        console.error('Error in PATCH /modifiers/:id:', err);
+        res.status(400).json({ error: err.message || 'Pilihan gagal diubah.' });
     }
 });
 
