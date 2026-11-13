@@ -61,3 +61,9 @@ export const addShift = async (createdAt, endedAt, employeeId) => {
     );
     return getShift(row.id);
 };
+
+// Hapus catatan shift (akun utama). Transaksi/penjualan tidak ikut terhapus.
+export const deleteShift = async (id) => {
+    const res = await db.result('DELETE FROM shift WHERE id = $1', [id]);
+    if (!res.rowCount) throw new Error('Shift tidak ditemukan.');
+};

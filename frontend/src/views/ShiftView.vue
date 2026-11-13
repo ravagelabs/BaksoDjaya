@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
-import { LogOut, Printer, RefreshCw } from "@lucide/vue";
+import { LogOut, Printer, RefreshCw, Trash2 } from "@lucide/vue";
+import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { formatRp, number, dateTime, paymentRows, todayISO } from "@/lib/format";
@@ -104,6 +105,21 @@ async function printCurrent() {
 }
 
 const openId = ref(null);
+
+// Hapus riwayat shift (akun utama). Penjualan tetap tercatat di Laporan.
+const delShift = ref(null);
+async function removeShift() {
+  const s = delShift.value;
+  delShift.value = null;
+  if (!s) return;
+  try {
+    await api(`/shifts/${s.id}`, { method: "DELETE" });
+    shifts.value = shifts.value.filter((x) => x.id !== s.id);
+    ui.toast(`Shift #${s.id} dihapus`);
+  } catch (e) {
+    ui.toast(e.message, "error");
+  }
+}
 </script>
 
 <template>
@@ -206,6 +222,15 @@ const openId = ref(null);
               <span class="tabular text-sm text-muted-foreground">{{ s.transactions }} transaksi</span>
               <span class="tabular w-32 text-right text-lg font-semibold">{{ formatRp(s.total) }}</span>
               <Button variant="secondary" class="h-11 rounded-xl px-4" @click="printShiftReport(s)"><Printer class="size-4" /> Cetak</Button>
+              <Button
+                v-if="isOwner"
+                variant="secondary"
+                class="size-11 rounded-xl p-0 text-destructive hover:bg-destructive/10"
+                :aria-label="`Hapus shift #${s.id}`"
+                @click="delShift = s"
+              >
+                <Trash2 class="size-4" />
+              </Button>
             </div>
             <dl v-if="openId === s.id" class="tabular grid grid-cols-2 gap-x-6 gap-y-1.5 px-5 pb-4 text-sm sm:grid-cols-3">
               <div v-for="r in paymentRows(s)" :key="r.key" class="flex justify-between gap-3 rounded-lg bg-muted/60 px-3 py-2">
@@ -217,5 +242,13 @@ const openId = ref(null);
         </ul>
       </section>
     </template>
+    <ConfirmDialog
+      :open="Boolean(delShift)"
+      :title="delShift ? `Hapus shift #${delShift.id}?` : ''"
+      description="Catatan shift ini hilang dari riwayat. Transaksi dan penjualannya tetap tercatat di Transaksi dan Laporan."
+      confirm-label="Hapus shift"
+      @update:open="!$event && (delShift = null)"
+      @confirm="removeShift"
+    />
   </div>
 </template>
