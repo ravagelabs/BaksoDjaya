@@ -27,7 +27,7 @@ const paketMie = ref("");
 
 const isPaket = computed(() => Boolean(props.product?.isPaket));
 const paket = computed(() => (isPaket.value ? catalog.paketOptions(props.product.name) : { bakso: [], mie: [] }));
-const groups = computed(() => (props.product && !isPaket.value ? catalog.modifierGroups(props.product.category) : []));
+const groups = computed(() => (props.product && !isPaket.value ? catalog.modifierGroups(props.product.category, props.product.id) : []));
 const choiceGroups = computed(() => groups.value.filter((g) => g.kind === "choice"));
 const extraGroups = computed(() => groups.value.filter((g) => g.kind === "extra"));
 

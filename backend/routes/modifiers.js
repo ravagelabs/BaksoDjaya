@@ -1,5 +1,5 @@
 import express from 'express';
-import { getModifiers } from '../controllers/modifierController.js';
+import { getModifiers, createModifier } from '../controllers/modifierController.js';
 
 const router = express.Router();
 
@@ -10,6 +10,16 @@ router.get('/', async (req, res) => {
     } catch (err) {
         console.error('Error in GET /modifiers:', err);
         res.status(500).json({ error: 'Failed to retrieve modifiers', details: err.message });
+    }
+});
+
+// Tambah pilihan menu (akun utama saja, dicek di index.js)
+router.post('/', async (req, res) => {
+    try {
+        res.status(201).json({ message: 'Modifier created', data: await createModifier(req.body ?? {}) });
+    } catch (err) {
+        console.error('Error in POST /modifiers:', err);
+        res.status(400).json({ error: err.message || 'Pilihan gagal disimpan.' });
     }
 });
 

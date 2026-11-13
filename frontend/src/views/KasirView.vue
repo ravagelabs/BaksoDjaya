@@ -71,8 +71,8 @@ function editLine(line) {
 
 // Tombol +: langsung tambah dengan pilihan default. Paket tetap harus dipilih dulu.
 function quickAdd(product) {
-  if (product.isPaket) return openCustomize(product);
-  order.addLine({ product, qty: 1, options: catalog.defaultOptions(product.category) });
+  if (product.isPaket || catalog.hasChoices(product)) return openCustomize(product);
+  order.addLine({ product, qty: 1, options: catalog.defaultOptions(product.category, product.id) });
 }
 
 function addFromDialog(item) {

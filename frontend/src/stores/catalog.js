@@ -92,11 +92,14 @@ export const useCatalogStore = defineStore("catalog", () => {
   const findPaket = (base, bakso, mie) =>
     products.value.find((p) => p.name === `${base} - BAKSO ${bakso} + ${mie}`);
 
-  // Grup modifier untuk satu kategori: [{ name, kind, options: [...] }]
-  function modifierGroups(category) {
+  // Grup modifier untuk satu menu: berlaku kalau dipasang ke kategorinya ATAU ke menu itu sendiri.
+  // Hasil: [{ name, kind, options: [...] }]
+  function modifierGroups(category, productId = null) {
     const groups = new Map();
     for (const m of modifiers.value) {
-      if (!m.categories?.includes(category)) continue;
+      const forCategory = m.categories?.includes(category);
+      const forProduct = productId != null && m.product_ids?.includes(productId);
+      if (!forCategory && !forProduct) continue;
       if (!groups.has(m.group_name)) groups.set(m.group_name, { name: m.group_name, kind: m.kind, options: [] });
       groups.get(m.group_name).options.push(m);
     }
@@ -104,11 +107,15 @@ export const useCatalogStore = defineStore("catalog", () => {
   }
 
   // Pilihan default (opsi pertama tiap grup "choice"), dipakai tombol + cepat
-  function defaultOptions(category) {
-    return modifierGroups(category)
+  function defaultOptions(category, productId = null) {
+    return modifierGroups(category, productId)
       .filter((g) => g.kind === "choice")
       .map((g) => ({ group: g.name, name: g.options[0].name, price: g.options[0].price }));
   }
+
+  // Menu yang punya pilihan wajib (mis. Panas / Es): tombol + membuka dialog, bukan langsung tambah
+  const hasChoices = (product) =>
+    modifierGroups(product.category, product.id).some((g) => g.kind === "choice" && g.options.length > 1);
 
   // Menyisipkan menu baru atau mengganti data menu yang sudah ada
   function upsert(product) {
@@ -137,6 +144,7 @@ export const useCatalogStore = defineStore("catalog", () => {
     cardForLine,
     modifierGroups,
     defaultOptions,
+    hasChoices,
     setAvailability,
     upsert,
   };
