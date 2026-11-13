@@ -13,7 +13,7 @@ export const buttonVariants = cva(
         outline:
           "border bg-card shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
         secondary:
-          "bg-muted text-foreground hover:bg-[#e9e9ec]",
+          "bg-muted text-foreground hover:bg-secondary",
         soft:
           "bg-secondary text-secondary-foreground hover:bg-secondary-hover",
         ghost:

@@ -215,7 +215,7 @@ async function submit() {
                 @click="available = !available"
               >
                 <span class="truncate">{{ available ? "Tersedia" : "Stok habis" }}</span>
-                <span class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors" :class="available ? 'bg-primary' : 'bg-[#d8d8dc]'">
+                <span class="relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors" :class="available ? 'bg-primary' : 'bg-[#d6d3ce]'">
                   <span class="inline-block size-5 rounded-full bg-white shadow transition-transform" :class="available ? 'translate-x-6' : 'translate-x-1'" />
                 </span>
               </button>

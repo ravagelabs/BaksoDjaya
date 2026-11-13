@@ -187,7 +187,7 @@ function closePrint(open) {
           <div class="mt-3 grid grid-cols-3 gap-3">
             <button
               type="button"
-              class="h-11 rounded-full bg-secondary px-4 text-left text-sm font-semibold text-primary hover:bg-[#e6ddf4]"
+              class="h-11 rounded-full bg-secondary px-4 text-left text-sm font-semibold text-primary hover:bg-secondary-hover"
               @click="setReceived(order.total)"
             >
               Uang pas
@@ -196,7 +196,7 @@ function closePrint(open) {
               v-for="v in quickAmounts"
               :key="v"
               type="button"
-              class="tabular h-11 rounded-full bg-secondary px-4 text-left text-sm font-semibold text-primary hover:bg-[#e6ddf4]"
+              class="tabular h-11 rounded-full bg-secondary px-4 text-left text-sm font-semibold text-primary hover:bg-secondary-hover"
               @click="setReceived(v)"
             >
               {{ formatRp(v) }}

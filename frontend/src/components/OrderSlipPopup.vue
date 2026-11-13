@@ -23,7 +23,7 @@ const emit = defineEmits(["update:open", "print"]);
         <DialogDescription class="text-[15px]">{{ description }}</DialogDescription>
       </DialogHeader>
 
-      <div v-if="bill" class="rounded-xl border border-dashed bg-[#fcfcfd] px-5 py-5 font-mono text-[13px] leading-relaxed">
+      <div v-if="bill" class="rounded-xl border border-dashed bg-[#fbfaf8] px-5 py-5 font-mono text-[13px] leading-relaxed">
         <div class="text-center">
           <p class="font-semibold">{{ OUTLET_NAME.toUpperCase() }}</p>
           <p>{{ updated ? "NOTA PESANAN (DIPERBARUI)" : "NOTA PESANAN" }}</p>

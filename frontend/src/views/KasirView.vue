@@ -228,7 +228,7 @@ function goPay() {
             role="tab"
             :aria-selected="category === c"
             class="h-12 shrink-0 rounded-full px-5 text-[15px] transition-colors"
-            :class="category === c ? 'bg-primary font-semibold text-primary-foreground' : 'bg-muted text-foreground hover:bg-[#e9e9ec]'"
+            :class="category === c ? 'bg-primary font-semibold text-primary-foreground' : 'bg-muted text-foreground hover:bg-secondary'"
             @click="category = c"
           >
             {{ c }}
@@ -327,7 +327,7 @@ function goPay() {
             v-if="isDineIn"
             type="button"
             class="h-10 rounded-full px-5 text-sm font-semibold"
-            :class="order.table ? 'bg-secondary text-primary hover:bg-[#e6ddf4]' : 'border border-dashed border-primary/50 text-primary hover:bg-secondary'"
+            :class="order.table ? 'bg-secondary text-primary hover:bg-secondary-hover' : 'border border-dashed border-primary/50 text-primary hover:bg-secondary'"
             @click="showSetup = true"
           >
             {{ order.table ? `Meja ${order.table.code}${order.guests ? ` · ${order.guests} tamu` : ""}` : "Pilih meja" }}
