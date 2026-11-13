@@ -5,6 +5,8 @@ import { ref } from "vue";
 export const useUiStore = defineStore("ui", () => {
   const toasts = ref([]);
   const user = ref(null);
+  // Naik 1 setiap ada permintaan "Akhiri shift" dari halaman lain (AppShell membuka popup shift)
+  const endShiftRequest = ref(0);
   let seq = 0;
 
   function toast(message, tone = "default") {
@@ -15,5 +17,6 @@ export const useUiStore = defineStore("ui", () => {
     }, 3500);
   }
 
-  return { toasts, toast, user };
+  return {
+    endShiftRequest, toasts, toast, user };
 });

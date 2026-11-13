@@ -237,6 +237,58 @@ export function buildKitchenSlip(bill) {
 
 export const printKitchenSlip = (bill) => sendToPrinter(buildKitchenSlip(bill), `Dapur ${orderNo(bill.billId)}`);
 
+// Laporan shift 58mm: kasir, jam mulai-selesai, uang masuk per metode, total, jumlah transaksi
+export function buildShiftReport(s, { running = false } = {}) {
+  const W = 32;
+  const bytes = [];
+  const enc = new TextEncoder();
+  const write = (t) => bytes.push(...enc.encode(t));
+  const cmd = (...b) => bytes.push(...b);
+  const clean = (t) => String(t ?? "-").replace(/\u00a0/g, " ");
+  const row = (l, r) => {
+    l = clean(l);
+    r = clean(r);
+    return l.length + r.length + 1 > W ? `${l}\n${" ".repeat(Math.max(0, W - r.length))}${r}\n` : `${l}${" ".repeat(W - l.length - r.length)}${r}\n`;
+  };
+  const fmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" });
+  const start = new Date(s.created_at);
+  const end = new Date(s.ended_at ?? Date.now());
+  const mins = Math.max(0, Math.floor((end - start) / 60000));
+
+  cmd(0x1b, 0x40);
+  cmd(0x1b, 0x61, 0x01);
+  cmd(0x1b, 0x45, 0x01);
+  write(`${OUTLET_NAME.toUpperCase()}\n`);
+  cmd(0x1b, 0x45, 0x00);
+  cmd(0x1d, 0x21, 0x01);
+  write(running ? "LAPORAN SHIFT (BERJALAN)\n" : "LAPORAN SHIFT\n");
+  cmd(0x1d, 0x21, 0x00);
+  if (s.id) write(`Shift #${s.id}\n`);
+  cmd(0x1b, 0x61, 0x00);
+  write("-".repeat(W) + "\n");
+  write(row("Kasir", s.employee_name ?? "-"));
+  write(row("Mulai", fmt.format(start)));
+  write(row(running ? "Sampai" : "Selesai", fmt.format(end)));
+  write(row("Durasi", mins >= 60 ? `${Math.floor(mins / 60)} jam ${mins % 60} mnt` : `${mins} mnt`));
+  write("-".repeat(W) + "\n");
+  for (const key of ["cash", "qris", "transfer", "gofood", "grabfood", "card"]) {
+    if (key === "card" && !s.card) continue;
+    write(row(PAYMENT_LABELS[key] ?? key, rupiah.format(s[key] ?? 0)));
+  }
+  write("-".repeat(W) + "\n");
+  cmd(0x1b, 0x45, 0x01);
+  write(row("TOTAL", rupiah.format(s.total ?? 0)));
+  cmd(0x1b, 0x45, 0x00);
+  write(row("Transaksi", String(s.transactions ?? 0)));
+  write(row("Uang tunai di laci", rupiah.format(s.cash ?? 0)));
+  write("\n\nParaf kasir:\n\n\n" + "_".repeat(20) + "\n");
+  cmd(0x1b, 0x64, 0x03);
+  cmd(0x1d, 0x56, 0x42, 0x00);
+  return new Uint8Array(bytes);
+}
+
+export const printShiftReport = (s, opts) => sendToPrinter(buildShiftReport(s, opts), `Shift ${s.id ?? ""}`);
+
 // Satu struk dengan label rangkap (PELANGGAN / DAPUR)
 export const printBillCopy = (bill, copyLabel) =>
   sendToPrinter(buildEscposReceipt(bill, { copyLabel }), `Struk ${orderNo(bill.billId)}`);

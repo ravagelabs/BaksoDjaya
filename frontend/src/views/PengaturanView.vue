@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Clock, UsersRound, UtensilsCrossed } from "@lucide/vue";
+import { UsersRound, UtensilsCrossed } from "@lucide/vue";
 import { ChevronRight, Pencil, Plus, Search } from "@lucide/vue";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -22,7 +22,6 @@ const router = useRouter();
 const SECTIONS = [
   { key: "menu", short: "Menu", label: "Menu", hint: "Harga, foto, stok", icon: UtensilsCrossed },
   { key: "akun", short: "Akun", label: "Akun pengguna", hint: "Akun utama & admin", icon: UsersRound },
-  { key: "shift", short: "Shift", label: "Riwayat shift", hint: "Penjualan per shift", icon: Clock },
 ];
 const section = ref(SECTIONS.some((x) => x.key === route.query.bagian) ? route.query.bagian : "menu");
 watch(section, (v) => router.replace({ query: { ...route.query, bagian: v === "menu" ? undefined : v } }));
@@ -124,26 +123,8 @@ async function toggleAvailable(p) {
 
 const marginPct = (p) => (p.price ? Math.round(((p.price - (p.hpp ?? 0)) / p.price) * 100) : 0);
 
-// ---- Riwayat shift ----
-const shifts = ref([]);
-const shiftsLoading = ref(true);
-const shiftsError = ref("");
+onMounted(() => catalog.load(true));
 
-onMounted(async () => {
-  catalog.load(true);
-  try {
-    shifts.value = (await api("/shifts")).data;
-  } catch (e) {
-    shiftsError.value = e.message;
-  } finally {
-    shiftsLoading.value = false;
-  }
-});
-
-function duration(from, to) {
-  const m = Math.max(0, Math.floor((new Date(to) - new Date(from)) / 60000));
-  return m >= 60 ? `${Math.floor(m / 60)} jam ${m % 60} menit` : `${m} menit`;
-}
 </script>
 
 <template>
@@ -154,7 +135,7 @@ function duration(from, to) {
     </div>
 
     <!-- Pilih bagian pengaturan -->
-    <nav class="mt-5 grid grid-cols-3 gap-2 rounded-2xl bg-muted p-1.5 md:max-w-2xl" aria-label="Bagian pengaturan">
+    <nav class="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-muted p-1.5 md:max-w-lg" aria-label="Bagian pengaturan">
       <button
         v-for="sct in SECTIONS"
         :key="sct.key"
@@ -314,29 +295,9 @@ function duration(from, to) {
       </p>
     </section>
 
-    <!-- Riwayat shift -->
-    <section v-else-if="section === 'shift'" class="mt-6 rounded-[20px] bg-muted/50 p-6">
-      <h2 class="text-xl font-semibold">Riwayat shift</h2>
-      <p class="text-sm text-muted-foreground">10 shift terakhir dan penjualannya.</p>
-      <p v-if="shiftsLoading" class="mt-4 text-[15px] text-muted-foreground">Memuat shift...</p>
-      <p v-else-if="shiftsError" class="mt-4 text-[15px] text-destructive">{{ shiftsError }}</p>
-      <p v-else-if="!shifts.length" class="mt-4 text-[15px] text-muted-foreground">Belum ada shift tersimpan.</p>
-      <ul v-else class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <li v-for="s in shifts" :key="s.id" class="rounded-xl bg-card p-5">
-          <div class="flex items-baseline justify-between">
-            <span class="text-lg font-semibold">Shift #{{ s.id }}</span>
-            <span class="text-sm text-muted-foreground">{{ duration(s.created_at, s.ended_at) }}</span>
-          </div>
-          <p class="text-sm text-muted-foreground">{{ dateTime(s.created_at) }} – {{ dateTime(s.ended_at) }}</p>
-          <dl class="tabular mt-3 grid grid-cols-3 gap-2 text-sm sm:grid-cols-6">
-            <div v-for="r in paymentRows(s)" :key="r.key"><dt class="text-muted-foreground">{{ r.label }}</dt><dd>{{ number.format(r.value) }}</dd></div>
-            <div><dt class="text-muted-foreground">Total</dt><dd class="font-semibold">{{ number.format(s.total) }}</dd></div>
-          </dl>
-        </li>
-      </ul>
-    </section>
+    <!-- Riwayat shift pindah ke menu Shift -->
 
-    <AccountsSection v-else-if="section === 'akun'" />
+    <AccountsSection v-if="section === 'akun'" />
 
     <!-- Isi grup -->
     <Dialog :open="Boolean(openGroup)" @update:open="!$event && (openGroupKey = null)">

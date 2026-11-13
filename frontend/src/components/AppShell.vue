@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ChevronDown, History, LogOut } from "@lucide/vue";
 import { authClient } from "@/lib/auth-client";
 import { api } from "@/lib/api";
+import { printShiftReport } from "@/lib/receipt";
 import { OUTLET_NAME, ROLE_LABELS } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
 import { useOrderStore } from "@/stores/order";
@@ -45,6 +46,7 @@ const NAV_ALL = [
   { to: "/meja", label: "Nomor" },
   { to: "/dapur", label: "Dapur" },
   { to: "/transaksi", label: "Transaksi" },
+  { to: "/shift", label: "Shift" },
   { to: "/laporan", label: "Laporan", manager: true },
   { to: "/pengaturan", label: "Pengaturan", manager: true },
 ];
@@ -68,23 +70,17 @@ const showShift = ref(false);
 const shiftLoading = ref(false);
 const shiftError = ref("");
 const shift = ref({ createdAt: null, endedAt: null });
-const salesSummary = ref({ cash: 0, qris: 0, transfer: 0, gofood: 0, grabfood: 0, total: 0 });
+const salesSummary = ref({ cash: 0, qris: 0, transfer: 0, gofood: 0, grabfood: 0, total: 0, transactions: 0 });
 
 async function logout() {
   shiftError.value = "";
   shiftLoading.value = true;
   showShift.value = true;
   try {
-    const { data, error: err } = await authClient.getSession();
-    if (err || !data?.session) throw new Error(err?.message ?? "Sesi tidak ditemukan");
-
-    const createdAt = new Date(data.session.createdAt);
-    const endedAt = new Date();
-    shift.value = { createdAt, endedAt };
-
-    const params = new URLSearchParams({ from: createdAt.toISOString(), to: endedAt.toISOString() });
-    const json = await api(`/bills/summary?${params}`);
-    salesSummary.value = json.data; // { qris, transfer, cash, gofood, grabfood, card, total }
+    // Shift berjalan: sejak login sampai sekarang
+    const cur = (await api("/shifts/current")).data;
+    shift.value = { createdAt: new Date(cur.created_at), endedAt: new Date(cur.ended_at) };
+    salesSummary.value = cur; // { cash, qris, transfer, gofood, grabfood, card, total, transactions }
   } catch (e) {
     shiftError.value = e.message;
   } finally {
@@ -92,17 +88,25 @@ async function logout() {
   }
 }
 
-async function confirmLogout() {
+// Tombol "Akhiri shift" di halaman Shift
+watch(() => ui.endShiftRequest, () => logout());
+
+async function confirmLogout({ print = false } = {}) {
   shiftError.value = "";
   shiftLoading.value = true;
   try {
-    await api("/shifts", {
+    const saved = await api("/shifts", {
       method: "POST",
       body: {
         created_at: shift.value.createdAt.toISOString(),
         ended_at: shift.value.endedAt.toISOString(),
       },
     });
+    if (print) {
+      printShiftReport(saved.data);
+      // beri waktu dialog print / RawBT menerima laporan sebelum keluar
+      await new Promise((r) => setTimeout(r, 2500));
+    }
     showShift.value = false;
     order.reset();
     // useSession() in App.vue updates, which renders Login again
@@ -161,8 +165,8 @@ async function confirmLogout() {
               <p class="text-xs font-normal text-muted-foreground">{{ ROLE_LABELS[user.role] ?? "Admin" }}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem v-if="isManager" @select="router.push('/pengaturan')">
-              <History /> Riwayat shift
+            <DropdownMenuItem @select="router.push('/shift')">
+              <History /> Laporan shift
             </DropdownMenuItem>
             <DropdownMenuItem @select="logout">
               <LogOut /> Akhiri shift & keluar

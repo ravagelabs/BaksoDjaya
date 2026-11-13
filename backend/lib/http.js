@@ -16,6 +16,7 @@ export async function requireAuth(req, res, next) {
             return res.status(401).json({ error: 'Sesi berakhir. Silakan login lagi.' });
         }
         req.user = session.user;
+        req.session = session.session;
         next();
     } catch (err) {
         console.error('Error checking session:', err);

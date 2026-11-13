@@ -56,7 +56,7 @@ app.use('/uploads', requireRole());
 app.use(['/products', '/modifiers'], requireRole(undefined, WRITE));
 app.use(['/reports', '/expenses', '/users'], requireRole());
 // Batalkan pesanan: akun utama semua pesanan; admin hanya pesanan yang masih di dapur (dicek di route)
-app.use('/shifts', requireRole(undefined, ['GET']));
+// /shifts: semua akun (karyawan hanya melihat shift miliknya, dicek di route)
 
 app.use('/uploads', uploadsRouter);
 

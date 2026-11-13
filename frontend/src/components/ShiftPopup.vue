@@ -1,11 +1,11 @@
 <script setup>
 import { computed } from "vue";
+import { Printer } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -18,13 +18,14 @@ const props = defineProps({
   endedAt: { type: [String, Date], default: null }, // current time when popup opened
   summary: {
     type: Object,
-    default: () => ({ cash: 0, qris: 0, transfer: 0, gofood: 0, grabfood: 0, total: 0 }),
+    default: () => ({ cash: 0, qris: 0, transfer: 0, gofood: 0, grabfood: 0, total: 0, transactions: 0 }),
   },
   loading: { type: Boolean, default: false },
   error: { type: String, default: "" },
   unsavedItems: { type: Number, default: 0 }, // items still in the cart
 });
 
+// confirm-logout: { print: true } = simpan shift, cetak laporan, lalu keluar
 const emit = defineEmits(["confirm-logout"]);
 
 const fmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" });
@@ -71,6 +72,8 @@ const duration = computed(() => {
             </template>
             <dt class="border-t pt-2 font-semibold">Total</dt>
             <dd class="border-t pt-2 text-right text-lg font-bold">{{ rupiah.format(summary.total) }}</dd>
+            <dt class="text-muted-foreground">Transaksi</dt>
+            <dd class="text-right">{{ summary.transactions ?? 0 }}</dd>
           </dl>
         </section>
       </template>
@@ -79,10 +82,15 @@ const duration = computed(() => {
         Masih ada {{ unsavedItems }} item di pesanan yang belum disimpan. Keluar akan membuangnya.
       </p>
 
-      <DialogFooter class="gap-2">
-        <Button variant="secondary" class="h-12 flex-1 rounded-xl" @click="open = false">Batal</Button>
-        <Button class="h-12 flex-1 rounded-xl" :disabled="loading" @click="emit('confirm-logout')">Simpan shift & keluar</Button>
-      </DialogFooter>
+      <div class="grid gap-2.5">
+        <Button class="h-13 rounded-xl text-base font-semibold" :disabled="loading" @click="emit('confirm-logout', { print: true })">
+          <Printer class="size-5" /> Akhiri shift & cetak laporan
+        </Button>
+        <div class="grid grid-cols-2 gap-2.5">
+          <Button variant="secondary" class="h-12 rounded-xl" @click="open = false">Batal</Button>
+          <Button variant="secondary" class="h-12 rounded-xl" :disabled="loading" @click="emit('confirm-logout', { print: false })">Tanpa cetak</Button>
+        </div>
+      </div>
     </DialogContent>
   </Dialog>
 </template>

@@ -8,6 +8,7 @@ const views = {
   meja: () => import('@/views/MejaView.vue'),
   dapur: () => import('@/views/DapurView.vue'),
   transaksi: () => import('@/views/TransaksiView.vue'),
+  shift: () => import('@/views/ShiftView.vue'),
   laporan: () => import('@/views/LaporanView.vue'),
   pengaturan: () => import('@/views/PengaturanView.vue'),
 }
@@ -21,6 +22,7 @@ const router = createRouter({
     { path: '/dapur', name: 'dapur', component: views.dapur },
     { path: '/transaksi', name: 'transaksi', component: views.transaksi },
     { path: '/transaksi/bayar', name: 'bayar', component: PembayaranView },
+    { path: '/shift', name: 'shift', component: views.shift },
     { path: '/laporan', name: 'laporan', component: views.laporan },
     { path: '/pengaturan', name: 'pengaturan', component: views.pengaturan },
     { path: '/:pathMatch(.*)*', redirect: '/kasir' },
