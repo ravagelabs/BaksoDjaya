@@ -9,6 +9,7 @@ import modifiersRouter from './routes/modifiers.js'
 import tablesRouter from './routes/tables.js'
 import expensesRouter from './routes/expenses.js'
 import reportsRouter from './routes/reports.js'
+import usersRouter from './routes/users.js'
 import uploadsRouter, { UPLOAD_DIR } from './routes/uploads.js'
 import eventsRouter from './routes/events.js'
 import { auth } from './auth.js';
@@ -41,14 +42,15 @@ app.all('/api/auth/*splat', toNodeHandler(auth));
 // Semua endpoint di bawah ini: pesan error aman + wajib login
 app.use(safeErrors);
 
-const API_PATHS = ['/uploads', '/products', '/bills', '/customers', '/shifts', '/modifiers', '/tables', '/expenses', '/reports', '/events'];
+const API_PATHS = ['/uploads', '/products', '/bills', '/customers', '/shifts', '/modifiers', '/tables', '/expenses', '/reports', '/events', '/users'];
 app.use(API_PATHS, requireAuth);
 
 // Khusus pengelola (owner): ubah menu & foto, laporan/HPP, biaya, riwayat shift
 const WRITE = ['POST', 'PUT', 'PATCH', 'DELETE'];
 app.use('/uploads', requireRole());
 app.use(['/products', '/modifiers'], requireRole(undefined, WRITE));
-app.use(['/reports', '/expenses'], requireRole());
+app.use(['/reports', '/expenses', '/users'], requireRole());
+app.use('/bills', requireRole(undefined, ['DELETE'])); // hapus pesanan: akun utama saja
 app.use('/shifts', requireRole(undefined, ['GET']));
 
 app.use('/uploads', uploadsRouter);
@@ -70,6 +72,8 @@ app.use('/tables', tablesRouter);
 app.use('/expenses', expensesRouter);
 
 app.use('/reports', reportsRouter);
+
+app.use('/users', usersRouter);
 
 // Update realtime untuk layar Dapur, Meja, dan Transaksi
 app.use('/events', eventsRouter);

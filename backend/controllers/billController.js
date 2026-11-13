@@ -89,6 +89,7 @@ export const getBills = async (billId = null, status = null, date = null) => {
         ${BILL_SELECT}
         WHERE ($1::int IS NULL OR b.id = $1)
           AND ($2::text IS NULL OR b.status = $2)
+          AND b.status <> 'cancelled'
           AND ($3::date IS NULL OR (COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::date = $3::date)
         GROUP BY b.id, u.id, c.id, t.id
         ORDER BY b.id DESC;
@@ -107,6 +108,24 @@ export const getKitchenQueue = async () => {
     `;
 
     return await db.any(query);
+};
+
+// Batalkan pesanan (hanya akun utama). Pesanan keluar dari dapur, nomornya kembali,
+// dan tidak dihitung di penjualan. Data tetap tersimpan dengan siapa dan kapan dibatalkan.
+export const cancelBill = async (billId, userId) => {
+    const bill = await db.oneOrNone(
+        `UPDATE bill
+         SET status = 'cancelled',
+             kitchen_status = NULL,
+             cancelled_at = now(),
+             cancelled_by = $2,
+             number_returned_at = COALESCE(number_returned_at, now())
+         WHERE id = $1 AND status IN ('pending', 'paid')
+         RETURNING id, status, kitchen_status;`,
+        [billId, userId]
+    );
+    if (!bill) throw new Error('Pesanan tidak ditemukan atau sudah dibatalkan.');
+    return bill;
 };
 
 export const setKitchenStatus = async (billId, kitchenStatus) => {
@@ -305,6 +324,7 @@ export const getSalesSummary = async (from, to) => {
             COALESCE(SUM(grand_total), 0)::float AS total
         FROM bill
         WHERE payment_method IS NOT NULL
+          AND status = 'paid'
           AND COALESCE(paid_at, created_at) >= $1::timestamptz
           AND COALESCE(paid_at, created_at) <= $2::timestamptz;
     `;

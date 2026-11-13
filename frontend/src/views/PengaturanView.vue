@@ -6,6 +6,7 @@ import ProductFormDialog from "@/components/ProductFormDialog.vue";
 import { api } from "@/lib/api";
 import { formatRp, number, dateTime, splitName, OUTLET_NAME, OUTLET_BRANCH, paymentRows } from "@/lib/format";
 import MenuImage from "@/components/MenuImage.vue";
+import AccountsSection from "@/components/AccountsSection.vue";
 import { useCatalogStore } from "@/stores/catalog";
 import { useUiStore } from "@/stores/ui";
 
@@ -219,6 +220,8 @@ function duration(from, to) {
         </li>
       </ul>
     </section>
+
+    <AccountsSection />
 
     <ProductFormDialog v-model:open="showForm" :product="editing" />
   </div>

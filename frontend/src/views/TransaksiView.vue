@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
-import { Printer, ReceiptText } from "@lucide/vue";
+import { Printer, ReceiptText, Trash2 } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import PrintPopup from "@/components/PrintPopup.vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
@@ -12,6 +12,7 @@ import { printBill, printOrderSlip } from "@/lib/receipt";
 import { useOrderStore } from "@/stores/order";
 import { useSafeLoad } from "@/composables/useSafeLoad";
 import { useLive } from "@/lib/live";
+import { useUiStore } from "@/stores/ui";
 
 const order = useOrderStore();
 const router = useRouter();
@@ -50,6 +51,23 @@ const total = computed(() => bills.value.reduce((s, b) => s + b.grand_total, 0))
 const itemCount = (b) => b.billItems.reduce((s, i) => s + i.qty, 0);
 const where = (b) =>
   [b.table_code ? `No. ${b.table_code}` : orderTypeLabel(b.order_type), b.customer_name].filter(Boolean).join(" · ");
+
+// ---- Hapus pesanan (akun utama saja) ----
+const ui = useUiStore();
+const isOwner = computed(() => ui.user?.role === "owner");
+const delBill = ref(null);
+
+async function deleteBill() {
+  const b = delBill.value;
+  delBill.value = null;
+  try {
+    await api(`/bills/${b.billId}`, { method: "DELETE" });
+    ui.toast(`Pesanan ${orderNo(b.billId)} dihapus`);
+    await load();
+  } catch (e) {
+    ui.toast(e.message, "error");
+  }
+}
 
 function openInKasir(b, pay = false) {
   guard(() => {
@@ -140,6 +158,16 @@ function openSlip(b) {
             <Button v-else variant="secondary" class="h-12 rounded-xl px-5 text-[15px]" @click="reprint(b)">
               <Printer /> Struk
             </Button>
+            <Button
+              v-if="isOwner"
+              variant="secondary"
+              class="size-12 rounded-xl p-0 text-destructive hover:bg-destructive/10"
+              :aria-label="`Hapus pesanan ${orderNo(b.billId)}`"
+              title="Hapus pesanan"
+              @click="delBill = b"
+            >
+              <Trash2 class="size-5" />
+            </Button>
           </div>
         </li>
       </ul>
@@ -152,6 +180,18 @@ function openSlip(b) {
       @print="printOrderSlip(slipBill)"
     />
     <PrintPopup v-model:open="showPrint" :bill="printData" title="Struk transaksi" @print-bill="printBill(printData)" />
+    <ConfirmDialog
+      :open="Boolean(delBill)"
+      :title="`Hapus pesanan ${orderNo(delBill?.billId)}?`"
+      :description="
+        delBill?.status === 'paid'
+          ? `Transaksi lunas ${formatRp(delBill?.grand_total ?? 0)} dibatalkan dan tidak dihitung di penjualan. Nomornya ikut kembali.`
+          : 'Pesanan keluar dari dapur dan nomornya kembali. Tidak bisa dibatalkan.'
+      "
+      confirm-label="Hapus pesanan"
+      @update:open="!$event && (delBill = null)"
+      @confirm="deleteBill"
+    />
     <ConfirmDialog
       v-model:open="confirmOpen"
       title="Ganti pesanan di kasir?"

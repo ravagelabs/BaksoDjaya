@@ -1,5 +1,5 @@
 import express from 'express';
-import { addBill, saveBill, finalizeBill, getBills, getSalesSummary, getKitchenQueue, setKitchenStatus } from '../controllers/billController.js';
+import { addBill, saveBill, finalizeBill, getBills, getSalesSummary, getKitchenQueue, setKitchenStatus, cancelBill } from '../controllers/billController.js';
 import { publish } from '../lib/events.js';
 
 // Kabari layar lain (Dapur, Meja, Transaksi). kitchen:new dipakai Dapur untuk bunyi notifikasi.
@@ -103,6 +103,20 @@ router.get('/:billId', async (req, res) => {
         return res.status(500).json({
             error: err.message || 'Failed to fetch bill'
         });
+    }
+});
+
+// Hapus (batalkan) pesanan: hanya akun utama, dicek di index.js
+router.delete('/:billId', async (req, res) => {
+    const billId = Number(req.params.billId);
+    if (!Number.isInteger(billId)) return res.status(400).json({ error: 'Data tidak valid.' });
+    try {
+        const bill = await cancelBill(billId, req.user?.id ?? null);
+        publish('bill:changed', { billId: bill.id, kitchenStatus: null, status: bill.status });
+        res.status(200).json({ message: 'Bill cancelled', data: bill });
+    } catch (err) {
+        console.error('Error cancelling bill:', err);
+        res.status(400).json({ error: err.message || 'Pesanan gagal dihapus.' });
     }
 });
 

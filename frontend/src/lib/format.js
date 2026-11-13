@@ -54,6 +54,9 @@ export const ORDER_TYPES = [
 export const KASIR_ORDER_TYPES = ORDER_TYPES.slice(0, 2);
 export const orderTypeLabel = (v) => ORDER_TYPES.find((t) => t.value === v)?.label ?? "Dine-in";
 
+// Peran akun: owner = Akun utama (semua akses), user = Admin (kasir dan staf)
+export const ROLE_LABELS = { owner: "Akun utama", user: "Admin", employee: "Admin", customer: "Pelanggan" };
+
 export const PAYMENT_LABELS = {
   qris: "QRIS",
   transfer: "Transfer",

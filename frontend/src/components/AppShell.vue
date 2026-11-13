@@ -4,7 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ChevronDown, History, LogOut } from "@lucide/vue";
 import { authClient } from "@/lib/auth-client";
 import { api } from "@/lib/api";
-import { OUTLET_NAME } from "@/lib/format";
+import { OUTLET_NAME, ROLE_LABELS } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
 import { useOrderStore } from "@/stores/order";
 import BrandLogo from "@/components/BrandLogo.vue";
@@ -60,7 +60,6 @@ watch(
   { immediate: true },
 );
 
-const ROLE_LABELS = { owner: "Owner", employee: "Karyawan", user: "Kasir", customer: "Pelanggan" };
 
 const firstName = computed(() => props.user.name?.split(" ")[0] ?? "");
 
@@ -159,7 +158,7 @@ async function confirmLogout() {
           <DropdownMenuContent align="end" class="w-56">
             <DropdownMenuLabel>
               <p class="text-sm font-semibold">{{ user.name }}</p>
-              <p class="text-xs font-normal text-muted-foreground">{{ ROLE_LABELS[user.role] ?? "Kasir" }}</p>
+              <p class="text-xs font-normal text-muted-foreground">{{ ROLE_LABELS[user.role] ?? "Admin" }}</p>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem v-if="isManager" @select="router.push('/pengaturan')">
