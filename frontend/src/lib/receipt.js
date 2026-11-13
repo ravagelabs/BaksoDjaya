@@ -166,6 +166,10 @@ function sendToPrinter(bytes, title) {
 
 export const printBill = (bill) => sendToPrinter(buildEscposReceipt(bill), `Struk ${orderNo(bill.billId)}`);
 
+// Satu struk dengan label rangkap (PELANGGAN / DAPUR)
+export const printBillCopy = (bill, copyLabel) =>
+  sendToPrinter(buildEscposReceipt(bill, { copyLabel }), `Struk ${orderNo(bill.billId)}`);
+
 // Setelah bayar: struk dicetak 2 rangkap dalam satu kali cetak (pelanggan + dapur), jadi tidak perlu nota terpisah
 export function printBillTwice(bill) {
   const a = buildEscposReceipt(bill, { copyLabel: "PELANGGAN" });

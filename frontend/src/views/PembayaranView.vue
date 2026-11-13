@@ -7,7 +7,7 @@ import PrintPopup from "@/components/PrintPopup.vue";
 import NumberPickerDialog from "@/components/NumberPickerDialog.vue";
 import { api } from "@/lib/api";
 import { formatRp, number, orderNo, orderTypeLabel, splitName, optionsText, PAYMENT_LABELS, PAYMENT_METHODS, BANK_ACCOUNT } from "@/lib/format";
-import { printBillTwice } from "@/lib/receipt";
+import { printBillCopy } from "@/lib/receipt";
 import { useOrderStore } from "@/stores/order";
 import { useUiStore } from "@/stores/ui";
 
@@ -123,14 +123,23 @@ function afterNumber(table) {
   openPrint();
 }
 
+// Cetak struk per pencetan: pertama untuk pelanggan, kedua untuk dapur
+const printCount = ref(0);
+const printLabel = computed(() =>
+  printCount.value === 0 ? "Cetak struk pelanggan" : printCount.value === 1 ? "Cetak struk dapur" : "Cetak ulang struk"
+);
+function printNext() {
+  printBillCopy(printData.value, printCount.value % 2 === 0 ? "PELANGGAN" : "DAPUR");
+  printCount.value += 1;
+}
+
 async function openPrint() {
   showPrint.value = true;
   printLoading.value = true;
   printError.value = "";
   try {
     printData.value = (await api(`/bills/${paidId.value}`)).data;
-    // Langsung cetak 2 rangkap (pelanggan + dapur), kasir tidak perlu menekan tombol lagi
-    printBillTwice(printData.value);
+    printCount.value = 0;
   } catch (e) {
     printError.value = e.message;
   } finally {
@@ -271,7 +280,10 @@ function closePrint(open) {
       :loading="printLoading"
       :error="printError"
       @update:open="closePrint"
-      @print-bill="printBillTwice(printData)"
+      description="Pencet 2x: struk pertama untuk pelanggan, struk kedua untuk dapur."
+      :reprint-label="printLabel"
+      :printed="printCount"
+      @print-bill="printNext"
     />
     <NumberPickerDialog :open="showNumber" :bill-id="paidId" @picked="afterNumber" @skip="afterNumber(null)" />
   </div>

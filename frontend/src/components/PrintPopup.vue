@@ -11,7 +11,8 @@ defineProps({
   error: { type: String, default: "" },
   title: { type: String, default: "Pembayaran tercatat" },
   description: { type: String, default: "Struk dicetak 2 rangkap: untuk pelanggan dan untuk dapur." },
-  reprintLabel: { type: String, default: "Cetak ulang struk (2x)" },
+  reprintLabel: { type: String, default: "Cetak struk" },
+  printed: { type: Number, default: -1 }, // jumlah struk yang sudah dicetak (-1 = tidak ditampilkan)
 });
 
 const emit = defineEmits(["update:open", "printBill"]);
@@ -63,8 +64,16 @@ const emit = defineEmits(["update:open", "printBill"]);
         </div>
 
         <div class="grid gap-3">
-          <Button variant="secondary" class="h-12 rounded-xl text-base" @click="emit('printBill')"><Printer /> {{ reprintLabel }}</Button>
-          <Button class="h-12 rounded-xl text-base" @click="emit('update:open', false)">Selesai</Button>
+          <!-- Sebelum 2 struk tercetak, tombol cetak jadi aksi utama -->
+          <Button
+            :variant="printed >= 0 && printed < 2 ? 'default' : 'secondary'"
+            class="h-12 rounded-xl text-base"
+            @click="emit('printBill')"
+          >
+            <Printer /> {{ reprintLabel }}
+            <span v-if="printed >= 0 && printed < 2" class="tabular ml-1 opacity-80">({{ printed + 1 }}/2)</span>
+          </Button>
+          <Button :variant="printed >= 0 && printed < 2 ? 'secondary' : 'default'" class="h-12 rounded-xl text-base" @click="emit('update:open', false)">Selesai</Button>
         </div>
       </template>
     </DialogContent>
