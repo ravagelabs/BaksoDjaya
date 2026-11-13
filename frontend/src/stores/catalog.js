@@ -6,6 +6,9 @@ const isPaket = (p) => p.name.startsWith("PAKET ");
 const paketBase = (name) => name.split(" - ")[0]; // "PAKET SIJI - BAKSO BULAT + MIE" -> "PAKET SIJI"
 const PAKET_RE = /^(PAKET .+) - BAKSO (.+) \+ (.+)$/;
 
+// Database mengirim harga sebagai teks ("5000.00"): ubah ke angka supaya tambahan harga ikut terjumlah
+const normalize = (p) => ({ ...p, price: Number(p.price) || 0, hpp: Number(p.hpp) || 0 });
+
 // Menu, kategori, paket, dan modifier (pilihan + tambahan)
 export const useCatalogStore = defineStore("catalog", () => {
   const products = ref([]);
@@ -20,8 +23,8 @@ export const useCatalogStore = defineStore("catalog", () => {
     error.value = "";
     try {
       const [p, m] = await Promise.all([api("/products"), api("/modifiers")]);
-      products.value = p;
-      modifiers.value = m.data ?? [];
+      products.value = p.map(normalize);
+      modifiers.value = (m.data ?? []).map((x) => ({ ...x, price: Number(x.price) || 0 }));
       loaded.value = true;
     } catch (e) {
       error.value = e.message;
@@ -119,6 +122,7 @@ export const useCatalogStore = defineStore("catalog", () => {
 
   // Menyisipkan menu baru atau mengganti data menu yang sudah ada
   function upsert(product) {
+    product = normalize(product);
     const i = products.value.findIndex((p) => p.id === product.id);
     if (i === -1) products.value.push(product);
     else products.value[i] = product;

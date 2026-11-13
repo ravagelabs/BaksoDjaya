@@ -143,7 +143,7 @@ export const useOrderStore = defineStore("order", () => {
           key,
           product_id: i.product_id,
           name: i.name,
-          price: i.price,
+          price: Number(i.price) || 0,
           qty: i.qty,
           note: i.note,
           options,
