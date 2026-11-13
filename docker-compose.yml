@@ -14,3 +14,9 @@ services:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
       PROD_URL: ${PROD_URL}
+    volumes:
+      # Foto menu yang di-upload dari aplikasi; harus permanen supaya tidak hilang saat deploy ulang
+      - menu_uploads:/app/uploads
+
+volumes:
+  menu_uploads:
