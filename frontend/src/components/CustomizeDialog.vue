@@ -92,6 +92,10 @@ const selectedOptions = computed(() => {
 const unitPrice = computed(
   () => (targetProduct.value?.price ?? 0) + selectedOptions.value.reduce((s, o) => s + o.price, 0)
 );
+// Menu gabungan: foto dan nama di kiri ikut jenis yang dipilih (Mie -> foto mie, Kwetiau -> foto kwetiau)
+const shownPicture = computed(() => (isVariant.value ? targetProduct.value?.picture || props.product.picture : props.product.picture));
+const shownName = computed(() => titleCase(isVariant.value && targetProduct.value ? targetProduct.value.name : props.product?.name ?? ""));
+
 const available = computed(() => Boolean(targetProduct.value?.is_available));
 
 function toggleExtra(name) {
@@ -121,10 +125,10 @@ const choiceClass = (selected) =>
         <!-- Kiri: foto dan info menu -->
         <section class="flex flex-col self-start rounded-2xl bg-[#f7f5f1] p-3">
           <div class="overflow-hidden rounded-xl bg-[#f6efe7]">
-            <MenuImage :src="product.picture" :name="titleCase(product.name)" :lazy="false" />
+            <MenuImage :key="shownPicture" :src="shownPicture" :name="shownName" :lazy="false" />
           </div>
           <div class="flex flex-col px-2 pt-3 pb-1">
-            <h2 class="text-xl font-bold leading-tight">{{ titleCase(product.name) }}</h2>
+            <h2 class="text-xl font-bold leading-tight">{{ shownName }}</h2>
             <p v-if="product.description" class="mt-1.5 text-sm text-muted-foreground">{{ product.description }}</p>
             <span class="tabular mt-3 inline-flex w-fit rounded-full bg-secondary px-3 py-1 text-sm font-semibold text-primary">
               {{ formatRp(targetProduct?.price ?? product.price) }}

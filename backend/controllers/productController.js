@@ -1,6 +1,6 @@
 import db from "../db/db.js";
 
-const COLUMNS = 'id, name, price, picture, category, description, hpp, is_available, variant_group';
+const COLUMNS = 'id, name, price, picture, category, description, hpp, is_available, variant_group, group_picture';
 
 export const getProducts = async () => {
     try {
@@ -66,7 +66,8 @@ export const updateProduct = async (id, input) => {
             description = CASE WHEN $7::boolean THEN $8 ELSE description END,
             picture = COALESCE($9, picture),
             is_available = COALESCE($10, is_available),
-            variant_group = CASE WHEN $11::boolean THEN $12 ELSE variant_group END
+            variant_group = CASE WHEN $11::boolean THEN $12 ELSE variant_group END,
+            group_picture = CASE WHEN $13::boolean THEN $14 ELSE group_picture END
         WHERE id = $1
         RETURNING ${COLUMNS};
     `;
@@ -84,6 +85,8 @@ export const updateProduct = async (id, input) => {
         typeof input.is_available === 'boolean' ? input.is_available : null,
         input.variant_group !== undefined,
         text(input.variant_group) || null,
+        input.group_picture !== undefined,
+        text(input.group_picture) || null,
     ]);
 
     if (!product) throw new Error(`Product #${id} not found.`);

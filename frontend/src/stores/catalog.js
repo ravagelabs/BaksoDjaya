@@ -49,10 +49,22 @@ export const useCatalogStore = defineStore("catalog", () => {
           card.is_available = card.is_available || p.is_available;
           card.price = Math.min(card.price, p.price);
           card.priceVaries = card.variants.some((v) => v.price !== card.variants[0].price);
-          if (!card.picture && p.picture) card.picture = p.picture;
+          if (p.group_picture && !card.hasGroupPicture) {
+            card.picture = p.group_picture;
+            card.hasGroupPicture = true;
+          } else if (!card.picture && p.picture) card.picture = p.picture;
           continue;
         }
-        const entry = { ...p, name: p.variant_group, isPaket: false, isVariant: true, variants: [p], priceVaries: false };
+        const entry = {
+          ...p,
+          name: p.variant_group,
+          picture: p.group_picture || p.picture,
+          hasGroupPicture: Boolean(p.group_picture),
+          isPaket: false,
+          isVariant: true,
+          variants: [p],
+          priceVaries: false,
+        };
         variantCards.set(p.variant_group, entry);
         result.push(entry);
         continue;
