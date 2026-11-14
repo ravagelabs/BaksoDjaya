@@ -186,7 +186,7 @@ function exportPdf() {
         ],
       },
     ];
-    doc.note = "Kas = Kas (tunai) + Bank + Saldo QRIS. Pemindahan antar akun kas tidak dihitung sebagai arus kas.";
+    doc.note = "Kas = Kas (tunai) + Petty cash + Bank BCA. Pemindahan antar akun kas tidak dihitung sebagai arus kas.";
   } else if (tab.value === "assets") {
     doc.sections = [
       { heading: "Nilai aset tetap per jenis", rows: [...d.byAccount.map((a) => ({ label: `${a.code}  ${a.name}`, value: a.amount, indent: 1 })), { label: "Total aset tetap", value: d.total, grand: true }] },
@@ -245,7 +245,7 @@ const journalTotals = computed(() => {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto overscroll-contain px-4 py-5 md:px-8 md:py-7">
+  <div class="h-full overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-5 md:px-8 md:py-7">
     <div class="flex items-start justify-between gap-3">
       <div class="min-w-0">
         <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Keuangan</h1>
@@ -297,7 +297,7 @@ const journalTotals = computed(() => {
     </form>
 
     <!-- Kertas laporan -->
-    <article class="mt-5 rounded-[20px] border p-5 md:p-8" :class="loading ? 'opacity-60' : ''">
+    <article class="mt-5 min-w-0 rounded-[20px] border p-4 md:p-8" :class="loading ? 'opacity-60' : ''">
       <header class="flex flex-wrap items-end justify-between gap-2 border-b-2 border-foreground pb-3">
         <div>
           <h2 class="text-2xl font-bold">{{ current.title }}</h2>
@@ -332,12 +332,12 @@ const journalTotals = computed(() => {
       </div>
 
       <!-- Neraca -->
-      <div v-else-if="tab === 'bs'" class="mt-4">
+      <div v-else-if="tab === 'bs'" class="mt-4 min-w-0">
         <p class="flex items-center gap-2 text-sm font-medium" :class="data.balanced ? 'text-success' : 'text-destructive'">
           <CheckCircle2 v-if="data.balanced" class="size-4" /><TriangleAlert v-else class="size-4" />
           {{ data.balanced ? "Seimbang: Aset = Kewajiban + Ekuitas" : "Tidak seimbang, periksa jurnal" }}
         </p>
-        <div class="tabular mt-3 grid gap-6 text-[15px] lg:grid-cols-2">
+        <div class="tabular mt-3 grid gap-6 text-[15px] lg:grid-cols-2 [&>*]:min-w-0">
           <section>
             <p class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Aset</p>
             <div v-for="r in data.assets" :key="r.code" class="flex justify-between py-1 pl-4"><span>{{ r.code }} {{ r.name }}</span><span>{{ money(r.amount) }}</span></div>
@@ -360,21 +360,33 @@ const journalTotals = computed(() => {
       </div>
 
       <!-- Kas & Bank -->
-      <div v-else-if="tab === 'cash'" class="mt-4 grid gap-6">
+      <div v-else-if="tab === 'cash'" class="mt-4 grid min-w-0 gap-6 [&>*]:min-w-0">
         <div class="flex flex-wrap gap-2">
-          <Button variant="secondary" class="h-11 rounded-xl px-4" @click="ui.quickAction = 'kasbank'"><Landmark class="size-4" /> Tambah kas / bank</Button>
-          <Button variant="secondary" class="h-11 rounded-xl px-4" @click="ui.quickAction = 'transfer'"><ArrowLeftRight class="size-4" /> Transfer antar kas</Button>
+          <Button variant="secondary" class="h-11 flex-1 rounded-xl px-3 sm:flex-none sm:px-4" @click="ui.quickAction = 'kasbank'"><Landmark class="size-4" /> Tambah kas / bank</Button>
+          <Button variant="secondary" class="h-11 flex-1 rounded-xl px-3 sm:flex-none sm:px-4" @click="ui.quickAction = 'transfer'"><ArrowLeftRight class="size-4" /> Transfer</Button>
         </div>
-        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          <div v-for="a in data.accounts" :key="a.code" class="rounded-xl bg-muted/60 p-4">
-            <p class="text-sm text-muted-foreground">{{ a.name }}</p>
-            <p class="tabular mt-1 text-2xl font-bold">{{ money(a.closing) }}</p>
+        <div class="grid grid-cols-2 gap-2 sm:gap-3 xl:grid-cols-3">
+          <div v-for="a in data.accounts" :key="a.code" class="min-w-0 rounded-xl bg-muted/60 p-3 sm:p-4">
+            <p class="truncate text-sm text-muted-foreground">{{ a.name }}</p>
+            <p class="tabular mt-1 text-xl font-bold sm:text-2xl">{{ money(a.closing) }}</p>
             <p class="tabular mt-1 text-xs text-muted-foreground">Awal {{ money(a.opening) }} · Masuk {{ money(a.totalIn) }} · Keluar {{ money(a.totalOut) }}</p>
           </div>
         </div>
         <section v-for="a in data.accounts" :key="a.code">
           <h3 class="text-lg font-semibold">{{ a.code }} {{ a.name }}</h3>
-          <div class="mt-2 overflow-x-auto">
+          <!-- HP: daftar ringkas -->
+          <ul class="tabular mt-2 divide-y rounded-xl border text-[15px] md:hidden">
+            <li class="flex justify-between gap-3 px-3 py-2.5 text-muted-foreground"><span>Saldo awal</span><span>{{ money(a.opening) }}</span></li>
+            <li v-for="(r, i) in a.rows" :key="i" class="flex items-start justify-between gap-3 px-3 py-2.5">
+              <span class="min-w-0">
+                <span class="block">{{ r.description }}</span>
+                <span class="block text-xs text-muted-foreground">{{ shortDay(r.date) }} · {{ r.ref }}</span>
+              </span>
+              <span class="shrink-0 font-semibold" :class="r.in ? 'text-success' : 'text-destructive'">{{ r.in ? "+" + money(r.in) : "−" + money(r.out) }}</span>
+            </li>
+            <li class="flex justify-between gap-3 px-3 py-2.5 font-semibold"><span>Saldo akhir</span><span>{{ money(a.closing) }}</span></li>
+          </ul>
+          <div class="mt-2 hidden overflow-x-auto md:block">
             <table class="tabular w-full min-w-[640px] text-[14px]">
               <thead>
                 <tr class="border-b-2 border-foreground text-left text-xs uppercase tracking-wide text-muted-foreground">
@@ -420,7 +432,7 @@ const journalTotals = computed(() => {
         <div class="mt-3 flex justify-between py-1 font-semibold"><span>Kenaikan (penurunan) kas bersih</span><span>{{ money(data.net) }}</span></div>
         <div class="flex justify-between py-1"><span>Saldo kas awal periode</span><span>{{ money(data.opening) }}</span></div>
         <div class="flex justify-between border-y-2 border-foreground py-2 text-lg font-bold"><span>Saldo kas akhir periode</span><span>{{ money(data.closing) }}</span></div>
-        <p class="mt-3 text-sm text-muted-foreground">Kas = Kas (tunai) + Bank + Saldo QRIS. Pemindahan antar akun kas tidak dihitung.</p>
+        <p class="mt-3 text-sm text-muted-foreground">Kas = Kas (tunai) + Petty cash + Bank BCA. Pemindahan antar akun kas tidak dihitung.</p>
       </div>
 
       <!-- Aset -->

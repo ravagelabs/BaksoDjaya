@@ -3,6 +3,7 @@ import { ref, computed, watch, watchEffect, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ArrowLeftRight, BookOpen, ChevronDown, History, Landmark, LogOut, Package, Plus, Receipt, Undo2, UserPlus, UtensilsCrossed } from "@lucide/vue";
 import QuickActions from "@/components/QuickActions.vue";
+import ShortcutMenu from "@/components/ShortcutMenu.vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLive } from "@/lib/live";
@@ -321,27 +322,8 @@ async function confirmLogout({ print = false } = {}) {
       </DialogContent>
     </Dialog>
 
-    <!-- Aksi cepat (akun utama): tombol bulat di pojok kanan bawah. Disembunyikan di Kasir/Pembayaran supaya tidak menutupi tombol Bayar. -->
-    <DropdownMenu v-if="isManager && showFab">
-      <DropdownMenuTrigger
-        class="fixed right-[calc(1.25rem+env(safe-area-inset-right))] bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-50 flex size-14 items-center justify-center rounded-full bg-cta text-white shadow-lg shadow-black/25 outline-none transition-transform hover:bg-cta-hover active:scale-95 focus-visible:ring-4 focus-visible:ring-cta/40 md:right-8 md:bottom-8"
-        aria-label="Tambah cepat"
-      >
-        <Plus class="size-7" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side="top" :side-offset="10" class="w-60">
-        <DropdownMenuLabel class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Keuangan</DropdownMenuLabel>
-        <DropdownMenuItem @select="ui.quickAction = 'biaya'"><Receipt /> Catat biaya</DropdownMenuItem>
-        <DropdownMenuItem @select="ui.quickAction = 'transfer'"><ArrowLeftRight /> Transfer kas & bank</DropdownMenuItem>
-        <DropdownMenuItem @select="ui.quickAction = 'aset'"><Package /> Tambah aset</DropdownMenuItem>
-        <DropdownMenuItem @select="ui.quickAction = 'kasbank'"><Landmark /> Tambah kas / bank</DropdownMenuItem>
-        <DropdownMenuItem @select="ui.quickAction = 'jurnal'"><BookOpen /> Catat jurnal</DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel class="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Toko</DropdownMenuLabel>
-        <DropdownMenuItem @select="router.push({ path: '/pengaturan', query: { bagian: 'menu', aksi: 'tambah' } })"><UtensilsCrossed /> Tambah menu</DropdownMenuItem>
-        <DropdownMenuItem @select="router.push({ path: '/pengaturan', query: { bagian: 'akun', aksi: 'tambah' } })"><UserPlus /> Tambah akun karyawan</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <!-- Shortcut (akun utama): ikon R di pojok kanan bawah, isinya bisa diatur. Disembunyikan di Kasir/Pembayaran supaya tidak menutupi tombol Bayar. -->
+    <ShortcutMenu v-if="isManager && showFab" />
 
     <QuickActions v-if="isManager" />
     <ToastHost />

@@ -19,7 +19,7 @@ const EXPENSE_ACCOUNT = {
 };
 // Metode bayar → akun penerimaan
 const PAYMENT_ACCOUNT = {
-    cash: '1-1100', transfer: '1-1200', card: '1-1200', qris: '1-1300', gofood: '1-1400', grabfood: '1-1500',
+    cash: '1-1100', transfer: '1-1200', card: '1-1200', qris: '1-1200', gofood: '1-1400', grabfood: '1-1500',
 };
 const PAYMENT_NAME = { cash: 'tunai', transfer: 'transfer', card: 'kartu', qris: 'QRIS', gofood: 'GoFood', grabfood: 'GrabFood' };
 
@@ -169,11 +169,13 @@ export async function getFinanceReport(type, from, to) {
 
     if (type === 'cash') {
         // Kas & bank: saldo awal, mutasi, saldo akhir per akun kas
+        // Modal pembukaan (jurnal "saldo awal") dihitung sebagai saldo Awal, bukan uang Masuk
+        const isOpening = (e) => before(e) || (e.kind === 'saldo_awal' && inRange(e));
         const accounts = ACCOUNTS.filter((a) => a.cash).map((a) => {
-            const opening = all.filter(before).reduce((s, e) => s + e.lines.filter((l) => l.account === a.code).reduce((x, l) => x + l.debit - l.credit, 0), 0);
+            const opening = all.filter(isOpening).reduce((s, e) => s + e.lines.filter((l) => l.account === a.code).reduce((x, l) => x + l.debit - l.credit, 0), 0);
             let running = opening;
             const rows = [];
-            for (const e of all.filter(inRange)) {
+            for (const e of all.filter((x) => inRange(x) && !isOpening(x))) {
                 for (const l of e.lines.filter((x) => x.account === a.code)) {
                     running += l.debit - l.credit;
                     rows.push({ date: e.date, ref: e.ref, description: e.description, in: l.debit, out: l.credit, balance: running });

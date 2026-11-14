@@ -60,7 +60,6 @@ function done(message) {
 const f = ref({});
 const JOURNAL_TEMPLATES = [
   { key: "modal", label: "Setor modal", description: "Setoran modal pemilik", debit: "1-1100", credit: "3-1100" },
-  { key: "qris", label: "Pencairan QRIS", description: "Pencairan saldo QRIS ke bank", debit: "1-1200", credit: "1-1300" },
   { key: "gofood", label: "Pencairan GoFood", description: "Pencairan GoFood ke bank", debit: "1-1200", credit: "1-1400" },
   { key: "grabfood", label: "Pencairan GrabFood", description: "Pencairan GrabFood ke bank", debit: "1-1200", credit: "1-1500" },
   { key: "prive", label: "Prive / ambil uang pemilik", description: "Penarikan oleh pemilik", debit: "3-1200", credit: "1-1100" },
