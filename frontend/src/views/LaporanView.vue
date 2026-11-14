@@ -52,6 +52,7 @@ const rangeLabel = computed(() => {
 const report = ref(null);
 const expenses = ref([]);
 const categories = ref([]);
+const cashAccounts = ref([]); // saldo Kas & Bank (akun utama saja)
 const loading = ref(false);
 const error = ref("");
 
@@ -68,6 +69,10 @@ async function load() {
     report.value = r.data;
     expenses.value = e.data;
     categories.value = e.categories ?? [];
+    // Saldo kas & bank sampai akhir periode (laporan keuangan hanya untuk akun utama)
+    api(`/finance/report?type=cash&${q}`)
+      .then((c) => (cashAccounts.value = c.data.accounts))
+      .catch(() => (cashAccounts.value = []));
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -310,6 +315,27 @@ async function exportCsv() {
         {{ report.items_without_hpp }} menu yang terjual belum punya HPP, jadi laba terlihat lebih besar dari sebenarnya.
         Isi HPP di Pengaturan → Menu.
       </p>
+
+      <!-- Kas & Bank: saldo tiap akun di akhir periode -->
+      <section v-if="cashAccounts.length" class="mt-6">
+        <div class="flex items-baseline justify-between gap-3">
+          <h2 class="text-xl font-semibold md:text-2xl">Kas & Bank</h2>
+          <RouterLink to="/keuangan?laporan=cash" class="text-sm font-semibold text-primary">Lihat mutasi</RouterLink>
+        </div>
+        <div class="mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+          <div v-for="a in cashAccounts" :key="a.code" class="min-w-0 rounded-xl bg-muted/60 p-3 sm:p-4">
+            <p class="truncate text-sm text-muted-foreground">{{ a.name }}</p>
+            <p class="tabular mt-1 text-xl font-bold sm:text-2xl">{{ formatRp(a.closing) }}</p>
+            <p class="tabular mt-1 text-xs text-muted-foreground">
+              <span class="text-success">+{{ number.format(a.totalIn) }}</span> · <span class="text-destructive">−{{ number.format(a.totalOut) }}</span>
+            </p>
+          </div>
+          <div class="min-w-0 rounded-xl bg-primary p-3 text-primary-foreground sm:p-4">
+            <p class="text-sm opacity-70">Total kas & bank</p>
+            <p class="tabular mt-1 text-xl font-bold sm:text-2xl">{{ formatRp(cashAccounts.reduce((t, a) => t + a.closing, 0)) }}</p>
+          </div>
+        </div>
+      </section>
 
       <div class="mt-6 grid gap-5 lg:grid-cols-2">
         <!-- Laba rugi -->

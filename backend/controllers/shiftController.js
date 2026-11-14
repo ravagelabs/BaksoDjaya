@@ -20,16 +20,16 @@ const SUMMARY = (from, to) => `
 // Modal awal kasir (uang receh di laci) untuk shift baru
 export const OPENING_CASH = 300000;
 
-// Uang keluar dari Kas (tunai) pada tanggal shift (zona Asia/Jakarta):
+// Uang keluar dari laci (Kas tunai + Petty cash, akun 1-11xx) pada tanggal shift (zona Asia/Jakarta):
 // biaya dibayar dari kas + jurnal yang mengurangi kas (mis. transfer kas -> QRIS untuk kembalian),
 // dikurangi jurnal yang menambah kas. Saldo awal (modal pembukaan) tidak dihitung karena sudah jadi modal awal.
 const CASH_EXPENSE = (from, to) => `
     SELECT (
         COALESCE((SELECT SUM(e.amount) FROM expense e
-                  WHERE e.paid_from = '1-1100'
+                  WHERE e.paid_from LIKE '1-11%'
                     AND e.spent_on BETWEEN (${from} AT TIME ZONE 'Asia/Jakarta')::date AND (${to} AT TIME ZONE 'Asia/Jakarta')::date), 0)
       + COALESCE((SELECT SUM(l.credit - l.debit) FROM journal_line l JOIN journal_entry j ON j.id = l.entry_id
-                  WHERE l.account_code = '1-1100' AND j.kind <> 'saldo_awal'
+                  WHERE l.account_code LIKE '1-11%' AND j.kind <> 'saldo_awal'
                     AND j.entry_date BETWEEN (${from} AT TIME ZONE 'Asia/Jakarta')::date AND (${to} AT TIME ZONE 'Asia/Jakarta')::date), 0)
     )::float AS cash_expense`;
 
