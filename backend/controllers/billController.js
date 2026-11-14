@@ -99,13 +99,16 @@ export const getBills = async (billId = null, status = null, from = null, to = f
     return await db.any(query, [billId, status, from, to]);
 };
 
-// Antrean dapur: semua bill yang sudah dikirim dan belum disajikan, terlama di atas
+// Dapur: tidak ada tombol "selesai" lagi. Pesanan otomatis dianggap selesai begitu struk jadi;
+// halaman Dapur hanya menampilkan pesanan masuk 3 jam terakhir (terbaru di atas) untuk dilihat.
 export const getKitchenQueue = async () => {
     const query = `
         ${BILL_SELECT}
-        WHERE b.kitchen_status IN ('new', 'cooking', 'ready')
+        WHERE b.kitchen_status IS NOT NULL
+          AND b.status IN ('pending', 'paid')
+          AND b.sent_to_kitchen_at >= now() - interval '3 hours'
         GROUP BY b.id, u.id, c.id, t.id
-        ORDER BY b.sent_to_kitchen_at ASC NULLS LAST, b.id ASC;
+        ORDER BY b.sent_to_kitchen_at DESC NULLS LAST, b.id DESC;
     `;
 
     return await db.any(query);
@@ -163,7 +166,7 @@ export const setKitchenStatus = async (billId, kitchenStatus) => {
 // Masuk antrean dapur hanya sekali; bill yang sudah di dapur tidak di-reset statusnya
 const SEND_TO_KITCHEN_SQL = `
     UPDATE bill
-    SET kitchen_status = 'cooking', sent_to_kitchen_at = now()
+    SET kitchen_status = 'served', sent_to_kitchen_at = now()
     WHERE id = $1 AND kitchen_status IS NULL;
 `;
 
@@ -199,7 +202,7 @@ export const addBill = async (fields, billItems, { sendToKitchen = false } = {})
 
         return {
             ...bill,
-            kitchen_status: sendToKitchen ? 'cooking' : bill.kitchen_status,
+            kitchen_status: sendToKitchen ? 'served' : bill.kitchen_status,
             items: createdItems
         };
     });
@@ -252,7 +255,7 @@ export const saveBill = async (billId, fields, billItems, { sendToKitchen = fals
 
         return {
             ...bill,
-            kitchen_status: sendToKitchen && !bill.kitchen_status ? 'cooking' : bill.kitchen_status,
+            kitchen_status: sendToKitchen && !bill.kitchen_status ? 'served' : bill.kitchen_status,
             items: updatedItems
         };
     });
@@ -284,7 +287,7 @@ export const finalizeBill = async (billId, fields, paymentMethod, billItems) => 
                 guests = $7,
                 note = $8,
                 paid_at = now(),
-                kitchen_status = COALESCE(kitchen_status, 'cooking'),
+                kitchen_status = COALESCE(kitchen_status, 'served'),
                 sent_to_kitchen_at = COALESCE(sent_to_kitchen_at, now())
             WHERE id = $9 AND status = 'pending'
             RETURNING id, customer_id, employee_id, grand_total, status, payment_method, created_at,

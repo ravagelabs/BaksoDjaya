@@ -95,10 +95,10 @@ const tables = ref([]);
 
 async function refreshBadges() {
   try {
-    const [k, t] = await Promise.all([api("/bills/kitchen"), api("/tables")]);
+    const t = await api("/tables");
     tables.value = t.data;
     badges.value = {
-      "/dapur": k.data.filter((b) => b.kitchen_status === "new" || b.kitchen_status === "cooking").length,
+      "/dapur": 0, // dapur tidak perlu ditekan apa-apa, jadi tanpa angka merah
       "/meja": t.data.filter((x) => x.status !== "available").length,
     };
   } catch {

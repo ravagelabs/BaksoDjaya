@@ -1,14 +1,14 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { AlarmClock, X } from "@lucide/vue";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { X } from "@lucide/vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import { useLive } from "@/lib/live";
 import { api } from "@/lib/api";
 import { minutesSince, orderNo, orderTypeLabel, splitName, optionsText } from "@/lib/format";
 import { useUiStore } from "@/stores/ui";
 
+// Dapur tanpa tombol: pesanan otomatis dianggap selesai begitu struk jadi.
+// Halaman ini hanya daftar pesanan masuk 3 jam terakhir (terbaru di atas) untuk dilihat dapur.
 const ui = useUiStore();
 const isOwner = computed(() => ui.user?.role === "owner"); // hanya akun utama yang bisa batalkan pesanan
 
@@ -16,7 +16,7 @@ const bills = ref([]);
 const loading = ref(true);
 const online = ref(true);
 const now = ref(Date.now());
-const busy = ref(null); // id bill yang sedang diperbarui
+const busy = ref(null);
 const fresh = ref(new Set()); // pesanan yang baru masuk, disorot beberapa detik
 
 function highlight(id) {
@@ -25,24 +25,13 @@ function highlight(id) {
     const next = new Set(fresh.value);
     next.delete(id);
     fresh.value = next;
-  }, 6000);
+  }, 8000);
 }
 
-// Update realtime dari backend: pesanan baru langsung muncul tanpa menunggu polling
 const { connected } = useLive(async (type, data) => {
   await load();
-  if (type === "kitchen:new") {
-    if (data.billId) highlight(data.billId);
-    const b = bills.value.find((x) => x.billId === data.billId);
-    ui.toast(b ? `Pesanan baru: ${label(b)}` : "Pesanan baru masuk");
-  }
+  if (type === "kitchen:new" && data.billId) highlight(data.billId);
 });
-
-const COLUMNS = [
-  // Pesanan langsung "Dimasak" begitu struk jadi (tidak ada tahap "Mulai masak")
-  { key: "cooking", title: "Dimasak", action: "Selesai · siap diambil", next: "ready", time: "text-[#8a5a12]", primary: true },
-  { key: "ready", title: "Siap diambil", action: "Sudah diambil · nomor kembali", next: "served", time: "text-success", primary: false },
-];
 
 async function load() {
   try {
@@ -61,67 +50,24 @@ onMounted(() => {
   timer = setInterval(() => {
     now.value = Date.now();
     load();
-  }, 10000);
+  }, 15000);
 });
 onUnmounted(() => clearInterval(timer));
 
-const byStatus = computed(() => {
-  const groups = { cooking: [], ready: [] };
-  for (const b of bills.value) groups[b.kitchen_status === "new" ? "cooking" : b.kitchen_status]?.push(b);
-  return groups;
-});
-
 const label = (b) => (b.table_code ? `No. ${b.table_code}` : `${orderTypeLabel(b.order_type)} ${orderNo(b.billId)}`);
+const clock = (t) => new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit" }).format(new Date(t));
 
-// Catatan pelanggan: catatan pesanan + catatan per item
 function notes(b) {
   const list = [];
   if (b.note) list.push(b.note);
   for (const i of b.billItems) if (i.note) list.push(`${splitName(i.name).title}: ${i.note}`);
   return list;
 }
-
 function itemDetail(i) {
   return [splitName(i.name).detail, optionsText(i.options)].filter(Boolean).join(" · ");
 }
 
-async function advance(b, next) {
-  busy.value = b.billId;
-  try {
-    await api(`/bills/${b.billId}/kitchen`, { method: "PATCH", body: { kitchenStatus: next } });
-    b.kitchen_status = next; // langsung pindah kolom, sinkron lagi di polling berikutnya
-    if (next === "served") bills.value = bills.value.filter((x) => x.billId !== b.billId);
-  } catch (e) {
-    ui.toast(e.message, "error");
-  } finally {
-    busy.value = null;
-  }
-}
-
-// ---- Batas waktu: pesanan maksimal 15 menit dari masuk dapur sampai siap ----
-const MAX_MINUTES = 15;
-const isLate = (b) =>
-  (b.kitchen_status === "new" || b.kitchen_status === "cooking") && minutesSince(b.sent_to_kitchen_at, now.value) >= MAX_MINUTES;
-const lateBills = computed(() => bills.value.filter(isLate));
-
-// Popup muncul sekali per pesanan yang baru lewat 15 menit
-const alerted = ref(new Set());
-const showLate = ref(false);
-const lateToShow = ref([]);
-watch(lateBills, (list) => {
-  const fresh = list.filter((b) => !alerted.value.has(b.billId));
-  if (!fresh.length) return;
-  lateToShow.value = list;
-  showLate.value = true;
-});
-function ackLate() {
-  const next = new Set(alerted.value);
-  for (const b of lateBills.value) next.add(b.billId);
-  alerted.value = next;
-  showLate.value = false;
-}
-
-// ---- Batalkan pesanan (hanya akun utama). Nomor pager otomatis kembali tersedia. ----
+// ---- Batalkan pesanan (hanya akun utama) ----
 const cancelTarget = ref(null);
 async function cancelOrder() {
   const b = cancelTarget.value;
@@ -141,130 +87,73 @@ async function cancelOrder() {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto overscroll-contain px-8 py-7">
+  <div class="h-full overflow-y-auto overscroll-contain px-5 py-6 md:px-8 md:py-7">
     <div class="flex items-start justify-between gap-4">
       <div>
-        <h1 class="text-[32px] font-bold leading-tight">Antrean dapur</h1>
-        <p class="mt-1 text-[15px] text-muted-foreground">
-          {{ bills.length }} pesanan aktif · Urutan berdasarkan waktu masuk
-        </p>
+        <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Pesanan masuk</h1>
+        <p class="mt-1 text-[15px] text-muted-foreground">3 jam terakhir · terbaru di atas · tidak perlu ditekan apa-apa</p>
       </div>
-      <div class="flex items-center gap-2">
-        <span
-          class="flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold"
-          :class="connected && online ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'"
-          role="status"
-        >
-          <span class="size-2 rounded-full" :class="connected && online ? 'animate-pulse bg-success' : 'bg-warning'" />
-          {{ connected && online ? "Live" : online ? "Menyambung ulang..." : "Belum sinkron" }}
-        </span>
-      </div>
+      <span
+        class="flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-semibold"
+        :class="connected && online ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'"
+        role="status"
+      >
+        <span class="size-2 rounded-full" :class="connected && online ? 'animate-pulse bg-success' : 'bg-warning'" />
+        {{ connected && online ? "Live" : online ? "Menyambung ulang..." : "Belum sinkron" }}
+      </span>
     </div>
 
-    <p v-if="loading" class="mt-8 text-[15px] text-muted-foreground">Memuat antrean...</p>
-    <div v-else class="mt-8 grid gap-8 lg:grid-cols-2">
-      <section v-for="col in COLUMNS" :key="col.key">
-        <div class="flex items-center justify-between">
-          <h2 class="text-2xl font-semibold">{{ col.title }}</h2>
-          <span class="tabular rounded-full bg-secondary px-4 py-1.5 text-sm font-semibold text-primary">
-            {{ byStatus[col.key].length }} pesanan
+    <p v-if="loading" class="mt-8 text-[15px] text-muted-foreground">Memuat...</p>
+    <p v-else-if="!bills.length" class="mt-8 rounded-[20px] border border-dashed px-6 py-12 text-center text-[15px] text-muted-foreground">
+      Belum ada pesanan dalam 3 jam terakhir.
+    </p>
+    <div v-else class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <article
+        v-for="b in bills"
+        :key="b.billId"
+        class="rounded-[20px] border bg-[#fbfaf8] p-5 transition-shadow duration-500"
+        :class="fresh.has(b.billId) ? 'border-cta shadow-[0_0_0_4px_rgb(217_72_15/0.16)]' : ''"
+      >
+        <header class="flex items-baseline justify-between gap-3">
+          <h3 class="flex items-center gap-2 text-xl font-semibold" :class="!b.table_code && b.order_type === 'pickup' ? 'text-cta' : ''">
+            {{ label(b) }}
+            <span v-if="fresh.has(b.billId)" class="rounded-full bg-cta px-2 py-0.5 text-xs font-semibold text-cta-foreground">Baru</span>
+          </h3>
+          <span class="tabular shrink-0 text-sm text-muted-foreground">
+            {{ clock(b.sent_to_kitchen_at) }} · {{ minutesSince(b.sent_to_kitchen_at, now) }} menit
           </span>
-        </div>
-
-        <p v-if="!byStatus[col.key].length" class="mt-5 rounded-[20px] border border-dashed px-6 py-10 text-center text-[15px] text-muted-foreground">
-          Kosong
+        </header>
+        <p v-if="b.table_code" class="mt-0.5 text-sm font-semibold" :class="b.order_type === 'pickup' ? 'text-cta' : 'text-muted-foreground'">
+          {{ orderTypeLabel(b.order_type) }} · Pesanan {{ orderNo(b.billId) }}
         </p>
 
-        <article
-          v-for="b in byStatus[col.key]"
-          :key="b.billId"
-          class="mt-5 rounded-[20px] border bg-[#fbfaf8] p-6 transition-shadow duration-500"
-          :class="isLate(b) ? 'border-destructive bg-destructive/5 shadow-[0_0_0_4px_rgb(220_38_38/0.12)]' : fresh.has(b.billId) ? 'border-cta shadow-[0_0_0_4px_rgb(217_72_15/0.16)]' : ''"
-        >
-          <header class="flex items-baseline justify-between">
-            <h3 class="flex items-center gap-2 text-2xl font-semibold">
-              {{ label(b) }}
-              <span v-if="fresh.has(b.billId)" class="rounded-full bg-cta px-2 py-0.5 text-xs font-semibold text-cta-foreground">Baru</span>
-            </h3>
-            <span
-              class="tabular flex items-center gap-1.5 text-[15px] font-medium"
-              :class="isLate(b) ? 'rounded-full bg-destructive px-2.5 py-0.5 font-semibold text-white' : col.time"
-            >
-              <AlarmClock v-if="isLate(b)" class="size-4" />{{ minutesSince(b.sent_to_kitchen_at, now) }} menit
-            </span>
-          </header>
-          <!-- Nomor pager + nomor pesanan selalu tampil berdua supaya tidak tertukar -->
-          <p v-if="b.table_code" class="tabular mt-0.5 text-sm text-muted-foreground">
-            Pesanan {{ orderNo(b.billId) }} · {{ orderTypeLabel(b.order_type) }}
-          </p>
-
-          <ul class="mt-4 flex flex-col gap-2">
-            <li v-for="i in b.billItems" :key="i.id">
-              <p class="text-xl" :class="i === b.billItems[0] ? 'font-semibold' : ''">
-                <span class="tabular mr-2">{{ i.qty }}x</span>{{ splitName(i.name).title }}
-              </p>
-              <p v-if="itemDetail(i)" class="ml-9 text-[15px] text-muted-foreground">{{ itemDetail(i) }}</p>
-            </li>
-          </ul>
-
-          <p
-            v-for="(n, idx) in notes(b)"
-            :key="idx"
-            class="mt-3 rounded-xl bg-warning-soft px-4 py-2.5 text-[15px] font-semibold text-warning"
-          >
-            Catatan: {{ n }}
-          </p>
-
-          <button
-            type="button"
-            class="mt-4 h-14 w-full rounded-xl px-7 text-left text-lg font-semibold transition-colors disabled:opacity-60"
-            :class="col.primary ? 'bg-cta text-cta-foreground hover:bg-cta-hover' : 'bg-muted text-foreground hover:bg-secondary'"
-            :disabled="busy === b.billId"
-            @click="advance(b, col.next)"
-          >
-            {{ busy === b.billId ? "Menyimpan..." : col.action }}
-          </button>
-          <button
-            v-if="isOwner"
-            type="button"
-            class="mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-            :disabled="busy === b.billId"
-            @click="cancelTarget = b"
-          >
-            <X class="size-4" /> Batalkan pesanan
-          </button>
-        </article>
-      </section>
-    </div>
-
-    <!-- Peringatan: pesanan lewat 15 menit -->
-    <Dialog :open="showLate" @update:open="!$event && ackLate()">
-      <DialogContent class="p-6 sm:max-w-md sm:p-8">
-        <DialogHeader>
-          <DialogTitle class="flex items-center gap-3 text-2xl font-bold text-destructive">
-            <AlarmClock class="size-7" /> Pesanan lewat {{ MAX_MINUTES }} menit
-          </DialogTitle>
-          <DialogDescription class="text-[15px]">Segera selesaikan pesanan berikut.</DialogDescription>
-        </DialogHeader>
-        <ul class="flex max-h-[45dvh] flex-col divide-y overflow-y-auto rounded-xl border">
-          <li v-for="b in lateToShow" :key="b.billId" class="flex items-center justify-between gap-3 px-4 py-3">
-            <span>
-              <span class="block text-lg font-semibold">{{ label(b) }}</span>
-              <span class="block text-sm text-muted-foreground">
-                Pesanan {{ orderNo(b.billId) }} · Dimasak
-              </span>
-            </span>
-            <span class="tabular shrink-0 font-semibold text-destructive">{{ minutesSince(b.sent_to_kitchen_at, now) }} menit</span>
+        <ul class="mt-3 flex flex-col gap-1.5">
+          <li v-for="i in b.billItems" :key="i.id">
+            <p class="text-lg font-semibold"><span class="tabular mr-2">{{ i.qty }}x</span>{{ splitName(i.name).title }}</p>
+            <p v-if="itemDetail(i)" class="ml-8 text-[15px] text-muted-foreground">{{ itemDetail(i) }}</p>
           </li>
         </ul>
-        <Button class="h-12 rounded-xl text-base" @click="ackLate">Oke, segera diproses</Button>
-      </DialogContent>
-    </Dialog>
+
+        <p v-for="(n, idx) in notes(b)" :key="idx" class="mt-3 rounded-xl bg-warning-soft px-4 py-2.5 text-[15px] font-semibold text-warning">
+          Catatan: {{ n }}
+        </p>
+
+        <button
+          v-if="isOwner"
+          type="button"
+          class="mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+          :disabled="busy === b.billId"
+          @click="cancelTarget = b"
+        >
+          <X class="size-4" /> Batalkan pesanan
+        </button>
+      </article>
+    </div>
 
     <ConfirmDialog
       :open="Boolean(cancelTarget)"
       :title="cancelTarget ? `Batalkan ${label(cancelTarget)}?` : ''"
-      :description="cancelTarget ? `Pesanan ${orderNo(cancelTarget.billId)} dihapus dari dapur dan tidak dihitung di penjualan. Nomor pager langsung tersedia lagi. Kalau sudah dibayar, kembalikan uang pelanggan.` : ''"
+      :description="cancelTarget ? `Pesanan ${orderNo(cancelTarget.billId)} tidak dihitung di penjualan. Nomor pager langsung tersedia lagi. Kalau sudah dibayar, kembalikan uang pelanggan.` : ''"
       confirm-label="Batalkan pesanan"
       @update:open="!$event && (cancelTarget = null)"
       @confirm="cancelOrder"
