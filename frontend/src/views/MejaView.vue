@@ -16,6 +16,7 @@ import { useLive } from "@/lib/live";
 // saat pelanggan mengembalikan pagernya.
 const order = useOrderStore();
 const ui = useUiStore();
+const isOwner = computed(() => ui.user?.role === "owner"); // hanya akun utama yang bisa batalkan pesanan
 const router = useRouter();
 const { confirmOpen, guard, proceed } = useSafeLoad();
 
@@ -108,7 +109,7 @@ async function returnNumber(table = selected.value) {
   }
 }
 
-// Batalkan pesanan (akun utama & admin): keluar dari dapur, nomor langsung tersedia lagi
+// Batalkan pesanan (hanya akun utama): keluar dari dapur, nomor langsung tersedia lagi
 const cancelTarget = ref(null);
 async function cancelOrder() {
   const t = cancelTarget.value;
@@ -264,7 +265,7 @@ function openInKasir() {
             Bayar pesanan ini
           </Button>
           <Button
-            v-if="selected.kitchen_status !== 'served'"
+            v-if="isOwner && selected.kitchen_status !== 'served'"
             variant="ghost"
             class="h-11 rounded-xl text-[15px] text-destructive hover:bg-destructive/10 hover:text-destructive"
             @click="cancelTarget = selected"

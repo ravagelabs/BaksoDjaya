@@ -56,8 +56,8 @@ const where = (b) =>
 const ui = useUiStore();
 const isOwner = computed(() => ui.user?.role === "owner");
 // Admin/karyawan: boleh batalkan pesanan yang belum selesai (belum dibayar atau masih di dapur)
-const canCancel = (b) =>
-  isOwner.value || b.status === "pending" || ["new", "cooking", "ready"].includes(b.kitchen_status);
+// Hanya akun utama yang bisa membatalkan / menghapus pesanan
+const canCancel = () => isOwner.value;
 const delBill = ref(null);
 
 async function deleteBill() {

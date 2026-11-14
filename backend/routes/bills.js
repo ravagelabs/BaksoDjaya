@@ -109,12 +109,14 @@ router.get('/:billId', async (req, res) => {
     }
 });
 
-// Hapus (batalkan) pesanan: hanya akun utama, dicek di index.js
+// Hapus (batalkan) pesanan: hanya akun utama
 router.delete('/:billId', async (req, res) => {
     const billId = Number(req.params.billId);
     if (!Number.isInteger(billId)) return res.status(400).json({ error: 'Data tidak valid.' });
+    // Hanya akun utama (owner) yang boleh membatalkan / menghapus pesanan
+    if (req.user?.role !== 'owner') return res.status(403).json({ error: 'Hanya akun utama yang bisa membatalkan pesanan.' });
     try {
-        const bill = await cancelBill(billId, req.user?.id ?? null, req.user?.role !== 'owner');
+        const bill = await cancelBill(billId, req.user?.id ?? null, false);
         publish('bill:changed', { billId: bill.id, kitchenStatus: null, status: bill.status });
         res.status(200).json({ message: 'Bill cancelled', data: bill });
     } catch (err) {

@@ -10,6 +10,7 @@ import { minutesSince, orderNo, orderTypeLabel, splitName, optionsText } from "@
 import { useUiStore } from "@/stores/ui";
 
 const ui = useUiStore();
+const isOwner = computed(() => ui.user?.role === "owner"); // hanya akun utama yang bisa batalkan pesanan
 
 const bills = ref([]);
 const loading = ref(true);
@@ -120,7 +121,7 @@ function ackLate() {
   showLate.value = false;
 }
 
-// ---- Batalkan pesanan (akun utama & admin). Nomor pager otomatis kembali tersedia. ----
+// ---- Batalkan pesanan (hanya akun utama). Nomor pager otomatis kembali tersedia. ----
 const cancelTarget = ref(null);
 async function cancelOrder() {
   const b = cancelTarget.value;
@@ -224,6 +225,7 @@ async function cancelOrder() {
             {{ busy === b.billId ? "Menyimpan..." : col.action }}
           </button>
           <button
+            v-if="isOwner"
             type="button"
             class="mt-2 flex h-10 w-full items-center justify-center gap-1.5 rounded-xl text-sm font-medium text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
             :disabled="busy === b.billId"
