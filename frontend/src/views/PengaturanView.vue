@@ -91,6 +91,19 @@ const memberName = (g, p) => {
   return titleCase(p.name.toUpperCase().startsWith(prefix) ? p.name.slice(prefix.length) : title);
 };
 
+// Daftar sederhana: grup jadi judul kecil, isinya baris biasa. Harga & HPP diisi langsung di baris.
+const rows = computed(() => {
+  const out = [];
+  for (const c of cards.value) {
+    if (c.single) out.push({ key: c.key, p: c.product, name: splitName(c.product.name).title, sub: splitName(c.product.name).detail || c.product.category || "" });
+    else {
+      out.push({ key: c.key, header: titleCase(c.name), count: c.items.length, items: c.items });
+      for (const p of c.items) out.push({ key: `p${p.id}`, p, name: memberName(c, p), sub: "", member: true });
+    }
+  }
+  return out;
+});
+
 const openGroupKey = ref(null);
 const openGroup = computed(() => cards.value.find((c) => c.key === openGroupKey.value) ?? null);
 
@@ -136,7 +149,7 @@ function openEditFromGroup(p) {
 const rpInput = (v) => number.format(Number(String(v ?? "").replace(/\D/g, "")) || 0);
 async function saveMoney(p, field, e) {
   const value = Number(String(e.target.value).replace(/\D/g, "")) || 0;
-  e.target.value = rpInput(value);
+  e.target.value = field === "hpp" && !value ? "" : rpInput(value);
   if (value === Number(p[field] ?? 0)) return;
   if (field === "price" && value <= 0) {
     e.target.value = rpInput(p.price);
@@ -206,7 +219,7 @@ onMounted(() => catalog.load(true));
         <div>
           <h2 class="text-xl font-semibold">Menu</h2>
           <p class="text-sm text-muted-foreground">
-            {{ cards.length }} menu · Ketuk kartu untuk mengubah. HPP dipakai untuk estimasi di Laporan.
+            Ketik harga dan HPP langsung di daftar, tersimpan otomatis.
           </p>
         </div>
         <Button class="h-12 rounded-xl px-5 text-base" @click="openNew"><Plus /> Tambah menu</Button>
@@ -242,99 +255,107 @@ onMounted(() => catalog.load(true));
       <p v-if="catalog.loading && !catalog.products.length" class="mt-6 text-[15px] text-muted-foreground">Memuat menu...</p>
       <p v-else-if="catalog.error" class="mt-6 text-[15px] text-destructive">{{ catalog.error }}</p>
 
-      <div v-else class="mt-5 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5">
-        <!-- Kartu tambah -->
-        <button
-          type="button"
-          class="flex min-h-72 flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-primary/30 text-primary transition-colors hover:border-primary/60 hover:bg-secondary/50"
-          @click="openNew"
-        >
-          <span class="flex size-12 items-center justify-center rounded-full bg-secondary"><Plus class="size-6" /></span>
-          <span class="text-base font-semibold">Tambah menu</span>
-        </button>
-
-        <template v-for="c in cards" :key="c.key">
-        <!-- Grup: paket atau menu gabungan -->
-        <article
-          v-if="!c.single"
-          class="group flex flex-col overflow-hidden rounded-[18px] border bg-card p-2.5 transition hover:border-primary/30 hover:shadow-card"
-        >
-          <button type="button" class="flex flex-1 flex-col rounded-xl text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/40" @click="openGroupKey = c.key">
-            <div class="relative overflow-hidden rounded-xl bg-[#f6efe7]">
-              <MenuImage :src="c.picture" :name="titleCase(c.name)" :class="availableCount(c.items) ? '' : 'opacity-50 grayscale'" />
-              <span class="absolute top-2 left-2 rounded-full bg-card px-2.5 py-1 text-xs font-semibold shadow-xs">
-                {{ c.items.length }} pilihan
-              </span>
-            </div>
-            <p class="mt-3 px-1.5 text-[17px] font-semibold leading-snug">{{ titleCase(c.name) }}</p>
-            <p class="mt-1 px-1.5 text-sm text-muted-foreground">{{ c.category || "Tanpa kategori" }}</p>
-            <div class="tabular mt-2 flex items-baseline justify-between px-1.5">
-              <span class="text-[15px] font-semibold">{{ priceRange(c.items) }}</span>
-            </div>
-          </button>
-          <button
-            type="button"
-            class="mt-3 flex items-center justify-between border-t px-1.5 pt-2.5 text-sm"
-            @click="openGroupKey = c.key"
+      <div v-else class="mt-5 overflow-hidden rounded-2xl border bg-card">
+        <!-- Judul kolom (layar lebar) -->
+        <div class="hidden grid-cols-[minmax(0,1fr)_150px_150px_120px_64px_44px] items-center gap-3 border-b bg-muted/50 px-4 py-2.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase md:grid">
+          <span>Menu</span><span class="text-right">Harga jual</span><span class="text-right">HPP (modal)</span><span class="text-right">Untung</span><span class="text-center">Ada</span><span></span>
+        </div>
+        <template v-for="r in rows" :key="r.key">
+          <!-- Judul grup (paket / menu gabungan) -->
+          <div v-if="r.header" class="flex items-center justify-between gap-3 border-b bg-muted/30 px-4 pt-4 pb-2">
+            <span class="text-[15px] font-bold">{{ r.header }} <span class="font-normal text-muted-foreground">· {{ r.count }} pilihan</span></span>
+            <button type="button" class="text-sm font-semibold text-primary" @click="setGroupAvailable({ items: r.items }, !r.items.every((i) => i.is_available))">
+              {{ r.items.every((i) => i.is_available) ? "Stok habis semua" : "Sediakan semua" }}
+            </button>
+          </div>
+          <!-- Baris menu -->
+          <div
+            v-else
+            class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 border-b px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_150px_150px_120px_64px_44px]"
+            :class="r.p.is_available ? '' : 'bg-muted/40'"
           >
-            <span :class="availableCount(c.items) ? 'text-foreground' : 'text-muted-foreground'">
-              {{ availableCount(c.items) }} dari {{ c.items.length }} tersedia
-            </span>
-            <span class="flex items-center gap-1 font-semibold">Lihat isi <ChevronRight class="size-4" /></span>
-          </button>
-        </article>
-
-        <template v-else>
-        <article
-          v-for="p in [c.product]"
-          :key="p.id"
-          class="group flex flex-col overflow-hidden rounded-[18px] border bg-card p-2.5 transition hover:border-primary/30 hover:shadow-card"
-        >
-          <button type="button" class="flex flex-1 flex-col rounded-xl text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/40" @click="openEdit(p)">
-            <div class="relative overflow-hidden rounded-xl bg-[#f6efe7]">
-              <MenuImage
-                :src="p.picture"
-                :name="splitName(p.name).title"
-                :class="p.is_available ? '' : 'opacity-50 grayscale'"
-              />
-              <span
-                v-if="!p.is_available"
-                class="absolute top-2 left-2 rounded-full bg-card px-2.5 py-1 text-xs font-semibold shadow-xs"
-              >
-                Stok habis
+            <button type="button" class="flex min-w-0 items-center gap-3 text-left" :class="r.member ? 'md:pl-4' : ''" title="Ubah foto / nama" @click="openEdit(r.p)">
+              <span class="size-11 shrink-0 overflow-hidden rounded-lg bg-[#f6efe7]">
+                <MenuImage :src="r.p.picture" :name="r.name" :class="r.p.is_available ? '' : 'opacity-50 grayscale'" />
               </span>
-              <span class="absolute top-2 right-2 flex size-9 items-center justify-center rounded-full bg-card/90 text-muted-foreground opacity-0 shadow-xs transition group-hover:opacity-100">
-                <Pencil class="size-4" />
+              <span class="min-w-0">
+                <span class="block truncate text-[15px] font-semibold" :class="r.p.is_available ? '' : 'text-muted-foreground'">{{ r.name }}</span>
+                <span class="block truncate text-xs text-muted-foreground">{{ r.p.is_available ? r.sub : "Stok habis" }}</span>
               </span>
-            </div>
-            <p class="mt-3 px-1.5 text-[17px] font-semibold leading-snug">{{ splitName(p.name).title }}</p>
-            <p v-if="splitName(p.name).detail" class="px-1.5 text-sm text-muted-foreground">{{ splitName(p.name).detail }}</p>
-            <p class="mt-1 px-1.5 text-sm text-muted-foreground">{{ p.category || "Tanpa kategori" }}</p>
-            <div class="tabular mt-2 flex items-baseline justify-between px-1.5">
-              <span class="text-[15px] font-semibold">{{ formatRp(p.price) }}</span>
-              <span class="text-xs text-muted-foreground">HPP {{ number.format(p.hpp ?? 0) }} · {{ marginPct(p) }}%</span>
-            </div>
-          </button>
-
-          <div class="mt-3 flex items-center justify-between border-t px-1.5 pt-2.5">
-            <span class="text-sm" :class="p.is_available ? 'text-foreground' : 'text-muted-foreground'">
-              {{ p.is_available ? "Tersedia" : "Stok habis" }}
-            </span>
+            </button>
+            <!-- HP: tombol tersedia di kanan nama -->
             <button
               type="button"
               role="switch"
-              :aria-checked="p.is_available"
-              :aria-label="`${splitName(p.name).title} tersedia`"
-              class="relative inline-flex h-8 w-14 items-center rounded-full transition-colors disabled:opacity-50"
-              :class="p.is_available ? 'bg-primary' : 'bg-[#d6d3ce]'"
-              :disabled="savingId === p.id"
-              @click="toggleAvailable(p)"
+              :aria-checked="r.p.is_available"
+              :aria-label="`${r.name} tersedia`"
+              class="relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 md:hidden"
+              :class="r.p.is_available ? 'bg-primary' : 'bg-[#d6d3ce]'"
+              :disabled="savingId === r.p.id"
+              @click="toggleAvailable(r.p)"
             >
-              <span class="inline-block size-6 rounded-full bg-white shadow transition-transform" :class="p.is_available ? 'translate-x-7' : 'translate-x-1'" />
+              <span class="inline-block size-6 rounded-full bg-white shadow transition-transform" :class="r.p.is_available ? 'translate-x-7' : 'translate-x-1'" />
+            </button>
+            <div class="col-span-2 grid grid-cols-2 gap-2 md:contents">
+              <label class="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 focus-within:ring-2 focus-within:ring-ring/40">
+                <span class="text-xs font-semibold text-muted-foreground md:hidden">Harga</span>
+                <span class="hidden text-sm text-muted-foreground md:inline">Rp</span>
+                <input
+                  class="tabular min-w-0 flex-1 bg-transparent text-right text-[15px] font-semibold outline-none"
+                  inputmode="numeric"
+                  :aria-label="`Harga jual ${r.name}`"
+                  :value="rpInput(r.p.price)"
+                  @focus="$event.target.select()"
+                  @keydown.enter="$event.target.blur()"
+                  @blur="saveMoney(r.p, 'price', $event)"
+                />
+              </label>
+              <label
+                class="flex h-11 items-center gap-2 rounded-xl px-3 focus-within:ring-2 focus-within:ring-ring/40"
+                :class="(r.p.hpp ?? 0) > 0 ? 'bg-muted' : 'bg-warning-soft'"
+              >
+                <span class="text-xs font-semibold text-muted-foreground md:hidden">HPP</span>
+                <span class="hidden text-sm text-muted-foreground md:inline">Rp</span>
+                <input
+                  class="tabular min-w-0 flex-1 bg-transparent text-right text-[15px] font-semibold outline-none placeholder:font-normal placeholder:text-warning"
+                  inputmode="numeric"
+                  placeholder="isi"
+                  :aria-label="`HPP ${r.name}`"
+                  :value="(r.p.hpp ?? 0) > 0 ? rpInput(r.p.hpp) : ''"
+                  @focus="$event.target.select()"
+                  @keydown.enter="$event.target.blur()"
+                  @blur="saveMoney(r.p, 'hpp', $event)"
+                />
+              </label>
+            </div>
+            <span class="tabular hidden text-right text-sm md:block" :class="(r.p.hpp ?? 0) > 0 ? '' : 'text-muted-foreground'">
+              <template v-if="(r.p.hpp ?? 0) > 0">{{ number.format(r.p.price - r.p.hpp) }} <span class="text-muted-foreground">· {{ marginPct(r.p) }}%</span></template>
+              <template v-else>–</template>
+            </span>
+            <div class="hidden justify-center md:flex">
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="r.p.is_available"
+                :aria-label="`${r.name} tersedia`"
+                class="relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
+                :class="r.p.is_available ? 'bg-primary' : 'bg-[#d6d3ce]'"
+                :disabled="savingId === r.p.id"
+                @click="toggleAvailable(r.p)"
+              >
+                <span class="inline-block size-6 rounded-full bg-white shadow transition-transform" :class="r.p.is_available ? 'translate-x-7' : 'translate-x-1'" />
+              </button>
+            </div>
+            <button
+              type="button"
+              class="hidden size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted md:flex"
+              :aria-label="`Ubah foto dan nama ${r.name}`"
+              title="Ubah foto / nama"
+              @click="openEdit(r.p)"
+            >
+              <Pencil class="size-4" />
             </button>
           </div>
-        </article>
-        </template>
         </template>
       </div>
       <p v-if="!catalog.loading && catalog.products.length && !visible.length" class="mt-4 text-[15px] text-muted-foreground">
@@ -348,81 +369,6 @@ onMounted(() => catalog.load(true));
     <OutletSection v-if="section === 'toko'" />
     <ResetSection v-if="section === 'toko'" />
 
-    <!-- Isi grup -->
-    <Dialog :open="Boolean(openGroup)" @update:open="!$event && (openGroupKey = null)">
-      <DialogContent v-if="openGroup" class="max-h-[88dvh] overflow-y-auto overscroll-contain p-6 sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle class="text-xl font-bold">{{ titleCase(openGroup.name) }}</DialogTitle>
-          <DialogDescription class="text-[15px]">
-            {{ openGroup.items.length }} pilihan · Isi harga dan HPP (modal per porsi) langsung di sini, tersimpan otomatis.
-          </DialogDescription>
-        </DialogHeader>
-        <div class="flex gap-2">
-          <Button variant="secondary" class="h-10 flex-1 rounded-xl text-sm" @click="setGroupAvailable(openGroup, true)">Semua tersedia</Button>
-          <Button variant="secondary" class="h-10 flex-1 rounded-xl text-sm" @click="setGroupAvailable(openGroup, false)">Semua stok habis</Button>
-        </div>
-        <ul class="flex flex-col divide-y rounded-xl border">
-          <li v-for="p in openGroup.items" :key="p.id" class="flex flex-col gap-2.5 px-3 py-3">
-            <div class="flex items-center gap-3">
-              <span class="size-12 shrink-0 overflow-hidden rounded-lg bg-[#f6efe7]">
-                <MenuImage :src="p.picture" :name="memberName(openGroup, p)" :class="p.is_available ? '' : 'opacity-50 grayscale'" />
-              </span>
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-[15px] font-semibold">{{ memberName(openGroup, p) }}</span>
-                <span class="tabular block text-sm" :class="(p.hpp ?? 0) > 0 ? 'text-muted-foreground' : 'font-medium text-warning'">
-                  {{ (p.hpp ?? 0) > 0 ? `Untung ${formatRp(p.price - p.hpp)} (${marginPct(p)}%)` : "HPP belum diisi" }}
-                </span>
-              </span>
-              <button
-                type="button"
-                class="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
-                :aria-label="`Ubah foto dan nama ${memberName(openGroup, p)}`"
-                title="Ubah foto / nama"
-                @click="openEditFromGroup(p)"
-              >
-                <Pencil class="size-4" />
-              </button>
-              <button
-                type="button"
-                role="switch"
-                :aria-checked="p.is_available"
-                :aria-label="`${memberName(openGroup, p)} tersedia`"
-                class="relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
-                :class="p.is_available ? 'bg-primary' : 'bg-[#d6d3ce]'"
-                :disabled="savingId === p.id"
-                @click="toggleAvailable(p)"
-              >
-                <span class="inline-block size-6 rounded-full bg-white shadow transition-transform" :class="p.is_available ? 'translate-x-7' : 'translate-x-1'" />
-              </button>
-            </div>
-            <div class="grid grid-cols-2 gap-2 pl-15">
-              <label class="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 focus-within:ring-2 focus-within:ring-ring/40">
-                <span class="text-xs font-semibold text-muted-foreground">Harga</span>
-                <input
-                  class="tabular min-w-0 flex-1 bg-transparent text-right text-[15px] font-semibold outline-none"
-                  inputmode="numeric"
-                  :value="rpInput(p.price)"
-                  @focus="$event.target.select()"
-                  @keydown.enter="$event.target.blur()"
-                  @blur="saveMoney(p, 'price', $event)"
-                />
-              </label>
-              <label class="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 focus-within:ring-2 focus-within:ring-ring/40">
-                <span class="text-xs font-semibold text-muted-foreground">HPP</span>
-                <input
-                  class="tabular min-w-0 flex-1 bg-transparent text-right text-[15px] font-semibold outline-none"
-                  inputmode="numeric"
-                  :value="rpInput(p.hpp)"
-                  @focus="$event.target.select()"
-                  @keydown.enter="$event.target.blur()"
-                  @blur="saveMoney(p, 'hpp', $event)"
-                />
-              </label>
-            </div>
-          </li>
-        </ul>
-      </DialogContent>
-    </Dialog>
 
     <ProductFormDialog v-model:open="showForm" :product="editing" />
   </div>
