@@ -123,10 +123,11 @@ async function removeExpense(e) {
 }
 
 // ---- PDF Laba Rugi (A4, kop logo) ----
-function exportPdf() {
+function exportPdf(mode = "pdf") {
   const r = report.value;
   if (!r) return;
-  printReport({
+  printReport(
+    {
     title: "Laporan Laba Rugi",
     period: rangeLabel.value,
     logo: settings.logo ? new URL(assetUrl(settings.logo), location.origin).href : "",
@@ -177,7 +178,9 @@ function exportPdf() {
     note:
       (r.items_without_hpp ? `Catatan: ${r.items_without_hpp} menu terjual belum memiliki HPP, laba terlihat lebih besar dari sebenarnya. ` : "") +
       (r.cancelled.count ? `${r.cancelled.count} pesanan dibatalkan (Rp ${number.format(r.cancelled.total)}) tidak dihitung.` : ""),
-  });
+  },
+    mode
+  );
 }
 
 // ---- Ekspor CSV: transaksi + ringkasan laba rugi untuk periode ini ----
@@ -245,7 +248,8 @@ async function exportCsv() {
       <ExportMenu
         :disabled="!report"
         :items="[
-          { label: 'Unduh PDF', icon: 'pdf', action: exportPdf },
+          { label: 'Unduh PDF', icon: 'pdf', action: () => exportPdf('pdf') },
+          { label: 'Cetak', icon: 'print', action: () => exportPdf('print') },
           { label: exporting ? 'Menyiapkan...' : 'Unduh Excel (CSV)', icon: 'excel', action: exportCsv, disabled: exporting },
         ]"
       />

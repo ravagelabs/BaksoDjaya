@@ -124,7 +124,7 @@ watch(
 const money = (n) => acc(n);
 
 // ---- PDF per laporan ----
-function exportPdf() {
+function exportPdf(mode = "pdf") {
   const d = data.value;
   if (!d) return;
   const logo = settings.logo ? new URL(assetUrl(settings.logo), location.origin).href : "";
@@ -219,7 +219,7 @@ function exportPdf() {
       },
     ];
   }
-  printReport(doc);
+  printReport(doc, mode);
 }
 
 const delEntry = ref(null);
@@ -251,7 +251,10 @@ const journalTotals = computed(() => {
         <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Keuangan</h1>
         <p class="mt-1 text-[15px] text-muted-foreground">Laporan keuangan dari penjualan, biaya, dan jurnal.</p>
       </div>
-      <ExportMenu :disabled="!data || loading" :items="[{ label: 'Unduh PDF', icon: 'pdf', action: exportPdf }]" />
+      <ExportMenu :disabled="!data || loading" :items="[
+          { label: 'Unduh PDF', icon: 'pdf', action: () => exportPdf('pdf') },
+          { label: 'Cetak', icon: 'print', action: () => exportPdf('print') },
+        ]" />
     </div>
 
     <!-- Jenis laporan -->

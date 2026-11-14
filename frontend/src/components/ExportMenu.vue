@@ -1,14 +1,14 @@
 <script setup>
-import { Share, FileText, Sheet } from "@lucide/vue";
+import { Share, FileText, Sheet, Printer } from "@lucide/vue";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-// Tombol bagikan kecil ala iOS di pojok judul halaman: Unduh PDF / Excel.
+// Tombol bagikan kecil ala iOS di pojok judul halaman: Unduh PDF / Cetak / Excel.
 // items: [{ label, icon: "pdf" | "excel", action, disabled }]
 const props = defineProps({
   items: { type: Array, required: true },
   disabled: { type: Boolean, default: false },
 });
-const icons = { pdf: FileText, excel: Sheet };
+const icons = { pdf: FileText, excel: Sheet, print: Printer };
 const btn =
   "flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-foreground outline-none transition-colors hover:bg-muted/70 active:scale-95 focus-visible:ring-3 focus-visible:ring-ring/40 disabled:opacity-40";
 </script>

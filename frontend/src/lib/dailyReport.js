@@ -8,7 +8,7 @@ import { useSettingsStore } from "@/stores/settings";
 const longDate = (iso) =>
   new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${iso}T00:00:00`));
 
-export async function exportDailyReport(date) {
+export async function exportDailyReport(date, mode = "pdf") {
   const q = `from=${date}&to=${date}`;
   const [journal, cash, accounts] = await Promise.all([
     api(`/finance/report?type=journal&${q}`),
@@ -99,5 +99,5 @@ export async function exportDailyReport(date) {
       },
     ],
     note: income.some((r) => /GoFood|GrabFood/.test(r[0])) ? "Pemasukan GoFood/GrabFood dicatat sebagai piutang sampai dicairkan ke rekening." : "",
-  });
+  }, mode);
 }

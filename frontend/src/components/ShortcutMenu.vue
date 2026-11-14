@@ -2,7 +2,7 @@
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import {
-  ArrowLeftRight, BookOpen, ChartPie, Clock, FileDown, Landmark, Package, Receipt, Settings2, Tags, UserPlus, UtensilsCrossed,
+  ArrowLeftRight, BookOpen, ChartPie, Clock, FileDown, Landmark, Package, Printer, Receipt, Settings2, Tags, UserPlus, UtensilsCrossed,
 } from "@lucide/vue";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -61,10 +61,10 @@ function openDaily() {
   dailyDate.value = today();
   dailyOpen.value = true;
 }
-async function runDaily() {
+async function runDaily(mode) {
   dailyBusy.value = true;
   try {
-    await exportDailyReport(dailyDate.value);
+    await exportDailyReport(dailyDate.value, mode);
     dailyOpen.value = false;
   } catch (e) {
     ui.toast(e.message, "error");
@@ -121,14 +121,19 @@ async function runDaily() {
     <DialogContent class="p-6 sm:max-w-sm sm:p-7">
       <DialogHeader>
         <DialogTitle class="text-2xl font-bold">Laporan harian</DialogTitle>
-        <DialogDescription class="text-[15px]">Pemasukan, pengeluaran, dan saldo kas & bank satu hari. Pilih "Simpan sebagai PDF" di layar cetak.</DialogDescription>
+        <DialogDescription class="text-[15px]">Pemasukan, pengeluaran, dan saldo kas & bank satu hari.</DialogDescription>
       </DialogHeader>
       <label class="grid gap-1.5 text-sm font-semibold">Tanggal
         <input v-model="dailyDate" type="date" :max="today()" class="h-12 rounded-xl border bg-card px-3 text-base font-normal outline-none focus:border-primary" />
       </label>
-      <Button class="h-12 rounded-xl text-base" :disabled="!dailyDate || dailyBusy" @click="runDaily">
-        <FileDown class="size-5" /> {{ dailyBusy ? "Menyiapkan..." : "Unduh PDF" }}
-      </Button>
+      <div class="grid grid-cols-2 gap-2">
+        <Button variant="secondary" class="h-12 rounded-xl text-base" :disabled="!dailyDate || dailyBusy" @click="runDaily('print')">
+          <Printer class="size-5" /> Cetak
+        </Button>
+        <Button class="h-12 rounded-xl text-base" :disabled="!dailyDate || dailyBusy" @click="runDaily('pdf')">
+          <FileDown class="size-5" /> {{ dailyBusy ? "Menyiapkan..." : "Unduh PDF" }}
+        </Button>
+      </div>
     </DialogContent>
   </Dialog>
 </template>
