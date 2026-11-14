@@ -41,7 +41,7 @@ const REPORT_CSS = `
   .rtable td { padding: 5px 4px; border-bottom: 1px solid #ece9e4; font-size: 10pt; }
   .rtable tr.sum td { font-weight: 700; border-top: 1.5px solid #1c1917; }
   .empty { color: #78716c; font-size: 10pt; }
-  footer { margin-top: 26px; padding-top: 8px; border-top: 1px solid #d6d3ce; color: #78716c; font-size: 8.5pt; display: flex; justify-content: space-between; }
+  footer { margin-top: 26px; padding: 8px 0 4px; line-height: 1.6; border-top: 1px solid #d6d3ce; color: #78716c; font-size: 8.5pt; display: flex; justify-content: space-between; }
 `;
 
 const reportBody = (doc, section, printedAt) => `
@@ -133,8 +133,8 @@ export async function saveReportPdf(doc) {
   const html = buildReportHtml(doc);
   const inner = html.slice(html.indexOf("<body>") + 6, html.lastIndexOf("</body>"));
   const box = document.createElement("div");
-  box.style.cssText = "position:fixed;left:-10000px;top:0;width:182mm;padding-bottom:6mm;background:#fff;";
-  box.innerHTML = `<style>${scopeCss(REPORT_CSS, ".rp")}</style><div class="rp">${inner}</div>`;
+  box.style.cssText = "position:fixed;left:-10000px;top:0;width:182mm;padding-bottom:14mm;background:#fff;line-height:1.5;";
+  box.innerHTML = `<style>${scopeCss(REPORT_CSS, ".rp")}</style><div class="rp" style="padding-bottom:10mm">${inner}</div>`;
   document.body.appendChild(box);
   try {
     const name = `${doc.title} ${doc.period}`.replace(/[–—]/g, "-").replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() + ".pdf";
