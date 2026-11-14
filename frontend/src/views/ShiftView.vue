@@ -166,6 +166,13 @@ async function removeShift() {
           <span class="text-[15px] text-muted-foreground">{{ current.transactions }} transaksi</span>
           <span class="text-[15px]">Total <span class="ml-2 text-[26px] font-bold">{{ formatRp(current.total) }}</span></span>
         </div>
+        <!-- Uang di laci seharusnya: untuk dicocokkan waktu tutup kasir -->
+        <div class="tabular mt-4 rounded-xl bg-card px-4 py-3 text-[15px]">
+          <p class="flex justify-between gap-3"><span class="text-muted-foreground">Modal awal kasir</span><span>{{ formatRp(current.opening_cash ?? 0) }}</span></p>
+          <p class="flex justify-between gap-3"><span class="text-muted-foreground">+ Penjualan tunai</span><span>{{ formatRp(current.cash ?? 0) }}</span></p>
+          <p v-if="current.cash_expense" class="flex justify-between gap-3"><span class="text-muted-foreground">− Biaya dibayar dari kas</span><span>{{ formatRp(current.cash_expense) }}</span></p>
+          <p class="mt-1 flex justify-between gap-3 border-t pt-2 font-semibold"><span>Uang di laci seharusnya</span><span class="text-lg">{{ formatRp(current.cash_in_drawer ?? 0) }}</span></p>
+        </div>
       </section>
 
       <!-- Riwayat -->

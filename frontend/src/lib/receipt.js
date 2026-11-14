@@ -496,7 +496,14 @@ export function buildShiftReport(s, { running = false } = {}) {
   write(row("TOTAL", rupiah.format(s.total ?? 0)));
   cmd(0x1b, 0x45, 0x00);
   write(row("Transaksi", String(s.transactions ?? 0)));
-  write(row("Uang tunai di laci", rupiah.format(s.cash ?? 0)));
+  // Uang di laci seharusnya = modal awal + penjualan tunai - biaya dibayar dari kas
+  write("-".repeat(W) + "\n");
+  write(row("Modal awal kasir", rupiah.format(s.opening_cash ?? 0)));
+  write(row("+ Penjualan tunai", rupiah.format(s.cash ?? 0)));
+  if (s.cash_expense) write(row("- Biaya dari kas", rupiah.format(s.cash_expense)));
+  cmd(0x1b, 0x45, 0x01);
+  write(row("UANG DI LACI", rupiah.format(s.cash_in_drawer ?? (s.opening_cash ?? 0) + (s.cash ?? 0))));
+  cmd(0x1b, 0x45, 0x00);
   write("\n\nParaf kasir:\n\n\n" + "_".repeat(20) + "\n");
   cmd(0x1b, 0x64, 0x03);
   cmd(0x1d, 0x56, 0x42, 0x00);

@@ -17,11 +17,25 @@ const SUMMARY = (from, to) => `
       AND COALESCE(b.paid_at, b.created_at) >= ${from}
       AND COALESCE(b.paid_at, b.created_at) <= ${to}`;
 
+// Modal awal kasir (uang receh di laci) untuk shift baru
+export const OPENING_CASH = 300000;
+
+// Biaya yang dibayar dari Kas (tunai) pada tanggal shift (zona Asia/Jakarta)
+const CASH_EXPENSE = (from, to) => `
+    SELECT COALESCE(SUM(e.amount), 0)::float AS cash_expense
+    FROM expense e
+    WHERE e.paid_from = '1-1100'
+      AND e.spent_on BETWEEN (${from} AT TIME ZONE 'Asia/Jakarta')::date AND (${to} AT TIME ZONE 'Asia/Jakarta')::date`;
+
+// Uang di laci seharusnya = modal awal + penjualan tunai - biaya dibayar dari kas
 const SHIFT_SELECT = `
-    SELECT s.id, s.created_at, s.ended_at, s.employee_id, u.name AS employee_name, sm.*
+    SELECT s.id, s.created_at, s.ended_at, s.employee_id, u.name AS employee_name,
+           s.opening_cash::float AS opening_cash, sm.*, ce.cash_expense,
+           (s.opening_cash + sm.cash - ce.cash_expense)::float AS cash_in_drawer
     FROM shift s
     LEFT JOIN "user" u ON u.id = s.employee_id
-    CROSS JOIN LATERAL (${SUMMARY('s.created_at', 's.ended_at')}) sm`;
+    CROSS JOIN LATERAL (${SUMMARY('s.created_at', 's.ended_at')}) sm
+    CROSS JOIN LATERAL (${CASH_EXPENSE('s.created_at', 's.ended_at')}) ce`;
 
 // employeeId = null: semua shift (akun utama). Selain itu hanya shift milik karyawan tersebut.
 // from/to: tanggal (YYYY-MM-DD, zona Asia/Jakarta) mulai shift; kosong = 30 shift terakhir
@@ -39,7 +53,11 @@ export const getShifts = async (employeeId = null, from = null, to = null, limit
 export const getShift = async (id) => db.oneOrNone(`${SHIFT_SELECT} WHERE s.id = $1;`, [id]);
 
 // Shift yang sedang berjalan (sejak login sampai sekarang), belum disimpan
-export const getRunningSummary = async (from, to) => db.one(`${SUMMARY('$1::timestamptz', '$2::timestamptz')};`, [from, to]);
+export const getRunningSummary = async (from, to) => {
+    const sm = await db.one(`${SUMMARY('$1::timestamptz', '$2::timestamptz')};`, [from, to]);
+    const ce = await db.one(`${CASH_EXPENSE('$1::timestamptz', '$2::timestamptz')};`, [from, to]);
+    return { ...sm, ...ce, opening_cash: OPENING_CASH, cash_in_drawer: OPENING_CASH + sm.cash - ce.cash_expense };
+};
 
 export const addShift = async (createdAt, endedAt, employeeId) => {
     const start = new Date(createdAt);
