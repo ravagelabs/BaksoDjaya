@@ -154,7 +154,7 @@ const primaryAction = computed(() => ({ label: "Bayar", run: goPay }));
 
 const flowHint = computed(() => {
   if (inKitchen.value) return "Pesanan ini sudah di dapur.";
-  return "Bayar dulu. Pesanan otomatis masuk dapur, lalu beri nomor ke pelanggan.";
+  return order.orderType === "pickup" ? "Bayar dulu. Pesanan otomatis masuk dapur." : "Bayar dulu. Pesanan otomatis masuk dapur, lalu beri nomor ke pelanggan.";
 });
 
 function chooseType(type) {

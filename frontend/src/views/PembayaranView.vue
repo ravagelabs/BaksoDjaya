@@ -91,13 +91,14 @@ async function confirm() {
   try {
     const wasInKitchen = Boolean(order.kitchenStatus);
     const hadNumber = Boolean(order.table);
+    const takeaway = order.orderType === "pickup"; // bungkus tidak perlu nomor pager
     const id = await order.pay(ui.user.id, method.value);
     order.reset();
     ui.toast(wasInKitchen ? `Pesanan ${orderNo(id)} lunas` : `Pesanan ${orderNo(id)} lunas dan masuk dapur`);
     received.value = "";
     paidId.value = id;
-    // Setelah lunas: beri nomor pager dulu, baru struk dan nota dapur (supaya nomornya ikut tercetak)
-    if (hadNumber) openPrint();
+    // Setelah lunas: makan di tempat beri nomor pager dulu (bungkus langsung struk), baru struk dan nota dapur (supaya nomornya ikut tercetak)
+    if (hadNumber || takeaway) openPrint();
     else showNumber.value = true;
   } catch (e) {
     error.value = e.message;

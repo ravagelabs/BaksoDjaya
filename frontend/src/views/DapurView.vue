@@ -38,8 +38,8 @@ const { connected } = useLive(async (type, data) => {
 });
 
 const COLUMNS = [
-  { key: "new", title: "Baru", action: "Mulai masak", next: "cooking", time: "text-primary", primary: true },
-  { key: "cooking", title: "Dimasak", action: "Tandai siap", next: "ready", time: "text-[#8a5a12]", primary: true },
+  // Pesanan langsung "Dimasak" begitu struk jadi (tidak ada tahap "Mulai masak")
+  { key: "cooking", title: "Dimasak", action: "Selesai · siap diambil", next: "ready", time: "text-[#8a5a12]", primary: true },
   { key: "ready", title: "Siap diambil", action: "Sudah diambil · nomor kembali", next: "served", time: "text-success", primary: false },
 ];
 
@@ -65,8 +65,8 @@ onMounted(() => {
 onUnmounted(() => clearInterval(timer));
 
 const byStatus = computed(() => {
-  const groups = { new: [], cooking: [], ready: [] };
-  for (const b of bills.value) groups[b.kitchen_status]?.push(b);
+  const groups = { cooking: [], ready: [] };
+  for (const b of bills.value) groups[b.kitchen_status === "new" ? "cooking" : b.kitchen_status]?.push(b);
   return groups;
 });
 
@@ -161,7 +161,7 @@ async function cancelOrder() {
     </div>
 
     <p v-if="loading" class="mt-8 text-[15px] text-muted-foreground">Memuat antrean...</p>
-    <div v-else class="mt-8 grid gap-8 lg:grid-cols-3">
+    <div v-else class="mt-8 grid gap-8 lg:grid-cols-2">
       <section v-for="col in COLUMNS" :key="col.key">
         <div class="flex items-center justify-between">
           <h2 class="text-2xl font-semibold">{{ col.title }}</h2>
@@ -249,7 +249,7 @@ async function cancelOrder() {
             <span>
               <span class="block text-lg font-semibold">{{ label(b) }}</span>
               <span class="block text-sm text-muted-foreground">
-                Pesanan {{ orderNo(b.billId) }} · {{ b.kitchen_status === "cooking" ? "Dimasak" : "Belum dimasak" }}
+                Pesanan {{ orderNo(b.billId) }} · Dimasak
               </span>
             </span>
             <span class="tabular shrink-0 font-semibold text-destructive">{{ minutesSince(b.sent_to_kitchen_at, now) }} menit</span>

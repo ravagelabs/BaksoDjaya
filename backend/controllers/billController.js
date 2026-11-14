@@ -163,7 +163,7 @@ export const setKitchenStatus = async (billId, kitchenStatus) => {
 // Masuk antrean dapur hanya sekali; bill yang sudah di dapur tidak di-reset statusnya
 const SEND_TO_KITCHEN_SQL = `
     UPDATE bill
-    SET kitchen_status = 'new', sent_to_kitchen_at = now()
+    SET kitchen_status = 'cooking', sent_to_kitchen_at = now()
     WHERE id = $1 AND kitchen_status IS NULL;
 `;
 
@@ -199,7 +199,7 @@ export const addBill = async (fields, billItems, { sendToKitchen = false } = {})
 
         return {
             ...bill,
-            kitchen_status: sendToKitchen ? 'new' : bill.kitchen_status,
+            kitchen_status: sendToKitchen ? 'cooking' : bill.kitchen_status,
             items: createdItems
         };
     });
@@ -252,7 +252,7 @@ export const saveBill = async (billId, fields, billItems, { sendToKitchen = fals
 
         return {
             ...bill,
-            kitchen_status: sendToKitchen && !bill.kitchen_status ? 'new' : bill.kitchen_status,
+            kitchen_status: sendToKitchen && !bill.kitchen_status ? 'cooking' : bill.kitchen_status,
             items: updatedItems
         };
     });
@@ -284,7 +284,7 @@ export const finalizeBill = async (billId, fields, paymentMethod, billItems) => 
                 guests = $7,
                 note = $8,
                 paid_at = now(),
-                kitchen_status = COALESCE(kitchen_status, 'new'),
+                kitchen_status = COALESCE(kitchen_status, 'cooking'),
                 sent_to_kitchen_at = COALESCE(sent_to_kitchen_at, now())
             WHERE id = $9 AND status = 'pending'
             RETURNING id, customer_id, employee_id, grand_total, status, payment_method, created_at,
