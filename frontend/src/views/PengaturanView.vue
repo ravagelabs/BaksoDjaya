@@ -4,7 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { Store, UsersRound, UtensilsCrossed } from "@lucide/vue";
 import OutletSection from "@/components/OutletSection.vue";
 import ResetSection from "@/components/ResetSection.vue";
-import { ChevronRight, Pencil, Plus, Search } from "@lucide/vue";
+import { ChevronDown, ChevronRight, Pencil, Plus, Search } from "@lucide/vue";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import ProductFormDialog from "@/components/ProductFormDialog.vue";
@@ -92,17 +92,69 @@ const memberName = (g, p) => {
 };
 
 // Daftar sederhana: grup jadi judul kecil, isinya baris biasa. Harga & HPP diisi langsung di baris.
+// Grup (paket / menu gabungan) tampil SATU baris. Kalau semua pilihan yang dijual harganya sama,
+// harga & HPP cukup diisi sekali di baris itu (berlaku ke semua pilihan). Kalau beda, pilihannya tampil di bawahnya.
+const expanded = ref(new Set());
+function toggleExpand(key) {
+  const s = new Set(expanded.value);
+  s.has(key) ? s.delete(key) : s.add(key);
+  expanded.value = s;
+}
 const rows = computed(() => {
   const out = [];
   for (const c of cards.value) {
-    if (c.single) out.push({ key: c.key, p: c.product, name: splitName(c.product.name).title, sub: splitName(c.product.name).detail || c.product.category || "" });
-    else {
-      out.push({ key: c.key, header: titleCase(c.name), count: c.items.length, items: c.items });
-      for (const p of c.items) out.push({ key: `p${p.id}`, p, name: memberName(c, p), sub: "", member: true });
+    if (c.single) {
+      out.push({ kind: "item", key: c.key, p: c.product, name: splitName(c.product.name).title, sub: splitName(c.product.name).detail || c.product.category || "" });
+      continue;
     }
+    const avail = c.items.filter((i) => i.is_available);
+    const base = avail.length ? avail : c.items;
+    const uniform = base.every((i) => i.price === base[0].price && (i.hpp ?? 0) === (base[0].hpp ?? 0));
+    const open = expanded.value.has(c.key) || !uniform;
+    out.push({
+      kind: "group",
+      key: c.key,
+      items: c.items,
+      base,
+      uniform,
+      open,
+      name: titleCase(c.name),
+      sub: !avail.length
+        ? "Semua stok habis"
+        : c.name.startsWith("PAKET ")
+          ? `${avail.length} pilihan dijual · harga & HPP berlaku untuk semua`
+          : avail.map((i) => memberName(c, i)).join(", "),
+      p: { id: c.key, picture: c.picture, price: base[0].price, hpp: base[0].hpp ?? 0, is_available: avail.length > 0 },
+      availCount: avail.length,
+    });
+    if (open) for (const p of c.items) out.push({ kind: "item", key: `p${p.id}`, p, name: memberName(c, p), sub: "", member: true });
   }
   return out;
 });
+
+// Simpan harga / HPP grup ke semua pilihannya sekaligus
+async function saveGroupMoney(r, field, e) {
+  const value = Number(String(e.target.value).replace(/\D/g, "")) || 0;
+  e.target.value = field === "hpp" && !value ? "" : rpInput(value);
+  if (value === Number(r.p[field] ?? 0) && r.items.every((i) => Number(i[field] ?? 0) === value)) return;
+  if (field === "price" && value <= 0) {
+    e.target.value = rpInput(r.p.price);
+    return ui.toast("Harga harus lebih dari 0", "error");
+  }
+  savingId.value = r.key;
+  try {
+    for (const i of r.items) {
+      if (Number(i[field] ?? 0) === value) continue;
+      const json = await api(`/products/${i.id}`, { method: "PATCH", body: { [field]: value } });
+      catalog.upsert(json.data);
+    }
+    ui.toast(`${field === "hpp" ? "HPP" : "Harga"} ${r.name} disimpan`);
+  } catch (err) {
+    ui.toast(err.message, "error");
+  } finally {
+    savingId.value = null;
+  }
+}
 
 const openGroupKey = ref(null);
 const openGroup = computed(() => cards.value.find((c) => c.key === openGroupKey.value) ?? null);
@@ -261,30 +313,40 @@ onMounted(() => catalog.load(true));
           <span>Menu</span><span class="text-right">Harga jual</span><span class="text-right">HPP (modal)</span><span class="text-right">Untung</span><span class="text-center">Ada</span><span></span>
         </div>
         <template v-for="r in rows" :key="r.key">
-          <!-- Judul grup (paket / menu gabungan) -->
-          <div v-if="r.header" class="flex items-center justify-between gap-3 border-b bg-muted/30 px-4 pt-4 pb-2">
-            <span class="text-[15px] font-bold">{{ r.header }} <span class="font-normal text-muted-foreground">· {{ r.count }} pilihan</span></span>
-            <button type="button" class="text-sm font-semibold text-primary" @click="setGroupAvailable({ items: r.items }, !r.items.every((i) => i.is_available))">
-              {{ r.items.every((i) => i.is_available) ? "Stok habis semua" : "Sediakan semua" }}
-            </button>
-          </div>
           <!-- Baris menu -->
           <div
-            v-else
             class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 border-b px-4 py-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_150px_150px_120px_64px_44px]"
-            :class="r.p.is_available ? '' : 'bg-muted/40'"
+            :class="[r.p.is_available ? '' : 'bg-muted/40', r.member ? 'bg-muted/25' : '']"
           >
-            <button type="button" class="flex min-w-0 items-center gap-3 text-left" :class="r.member ? 'md:pl-4' : ''" title="Ubah foto / nama" @click="openEdit(r.p)">
-              <span class="size-11 shrink-0 overflow-hidden rounded-lg bg-[#f6efe7]">
+            <button
+              type="button"
+              class="flex min-w-0 items-center gap-3 text-left"
+              :class="r.member ? 'pl-6 md:pl-8' : ''"
+              :title="r.kind === 'group' ? 'Lihat pilihan' : 'Ubah foto / nama'"
+              @click="r.kind === 'group' ? toggleExpand(r.key) : openEdit(r.p)"
+            >
+              <span v-if="!r.member" class="size-11 shrink-0 overflow-hidden rounded-lg bg-[#f6efe7]">
                 <MenuImage :src="r.p.picture" :name="r.name" :class="r.p.is_available ? '' : 'opacity-50 grayscale'" />
               </span>
               <span class="min-w-0">
                 <span class="block truncate text-[15px] font-semibold" :class="r.p.is_available ? '' : 'text-muted-foreground'">{{ r.name }}</span>
-                <span class="block truncate text-xs text-muted-foreground">{{ r.p.is_available ? r.sub : "Stok habis" }}</span>
+                <span v-if="r.kind === 'group' || r.sub || !r.p.is_available" class="block truncate text-xs text-muted-foreground">
+                  {{ r.kind === "group" ? r.sub : r.p.is_available ? r.sub : "Stok habis" }}
+                </span>
               </span>
             </button>
-            <!-- HP: tombol tersedia di kanan nama -->
+            <!-- HP: tombol tersedia di kanan nama (grup: buka/tutup pilihan) -->
             <button
+              v-if="r.kind === 'group'"
+              type="button"
+              class="flex h-8 items-center gap-1 rounded-full bg-muted px-3 text-sm font-semibold md:hidden"
+              :aria-expanded="r.open"
+              @click="toggleExpand(r.key)"
+            >
+              {{ r.availCount }}/{{ r.items.length }} <ChevronDown class="size-4 transition-transform" :class="r.open ? 'rotate-180' : ''" />
+            </button>
+            <button
+              v-else
               type="button"
               role="switch"
               :aria-checked="r.p.is_available"
@@ -296,7 +358,10 @@ onMounted(() => catalog.load(true));
             >
               <span class="inline-block size-6 rounded-full bg-white shadow transition-transform" :class="r.p.is_available ? 'translate-x-7' : 'translate-x-1'" />
             </button>
-            <div class="col-span-2 grid grid-cols-2 gap-2 md:contents">
+            <div v-if="r.kind === 'group' && !r.uniform" class="col-span-2 text-sm text-muted-foreground md:col-span-3 md:text-right">
+              Harga beda per pilihan, isi di bawah
+            </div>
+            <div v-else class="col-span-2 grid grid-cols-2 gap-2 md:contents">
               <label class="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 focus-within:ring-2 focus-within:ring-ring/40">
                 <span class="text-xs font-semibold text-muted-foreground md:hidden">Harga</span>
                 <span class="hidden text-sm text-muted-foreground md:inline">Rp</span>
@@ -307,7 +372,7 @@ onMounted(() => catalog.load(true));
                   :value="rpInput(r.p.price)"
                   @focus="$event.target.select()"
                   @keydown.enter="$event.target.blur()"
-                  @blur="saveMoney(r.p, 'price', $event)"
+                  @blur="r.kind === 'group' ? saveGroupMoney(r, 'price', $event) : saveMoney(r.p, 'price', $event)"
                 />
               </label>
               <label
@@ -324,16 +389,27 @@ onMounted(() => catalog.load(true));
                   :value="(r.p.hpp ?? 0) > 0 ? rpInput(r.p.hpp) : ''"
                   @focus="$event.target.select()"
                   @keydown.enter="$event.target.blur()"
-                  @blur="saveMoney(r.p, 'hpp', $event)"
+                  @blur="r.kind === 'group' ? saveGroupMoney(r, 'hpp', $event) : saveMoney(r.p, 'hpp', $event)"
                 />
               </label>
             </div>
-            <span class="tabular hidden text-right text-sm md:block" :class="(r.p.hpp ?? 0) > 0 ? '' : 'text-muted-foreground'">
+            <span v-if="!(r.kind === 'group' && !r.uniform)" class="tabular hidden text-right text-sm md:block" :class="(r.p.hpp ?? 0) > 0 ? '' : 'text-muted-foreground'">
               <template v-if="(r.p.hpp ?? 0) > 0">{{ number.format(r.p.price - r.p.hpp) }} <span class="text-muted-foreground">· {{ marginPct(r.p) }}%</span></template>
               <template v-else>–</template>
             </span>
             <div class="hidden justify-center md:flex">
               <button
+                v-if="r.kind === 'group'"
+                type="button"
+                class="flex h-8 items-center gap-1 rounded-full bg-muted px-2.5 text-sm font-semibold hover:bg-secondary"
+                :aria-expanded="r.open"
+                :title="r.open ? 'Tutup pilihan' : 'Lihat pilihan'"
+                @click="toggleExpand(r.key)"
+              >
+                {{ r.availCount }}/{{ r.items.length }} <ChevronDown class="size-4 transition-transform" :class="r.open ? 'rotate-180' : ''" />
+              </button>
+              <button
+                v-else
                 type="button"
                 role="switch"
                 :aria-checked="r.p.is_available"
@@ -351,7 +427,7 @@ onMounted(() => catalog.load(true));
               class="hidden size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted md:flex"
               :aria-label="`Ubah foto dan nama ${r.name}`"
               title="Ubah foto / nama"
-              @click="openEdit(r.p)"
+              @click="openEdit(r.kind === 'group' ? r.base[0] : r.p)"
             >
               <Pencil class="size-4" />
             </button>
