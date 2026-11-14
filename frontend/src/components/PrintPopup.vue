@@ -106,6 +106,10 @@ function doKitchen() {
               <Printer class="size-5" /> {{ printedBill ? "Struk pelanggan tercetak" : "Cetak struk pelanggan" }}
               <span v-if="printedBill" class="ml-auto text-sm font-normal opacity-70">cetak ulang</span>
             </Button>
+            <!-- Printer tanpa pisau potong: ingatkan sobek dulu sebelum struk dapur keluar -->
+            <p v-if="sequential && step === 2" class="rounded-xl bg-warning-soft px-4 py-2.5 text-sm font-medium">
+              Sobek struk pelanggan dulu, baru cetak struk dapur.
+            </p>
             <!-- Langkah 2: struk dapur (aktif setelah struk pelanggan) -->
             <Button
               :variant="sequential && step === 2 ? 'default' : 'secondary'"

@@ -82,7 +82,8 @@ export function buildEscposReceipt(bill, { copyLabel = "" } = {}) {
   if (bill.note) write(wrap(`Catatan pesanan: ${bill.note}`));
   cmd(0x1b, 0x61, 0x01);       // center
   write("Terima kasih!\n");
-  cmd(0x1b, 0x64, 0x02);       // ESC d 2  feed 2 lines past the last print
+  // Printer tanpa pisau potong: dorong kertas cukup jauh supaya struk bisa disobek sebelum struk dapur keluar
+  cmd(0x1b, 0x64, 0x05);       // ESC d 5  feed 5 lines past the last print
   cmd(0x1d, 0x56, 0x42, 0x00); // GS V B 0  partial cut
 
   return new Uint8Array(bytes);
@@ -172,6 +173,36 @@ function strikeRaster(text, { indentChars = 3 } = {}) {
   ctx.restore();
   // garis coret tebal di tengah tulisan
   ctx.fillRect(x0 - 6, Math.round(h / 2) - 3, chars.length * 12 + 12, 5);
+  const px = ctx.getImageData(0, 0, w, h).data;
+  const rowBytes = w / 8;
+  const data = new Uint8Array(rowBytes * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (px[i] < 128) data[y * rowBytes + (x >> 3)] |= 0x80 >> (x & 7);
+    }
+  return [0x1d, 0x76, 0x30, 0x00, rowBytes & 0xff, rowBytes >> 8, h & 0xff, h >> 8, ...data, 0x0a];
+}
+
+// Blok hitam dengan tulisan putih selebar kertas, dibuat gambar supaya pasti tercetak di semua printer
+function bannerRaster(text) {
+  if (typeof document === "undefined") return null;
+  const w = 384;
+  const h = 72;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "#fff";
+  let fs = 46;
+  const font = (n) => `bold ${n}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+  ctx.font = font(fs);
+  while (ctx.measureText(text).width > w - 24 && fs > 18) ctx.font = font(--fs);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, w / 2, h / 2 + 2);
   const px = ctx.getImageData(0, 0, w, h).data;
   const rowBytes = w / 8;
   const data = new Uint8Array(rowBytes * h);
@@ -333,7 +364,6 @@ export function buildKitchenSlip(bill) {
   const time = new Intl.DateTimeFormat("id-ID", { timeStyle: "short" })
     .format(new Date(bill.paid_at ?? bill.sent_to_kitchen_at ?? bill.created_at ?? Date.now()));
 
-  const INV = (on) => cmd(0x1d, 0x42, on ? 1 : 0); // putih di atas hitam
   const BOLD = (on) => cmd(0x1b, 0x45, on ? 1 : 0);
   const CENTER = () => cmd(0x1b, 0x61, 0x01);
   const LEFT = () => cmd(0x1b, 0x61, 0x00);
@@ -351,22 +381,19 @@ export function buildKitchenSlip(bill) {
   const totalQty = items.reduce((s, i) => s + Number(i.qty || 0), 0);
   const isTakeaway = bill.order_type === "pickup";
   const typeLine = isTakeaway ? "BUNGKUS" : "MAKAN DI TEMPAT";
-  // Blok hitam selebar kertas (teks besar 16 huruf)
-  const banner = (text) => {
-    const t = clean(text).slice(0, 16);
-    const pad = Math.max(0, 16 - t.length);
-    return " ".repeat(Math.floor(pad / 2)) + t + " ".repeat(Math.ceil(pad / 2));
-  };
 
-  // Kepala: tanpa logo. Nomor meja dan cara makan besar supaya tidak salah bungkus.
+
+  // Kepala: tanpa logo. Judul STRUK DAPUR, nomor meja, dan cara makan besar supaya tidak salah bungkus.
   cmd(0x1b, 0x40);
   CENTER();
   BOLD(true);
+  TALL();
+  write("*** STRUK DAPUR ***\n");
   BIG();
   if (bill.table_code) write(`NO. ${clean(bill.table_code)}\n`);
-  INV(true);
-  write(banner(typeLine) + "\n");
-  INV(false);
+  const b = bannerRaster(typeLine);
+  if (b) bytes.push(...b);
+  else write(`${typeLine}\n`);
   NORMAL();
   BOLD(false);
   write(`Jam ${clean(time)}  -  Pesanan ${orderNo(bill.billId)}\n`);
@@ -384,18 +411,19 @@ export function buildKitchenSlip(bill) {
       .filter(Boolean)
       .forEach((l, k) => write(`${k === 0 ? q : " ".repeat(q.length)} ${l}\n`));
     TALL();
-    for (const p of parts) write(wrap(p.toUpperCase(), 32, "   "));
-    // Pilihan: "Pakai seledri" -> SELEDRI biasa, "Tanpa seledri" -> SELEDRI dicoret. Ukuran sama dengan BIHUN dll.
-    for (const o of i.options ?? []) {
-      const m = /^(pakai|tanpa)\b\s*(.*)$/i.exec(clean(o.name));
-      const what = (m ? m[2] || o.group || "" : clean(o.name)).toUpperCase();
-      if (!what) continue;
+    // "Pakai seledri" -> SELEDRI biasa, "Tanpa seledri" / "Tanpa mie" -> SELEDRI / MIE dicoret. Ukuran sama dengan BIHUN dll.
+    const line = (name, group = "") => {
+      const m = /^(pakai|tanpa)\b\s*(.*)$/i.exec(clean(name));
+      const what = (m ? m[2] || group : clean(name)).toUpperCase();
+      if (!what) return;
       if (m && m[1].toLowerCase() === "tanpa") {
         const r = strikeRaster(what);
         if (r) bytes.push(...r);
         else write(`   JANGAN ${what}\n`);
       } else write(wrap(what, 32, "   "));
-    }
+    };
+    for (const p of parts) line(p);
+    for (const o of i.options ?? []) line(o.name, o.group);
     if (i.note) write(wrap(`CATATAN: ${i.note.toUpperCase()}`, 32, "   "));
     BOLD(false);
     NORMAL();
@@ -416,7 +444,7 @@ export function buildKitchenSlip(bill) {
   write(`${totalQty} PORSI - ${typeLine}\n`);
   BOLD(false);
   NORMAL();
-  cmd(0x1b, 0x64, 0x04);
+  cmd(0x1b, 0x64, 0x05);
   cmd(0x1d, 0x56, 0x42, 0x00);
   return new Uint8Array(bytes);
 }
