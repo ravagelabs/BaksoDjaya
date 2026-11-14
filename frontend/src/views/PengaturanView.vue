@@ -126,6 +126,35 @@ function openEdit(p) {
   showForm.value = true;
 }
 
+// Dari daftar isi grup: tutup daftar dulu supaya form tidak ketiban, baru buka form lengkap (foto/nama)
+function openEditFromGroup(p) {
+  openGroupKey.value = null;
+  setTimeout(() => openEdit(p), 180);
+}
+
+// Ubah harga / HPP langsung di daftar (simpan otomatis waktu selesai mengetik)
+const rpInput = (v) => number.format(Number(String(v ?? "").replace(/\D/g, "")) || 0);
+async function saveMoney(p, field, e) {
+  const value = Number(String(e.target.value).replace(/\D/g, "")) || 0;
+  e.target.value = rpInput(value);
+  if (value === Number(p[field] ?? 0)) return;
+  if (field === "price" && value <= 0) {
+    e.target.value = rpInput(p.price);
+    return ui.toast("Harga harus lebih dari 0", "error");
+  }
+  savingId.value = p.id;
+  try {
+    const json = await api(`/products/${p.id}`, { method: "PATCH", body: { [field]: value } });
+    catalog.upsert(json.data);
+    ui.toast(field === "hpp" ? "HPP disimpan" : "Harga disimpan");
+  } catch (err) {
+    e.target.value = rpInput(p[field]);
+    ui.toast(err.message, "error");
+  } finally {
+    savingId.value = null;
+  }
+}
+
 const savingId = ref(null);
 async function toggleAvailable(p) {
   savingId.value = p.id;
@@ -325,7 +354,7 @@ onMounted(() => catalog.load(true));
         <DialogHeader>
           <DialogTitle class="text-xl font-bold">{{ titleCase(openGroup.name) }}</DialogTitle>
           <DialogDescription class="text-[15px]">
-            {{ openGroup.items.length }} pilihan · Ketuk untuk mengubah harga, HPP, atau foto.
+            {{ openGroup.items.length }} pilihan · Isi harga dan HPP (modal per porsi) langsung di sini, tersimpan otomatis.
           </DialogDescription>
         </DialogHeader>
         <div class="flex gap-2">
@@ -333,31 +362,63 @@ onMounted(() => catalog.load(true));
           <Button variant="secondary" class="h-10 flex-1 rounded-xl text-sm" @click="setGroupAvailable(openGroup, false)">Semua stok habis</Button>
         </div>
         <ul class="flex flex-col divide-y rounded-xl border">
-          <li v-for="p in openGroup.items" :key="p.id" class="flex items-center gap-3 px-3 py-2.5">
-            <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left" @click="openEdit(p)">
-              <span class="size-14 shrink-0 overflow-hidden rounded-lg bg-[#f6efe7]">
+          <li v-for="p in openGroup.items" :key="p.id" class="flex flex-col gap-2.5 px-3 py-3">
+            <div class="flex items-center gap-3">
+              <span class="size-12 shrink-0 overflow-hidden rounded-lg bg-[#f6efe7]">
                 <MenuImage :src="p.picture" :name="memberName(openGroup, p)" :class="p.is_available ? '' : 'opacity-50 grayscale'" />
               </span>
-              <span class="min-w-0">
+              <span class="min-w-0 flex-1">
                 <span class="block truncate text-[15px] font-semibold">{{ memberName(openGroup, p) }}</span>
-                <span class="tabular block text-sm text-muted-foreground">
-                  {{ formatRp(p.price) }} · HPP {{ number.format(p.hpp ?? 0) }}
+                <span class="tabular block text-sm" :class="(p.hpp ?? 0) > 0 ? 'text-muted-foreground' : 'font-medium text-warning'">
+                  {{ (p.hpp ?? 0) > 0 ? `Untung ${formatRp(p.price - p.hpp)} (${marginPct(p)}%)` : "HPP belum diisi" }}
                 </span>
               </span>
-              <Pencil class="ml-auto size-4 shrink-0 text-muted-foreground" />
-            </button>
-            <button
-              type="button"
-              role="switch"
-              :aria-checked="p.is_available"
-              :aria-label="`${memberName(openGroup, p)} tersedia`"
-              class="relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
-              :class="p.is_available ? 'bg-primary' : 'bg-[#d6d3ce]'"
-              :disabled="savingId === p.id"
-              @click="toggleAvailable(p)"
-            >
-              <span class="inline-block size-6 rounded-full bg-white shadow transition-transform" :class="p.is_available ? 'translate-x-7' : 'translate-x-1'" />
-            </button>
+              <button
+                type="button"
+                class="flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted"
+                :aria-label="`Ubah foto dan nama ${memberName(openGroup, p)}`"
+                title="Ubah foto / nama"
+                @click="openEditFromGroup(p)"
+              >
+                <Pencil class="size-4" />
+              </button>
+              <button
+                type="button"
+                role="switch"
+                :aria-checked="p.is_available"
+                :aria-label="`${memberName(openGroup, p)} tersedia`"
+                class="relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors disabled:opacity-50"
+                :class="p.is_available ? 'bg-primary' : 'bg-[#d6d3ce]'"
+                :disabled="savingId === p.id"
+                @click="toggleAvailable(p)"
+              >
+                <span class="inline-block size-6 rounded-full bg-white shadow transition-transform" :class="p.is_available ? 'translate-x-7' : 'translate-x-1'" />
+              </button>
+            </div>
+            <div class="grid grid-cols-2 gap-2 pl-15">
+              <label class="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 focus-within:ring-2 focus-within:ring-ring/40">
+                <span class="text-xs font-semibold text-muted-foreground">Harga</span>
+                <input
+                  class="tabular min-w-0 flex-1 bg-transparent text-right text-[15px] font-semibold outline-none"
+                  inputmode="numeric"
+                  :value="rpInput(p.price)"
+                  @focus="$event.target.select()"
+                  @keydown.enter="$event.target.blur()"
+                  @blur="saveMoney(p, 'price', $event)"
+                />
+              </label>
+              <label class="flex h-11 items-center gap-2 rounded-xl bg-muted px-3 focus-within:ring-2 focus-within:ring-ring/40">
+                <span class="text-xs font-semibold text-muted-foreground">HPP</span>
+                <input
+                  class="tabular min-w-0 flex-1 bg-transparent text-right text-[15px] font-semibold outline-none"
+                  inputmode="numeric"
+                  :value="rpInput(p.hpp)"
+                  @focus="$event.target.select()"
+                  @keydown.enter="$event.target.blur()"
+                  @blur="saveMoney(p, 'hpp', $event)"
+                />
+              </label>
+            </div>
           </li>
         </ul>
       </DialogContent>
