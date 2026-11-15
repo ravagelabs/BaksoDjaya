@@ -41,7 +41,7 @@ const disabled = computed(() => !props.product.is_available);
     </button>
     <button
       type="button"
-      class="absolute right-3.5 bottom-3.5 flex size-11 items-center justify-center rounded-full bg-secondary text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none"
+      class="press absolute right-3.5 bottom-3.5 flex size-11 items-center justify-center rounded-full bg-secondary text-primary hover:bg-primary hover:text-primary-foreground disabled:pointer-events-none"
       :disabled="disabled"
       :aria-label="`Tambah ${titleCase(product.name)}`"
       @click="emit('quickAdd', product)"

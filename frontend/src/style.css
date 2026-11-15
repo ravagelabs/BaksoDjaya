@@ -194,6 +194,32 @@
   }
 }
 
+/* ===== Gerak (aturan Emil Kowalski): cuma transform + opacity, ease-out kuat, UI < 300ms ===== */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);     /* masuk / keluar */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* pindah di layar */
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);  /* drawer ala iOS */
+}
+/* Tekan tombol: menyusut tipis 120ms sebagai feedback (hanya transform) */
+@layer utilities {
+  .press {
+    transition-property: transform, color, background-color, border-color, box-shadow, opacity;
+    transition-duration: 120ms;
+    transition-timing-function: var(--ease-out);
+  }
+  .press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+/* Pengguna yang minta gerak dikurangi: animasi & transisi jadi instan */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Loading R: pulse opacity lembut 1,2 detik, tanpa berputar */
 @keyframes r-pulse {
   0%, 100% { opacity: 0.45; }

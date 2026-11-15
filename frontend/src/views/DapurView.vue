@@ -111,7 +111,7 @@ async function cancelOrder() {
       <article
         v-for="b in bills"
         :key="b.billId"
-        class="rounded-[20px] border bg-[#fbfaf8] p-5 transition-shadow duration-500"
+        class="rounded-[20px] border bg-[#fbfaf8] p-5 transition-[box-shadow,border-color] duration-250 ease-(--ease-out)"
         :class="fresh.has(b.billId) ? 'border-cta shadow-[0_0_0_4px_rgb(217_72_15/0.16)]' : ''"
       >
         <header class="flex items-baseline justify-between gap-3">

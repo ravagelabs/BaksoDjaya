@@ -8,10 +8,10 @@ const ui = useUiStore();
 <template>
   <div class="pointer-events-none fixed bottom-6 left-1/2 z-[60] flex -translate-x-1/2 flex-col items-center gap-2">
     <TransitionGroup
-      enter-active-class="transition duration-200"
+      enter-active-class="transition-[transform,opacity] duration-200 ease-(--ease-out)"
       enter-from-class="translate-y-2 opacity-0"
-      leave-active-class="transition duration-200"
-      leave-to-class="opacity-0"
+      leave-active-class="transition-[transform,opacity] duration-150 ease-(--ease-out)"
+      leave-to-class="translate-y-2 opacity-0"
     >
       <div
         v-for="t in ui.toasts"
