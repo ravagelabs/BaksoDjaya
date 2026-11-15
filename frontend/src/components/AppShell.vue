@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, watchEffect, onMounted, onUnmounted } from "vue";
+import { ref, reactive, computed, watch, watchEffect, nextTick, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ArrowLeftRight, BookOpen, ChevronDown, History, Landmark, LogOut, Package, Plus, Receipt, Undo2, UserPlus, UtensilsCrossed } from "@lucide/vue";
 import QuickActions from "@/components/QuickActions.vue";
@@ -61,6 +61,40 @@ onUnmounted(() => document.documentElement.classList.remove("app-locked"));
 
 // manager: hanya untuk role pengelola (sama dengan MANAGER_ROLES di backend/lib/http.js)
 const MANAGER_ROLES = ["owner"];
+// ---- Garis menu aktif yang bergeser + menu aktif digeser ke tengah (HP) ----
+const navEl = ref(null);
+const indicator = reactive({ x: 0, w: 0, animate: false });
+function placeIndicator(animate = true) {
+  const nav = navEl.value;
+  const a = nav?.querySelector('[aria-current="page"]');
+  if (!a) {
+    indicator.w = 0;
+    return;
+  }
+  const pad = parseFloat(getComputedStyle(a).paddingLeft) || 12;
+  indicator.animate = animate && indicator.w > 0;
+  indicator.x = a.offsetLeft + pad;
+  indicator.w = Math.max(0, a.offsetWidth - pad * 2);
+  // di HP menu bisa digeser: pastikan menu aktif kelihatan
+  if (nav.scrollWidth > nav.clientWidth) {
+    const target = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2;
+    nav.scrollTo({ left: Math.max(0, target), behavior: animate && !matchMedia("(prefers-reduced-motion: reduce)").matches ? "smooth" : "auto" });
+  }
+}
+watch(
+  () => route.path,
+  () => nextTick(() => placeIndicator(true))
+);
+onMounted(() => {
+  nextTick(() => placeIndicator(false));
+  document.fonts?.ready.then(() => placeIndicator(false));
+  window.addEventListener("resize", onResize);
+});
+onUnmounted(() => window.removeEventListener("resize", onResize));
+function onResize() {
+  placeIndicator(false);
+}
+
 const showFab = computed(() => !["/kasir", "/transaksi/bayar"].some((p) => route.path.startsWith(p)));
 const isManager = computed(() => MANAGER_ROLES.includes(props.user.role));
 
@@ -92,6 +126,8 @@ const firstName = computed(() => props.user.name?.split(" ")[0] ?? "");
 
 // ---- Badge merah di menu: pesanan aktif di Dapur, nomor yang sedang dipakai ----
 const badges = ref({ "/dapur": 0, "/meja": 0 });
+// angka merah mengubah lebar menu: garis aktif ikut menyesuaikan
+watch(badges, () => nextTick(() => placeIndicator(false)), { deep: true });
 const tables = ref([]);
 
 async function refreshBadges() {
@@ -218,7 +254,7 @@ async function confirmLogout({ print = false } = {}) {
         <BrandLogo variant="dark" />
       </RouterLink>
 
-      <nav class="order-last -mx-4 flex h-12 w-[calc(100%+2rem)] items-stretch gap-1 overflow-x-auto border-t border-white/10 px-2 [scrollbar-width:none] md:order-none md:mx-0 md:h-auto md:w-auto md:flex-1 md:justify-center-safe md:self-stretch md:border-t-0 md:px-0" aria-label="Menu utama">
+      <nav ref="navEl" class="relative order-last -mx-4 flex h-12 w-[calc(100%+2rem)] items-stretch gap-1 overflow-x-auto border-t border-white/10 px-2 [scrollbar-width:none] md:order-none md:mx-0 md:h-auto md:w-auto md:flex-1 md:justify-center-safe md:self-stretch md:border-t-0 md:px-0" aria-label="Menu utama">
         <RouterLink
           v-for="item in NAV"
           :key="item.to"
@@ -241,12 +277,15 @@ async function confirmLogout({ print = false } = {}) {
             >
               {{ badges[item.to] }}
             </span>
-            <span
-              v-if="isActive"
-              class="absolute inset-x-3 bottom-1.5 h-0.5 rounded-full bg-white lg:inset-x-4 lg:bottom-2"
-            />
           </a>
         </RouterLink>
+        <!-- Garis menu aktif: satu garis yang bergeser ke menu yang dipilih -->
+        <span
+          aria-hidden="true"
+          class="pointer-events-none absolute bottom-1.5 left-0 h-0.5 w-px origin-left rounded-full bg-white lg:bottom-2"
+          :class="indicator.animate ? 'transition-[transform,opacity] duration-250 ease-(--ease-in-out)' : ''"
+          :style="{ transform: `translateX(${indicator.x}px) scaleX(${indicator.w})`, opacity: indicator.w ? 1 : 0 }"
+        />
       </nav>
 
       <div class="ml-auto flex shrink-0 items-center gap-4 md:ml-0">
