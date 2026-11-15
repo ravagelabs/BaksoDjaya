@@ -344,6 +344,9 @@ async function exportCsv() {
           <p class="text-sm text-muted-foreground">{{ rangeLabel }}</p>
           <dl class="tabular mt-5 grid gap-2.5 text-[15px]">
             <div class="flex justify-between"><dt>Penjualan</dt><dd class="font-semibold">{{ formatRp(report.net_sales) }}</dd></div>
+            <div v-if="report.discount" class="flex justify-between text-sm text-muted-foreground">
+              <dt>Sudah termasuk diskon & gratis ({{ report.discount_items }} item)</dt><dd>{{ formatRp(report.discount) }}</dd>
+            </div>
             <div class="flex justify-between text-muted-foreground"><dt>HPP (bahan per porsi)</dt><dd>− {{ formatRp(report.hpp) }}</dd></div>
             <div class="flex justify-between border-t pt-2.5 font-semibold"><dt>Laba kotor</dt><dd>{{ formatRp(report.gross_profit) }}</dd></div>
 

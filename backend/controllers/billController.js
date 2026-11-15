@@ -13,6 +13,7 @@ const billItemColumns = new pgp.helpers.ColumnSet(
         'price',
         { name: 'note', def: null },
         { name: 'options', mod: ':json', cast: 'jsonb', def: [] },
+        { name: 'discount_pct', def: 0 },
     ],
     { table: 'bill_item' }
 );
@@ -26,6 +27,8 @@ const normalizeItems = (billItems) =>
         price: item.price,
         note: cleanText(item.note),
         options: Array.isArray(item.options) ? item.options : [],
+        // diskon per item 0-100% (100 = gratis)
+        discount_pct: Math.min(100, Math.max(0, Math.round(Number(item.discount_pct) || 0))),
     }));
 
 const buildInsertItemsQuery = (billId, billItems) => {
@@ -72,6 +75,7 @@ const BILL_SELECT = `
                 'category', p.category,
                 'qty', bi.qty,
                 'price', bi.price,
+                'discount_pct', bi.discount_pct,
                 'note', bi.note,
                 'options', bi.options
             )

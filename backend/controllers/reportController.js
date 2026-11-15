@@ -98,7 +98,9 @@ export const getSummaryReport = async (from, to) => {
         // HPP dari HPP menu saat ini; jumlah menu yang HPP-nya masih 0 ikut dihitung untuk peringatan
         const cogs = await t.one(
             `SELECT COALESCE(SUM(bi.qty * p.hpp), 0)::float AS hpp,
-                    COUNT(DISTINCT p.id) FILTER (WHERE COALESCE(p.hpp, 0) = 0)::int AS items_without_hpp
+                    COUNT(DISTINCT p.id) FILTER (WHERE COALESCE(p.hpp, 0) = 0)::int AS items_without_hpp,
+                    COALESCE(SUM(ROUND(bi.qty * bi.price * bi.discount_pct / 100.0)), 0)::float AS discount,
+                    COUNT(*) FILTER (WHERE bi.discount_pct > 0)::int AS discount_items
              FROM bill b
              JOIN bill_item bi ON bi.bill_id = b.id
              JOIN product p ON p.id = bi.product_id
@@ -149,7 +151,7 @@ export const getSummaryReport = async (from, to) => {
         );
 
         const topProducts = await t.any(
-            `SELECT p.name, SUM(bi.qty)::int AS qty, SUM(bi.qty * bi.price)::float AS total
+            `SELECT p.name, SUM(bi.qty)::int AS qty, SUM(ROUND(bi.qty * bi.price * (100 - bi.discount_pct) / 100.0))::float AS total
              FROM bill b
              JOIN bill_item bi ON bi.bill_id = b.id
              JOIN product p ON p.id = bi.product_id
@@ -177,6 +179,8 @@ export const getSummaryReport = async (from, to) => {
             average_ticket: sales.transactions ? sales.net_sales / sales.transactions : 0,
             hpp: cogs.hpp,
             items_without_hpp: cogs.items_without_hpp,
+            discount: cogs.discount,
+            discount_items: cogs.discount_items,
             gross_profit: grossProfit,
             expenses: expensesTotal,
             expenses_by_category: expensesByCategory,

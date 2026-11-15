@@ -2,7 +2,7 @@
 import { Printer } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatRp, number, orderNo, orderTypeLabel, optionsText, timeOnly, OUTLET_NAME } from "@/lib/format";
+import { formatRp, number, orderNo, orderTypeLabel, optionsText, timeOnly, OUTLET_NAME, lineTotal } from "@/lib/format";
 
 // Pratinjau nota pesanan / nota dapur
 defineProps({
@@ -41,7 +41,7 @@ const emit = defineEmits(["update:open", "print"]);
           <li v-for="i in bill.billItems" :key="i.id" class="py-1">
             <div class="flex justify-between gap-3">
               <span class="font-semibold">{{ i.qty }}x {{ i.name }}</span>
-              <span class="tabular shrink-0">{{ number.format(i.price * i.qty) }}</span>
+              <span class="tabular shrink-0">{{ number.format(lineTotal(i)) }}</span>
             </div>
             <p v-if="i.options?.length" class="pl-6 text-muted-foreground">{{ optionsText(i.options) }}</p>
             <p v-if="i.note" class="pl-6 text-muted-foreground">Catatan: {{ i.note }}</p>

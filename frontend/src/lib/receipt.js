@@ -1,5 +1,5 @@
 import { useCatalogStore } from "@/stores/catalog";
-import { rupiah, orderTypeLabel, PAYMENT_LABELS, OUTLET_NAME, BANK_ACCOUNT, optionsText, orderNo } from "@/lib/format";
+import { rupiah, orderTypeLabel, PAYMENT_LABELS, OUTLET_NAME, BANK_ACCOUNT, optionsText, orderNo, lineTotal, discountLabel } from "@/lib/format";
 
 // ESC/POS builder: raw printer commands for a 58mm receipt (32 chars per line, Font A)
 // copyLabel: tulisan kecil di atas struk, mis. "PELANGGAN" / "DAPUR" saat dicetak 2 rangkap
@@ -71,6 +71,7 @@ export function buildEscposReceipt(bill, { copyLabel = "" } = {}) {
     if (i.options?.length) write(wrap(optionsText(i.options), "  "));
     if (i.note) write(wrap(`Catatan: ${i.note}`, "  "));
     write(row(`  ${i.qty} x ${rupiah.format(i.price)}`, rupiah.format(i.price * i.qty)));
+    if (Number(i.discount_pct) > 0) write(row(`  ${discountLabel(i.discount_pct)}`, `-${rupiah.format(i.price * i.qty - lineTotal(i))}`));
   }
 
   write(line());
@@ -585,7 +586,7 @@ export function buildOrderSlip(bill, { updated = false } = {}) {
     cmd(0x1b, 0x45, 0x00);
     if (i.options?.length) write(wrap(optionsText(i.options), "   "));
     if (i.note) write(wrap(`Catatan: ${i.note}`, "   "));
-    write(row("", rupiah.format(i.price * i.qty)));
+    write(row(Number(i.discount_pct) > 0 ? `  ${discountLabel(i.discount_pct)}` : "", rupiah.format(lineTotal(i))));
   }
   if (bill.note) {
     write(line());

@@ -102,3 +102,7 @@ export const optionsText = (options = []) =>
 // Foto yang di-upload disimpan backend di /uploads; di dev frontend dan backend beda port
 const API_URL = import.meta.env.VITE_API_URL || "";
 export const assetUrl = (src) => (src && src.startsWith("/uploads/") ? `${API_URL}${src}` : src || "");
+
+// Total satu baris setelah diskon per item (0-100%, 100 = gratis)
+export const lineTotal = (l) => Math.round((Number(l.price) || 0) * (Number(l.qty) || 0) * (1 - (Number(l.discount_pct) || 0) / 100));
+export const discountLabel = (pct) => (Number(pct) >= 100 ? "Gratis" : `Diskon ${pct}%`);

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import PrintPopup from "@/components/PrintPopup.vue";
 import NumberPickerDialog from "@/components/NumberPickerDialog.vue";
 import { api } from "@/lib/api";
-import { formatRp, number, orderNo, orderTypeLabel, splitName, optionsText, PAYMENT_LABELS, PAYMENT_METHODS, BANK_ACCOUNT } from "@/lib/format";
+import { formatRp, number, orderNo, orderTypeLabel, splitName, optionsText, PAYMENT_LABELS, PAYMENT_METHODS, BANK_ACCOUNT, lineTotal, discountLabel } from "@/lib/format";
 import { printBill, printKitchenSlip } from "@/lib/receipt";
 import { useOrderStore } from "@/stores/order";
 import { useUiStore } from "@/stores/ui";
@@ -165,7 +165,10 @@ function closePrint(open) {
         <ul class="mt-4 flex flex-col gap-3">
           <li v-for="line in order.lines" :key="line.key" class="tabular grid grid-cols-[1fr_auto] gap-x-6 text-[15px]">
             <span>{{ line.qty }}x {{ splitName(line.name).title }}</span>
-            <span class="text-right">{{ number.format(line.price * line.qty) }}</span>
+            <span class="text-right">
+              <span v-if="line.discount_pct" class="mr-1.5 text-xs text-muted-foreground line-through">{{ number.format(line.price * line.qty) }}</span>{{ number.format(lineTotal(line)) }}
+            </span>
+            <span v-if="line.discount_pct" class="col-span-2 text-xs font-semibold text-success">{{ discountLabel(line.discount_pct) }}</span>
             <span
               v-if="splitName(line.name).detail || line.options?.length || line.note"
               class="col-span-2 text-xs text-muted-foreground"

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { ArrowRight, ChevronDown, FilePenLine, Pencil, ShoppingBag, Minus, Plus, Printer, Search, Trash2, UserRound, Utensils, X } from "@lucide/vue";
+import { ArrowRight, BadgePercent, ChevronDown, FilePenLine, Pencil, ShoppingBag, Minus, Plus, Printer, Search, Trash2, UserRound, Utensils, X } from "@lucide/vue";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import ProductCard from "@/components/ProductCard.vue";
@@ -19,6 +19,8 @@ import {
   splitName,
   optionsText,
   OUTLET_BRANCH,
+  lineTotal,
+  discountLabel,
 } from "@/lib/format";
 import { useCatalogStore } from "@/stores/catalog";
 import { useOrderStore } from "@/stores/order";
@@ -63,6 +65,8 @@ function openCustomize(product) {
 }
 
 // Ubah item yang sudah di keranjang: buka dialog yang sama dengan pilihan terisi
+const DISCOUNTS = [0, 10, 20, 50, 100];
+
 function editLine(line) {
   const found = catalog.cardForLine(line);
   if (!found) return;
@@ -398,7 +402,11 @@ function pickTypeAndPay(type) {
                 <span v-if="lineDetail(line)" class="block text-sm leading-snug text-muted-foreground">{{ lineDetail(line) }}</span>
                 <span v-if="line.note" class="block text-sm leading-snug text-muted-foreground">{{ line.note }}</span>
               </span>
-              <span class="tabular shrink-0 text-[15px]">{{ number.format(line.price * line.qty) }}</span>
+              <span class="tabular shrink-0 text-right text-[15px]">
+                <span v-if="line.discount_pct" class="block text-xs text-muted-foreground line-through">{{ number.format(line.price * line.qty) }}</span>
+                {{ number.format(lineTotal(line)) }}
+                <span v-if="line.discount_pct" class="block text-xs font-semibold text-success">{{ discountLabel(line.discount_pct) }}</span>
+              </span>
             </button>
             <div v-if="activeLine === line.key" class="flex items-center gap-2 pb-3 pl-9">
               <div class="flex h-11 items-center rounded-xl bg-muted px-1">
@@ -424,6 +432,32 @@ function pickTypeAndPay(type) {
               >
                 <Trash2 class="size-4" /> Hapus
               </button>
+            </div>
+            <!-- Diskon per item (100% = gratis) -->
+            <div v-if="activeLine === line.key" class="flex flex-wrap items-center gap-1.5 pb-3 pl-9">
+              <span class="mr-1 flex items-center gap-1 text-sm font-medium text-muted-foreground"><BadgePercent class="size-4" /> Diskon</span>
+              <button
+                v-for="d in DISCOUNTS"
+                :key="d"
+                type="button"
+                class="h-9 rounded-full px-3 text-sm font-semibold transition-colors"
+                :class="(line.discount_pct || 0) === d ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-secondary'"
+                @click="activeLine = order.setDiscount(line.key, d)"
+              >
+                {{ d === 0 ? "Tanpa" : d === 100 ? "Gratis" : `${d}%` }}
+              </button>
+              <label class="flex h-9 items-center gap-1 rounded-full bg-muted px-3 text-sm">
+                <input
+                  class="tabular w-9 bg-transparent text-right font-semibold outline-none"
+                  inputmode="numeric"
+                  maxlength="3"
+                  aria-label="Diskon persen lain"
+                  :value="DISCOUNTS.includes(line.discount_pct || 0) ? '' : line.discount_pct"
+                  placeholder="lain"
+                  @keydown.enter="$event.target.blur()"
+                  @blur="$event.target.value !== '' && (activeLine = order.setDiscount(line.key, $event.target.value))"
+                />%
+              </label>
             </div>
           </li>
         </ul>
@@ -451,6 +485,9 @@ function pickTypeAndPay(type) {
 
       <div class="border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-5 md:pb-4">
         <!-- Subtotal & pajak hanya tampil kalau ada pajak/biaya -->
+        <p v-if="order.discountTotal" class="tabular flex justify-between text-sm font-medium text-success">
+          <span>Diskon</span><span>−{{ formatRp(order.discountTotal) }}</span>
+        </p>
         <p v-if="order.tax" class="tabular flex justify-between text-sm text-muted-foreground">
           <span>Subtotal {{ formatRp(order.subtotal) }}</span><span>Pajak {{ formatRp(order.tax) }}</span>
         </p>

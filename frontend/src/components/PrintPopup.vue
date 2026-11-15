@@ -3,7 +3,7 @@ import { ref, watch, computed } from "vue";
 import { Check, ChefHat, Printer } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatRp, number, dateTime, orderNo, orderTypeLabel, PAYMENT_LABELS, optionsText } from "@/lib/format";
+import { formatRp, number, dateTime, orderNo, orderTypeLabel, PAYMENT_LABELS, optionsText, lineTotal } from "@/lib/format";
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -77,7 +77,7 @@ function doKitchen() {
           <li v-for="item in bill.billItems" :key="item.id" class="text-[15px]">
             <div class="flex justify-between gap-3">
               <span>{{ item.qty }}x {{ item.name }}</span>
-              <span class="tabular">{{ number.format(item.price * item.qty) }}</span>
+              <span class="tabular">{{ number.format(lineTotal(item)) }}</span>
             </div>
             <p v-if="item.options?.length || item.note" class="text-sm text-muted-foreground">
               {{ [optionsText(item.options), item.note].filter(Boolean).join(" · ") }}

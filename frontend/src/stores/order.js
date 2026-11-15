@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { api } from "@/lib/api";
+import { lineTotal } from "@/lib/format";
 
 // Kunci baris keranjang: produk + opsi + catatan. Item sama dengan opsi berbeda jadi baris terpisah.
 const lineKey = (productId, options, note) =>
@@ -20,7 +21,9 @@ export const useOrderStore = defineStore("order", () => {
   const dirty = ref(false);
   const saving = ref(false);
 
-  const subtotal = computed(() => lines.value.reduce((sum, l) => sum + l.price * l.qty, 0));
+  const subtotal = computed(() => lines.value.reduce((sum, l) => sum + lineTotal(l), 0));
+  // Total potongan dari diskon per item (untuk ditampilkan)
+  const discountTotal = computed(() => lines.value.reduce((sum, l) => sum + (l.price * l.qty - lineTotal(l)), 0));
   const tax = computed(() => 0); // Pajak / biaya mengikuti pengaturan outlet; belum ada pengaturannya
   const total = computed(() => subtotal.value + tax.value);
   const itemCount = computed(() => lines.value.reduce((sum, l) => sum + l.qty, 0));
@@ -46,8 +49,28 @@ export const useOrderStore = defineStore("order", () => {
         qty,
         note: cleanNote,
         options,
+        discount_pct: 0,
       });
     touch();
+  }
+
+  // Diskon per item 0-100% (100 = gratis). Baris dengan diskon berbeda tidak digabung.
+  function setDiscount(key, pct) {
+    const line = lines.value.find((l) => l.key === key);
+    if (!line) return;
+    const d = Math.min(100, Math.max(0, Math.round(Number(pct) || 0)));
+    const base = line.key.replace(/\|d\d+$/, "");
+    const newKey = d ? `${base}|d${d}` : base;
+    const twin = lines.value.find((l) => l.key === newKey && l !== line);
+    if (twin) {
+      twin.qty += line.qty;
+      lines.value = lines.value.filter((l) => l !== line);
+    } else {
+      line.discount_pct = d;
+      line.key = newKey;
+    }
+    touch();
+    return newKey;
   }
 
   function changeQty(key, delta) {
@@ -63,7 +86,8 @@ export const useOrderStore = defineStore("order", () => {
     if (index === -1) return addLine({ product, qty, options, note: itemNote });
     const extras = options.reduce((s, o) => s + (o.price || 0), 0);
     const cleanNote = itemNote.trim() || null;
-    const key = lineKey(product.id, options, cleanNote);
+    const d = lines.value[index].discount_pct || 0; // diskon baris lama tetap dipakai
+    const key = lineKey(product.id, options, cleanNote) + (d ? `|d${d}` : "");
     const twin = lines.value.find((l) => l.key === key && l.key !== oldKey);
     if (twin) {
       twin.qty += qty;
@@ -78,6 +102,7 @@ export const useOrderStore = defineStore("order", () => {
         qty,
         note: cleanNote,
         options,
+        discount_pct: d,
       });
     }
     touch();
@@ -136,7 +161,8 @@ export const useOrderStore = defineStore("order", () => {
     const merged = new Map();
     for (const i of bill.billItems) {
       const options = Array.isArray(i.options) ? i.options : [];
-      const key = lineKey(i.product_id, options, i.note);
+      const d = Number(i.discount_pct) || 0;
+      const key = lineKey(i.product_id, options, i.note) + (d ? `|d${d}` : "");
       const existing = merged.get(key);
       if (existing) existing.qty += i.qty;
       else
@@ -148,6 +174,7 @@ export const useOrderStore = defineStore("order", () => {
           qty: i.qty,
           note: i.note,
           options,
+          discount_pct: d,
         });
     }
     lines.value = [...merged.values()];
@@ -178,12 +205,13 @@ export const useOrderStore = defineStore("order", () => {
       orderType: orderType.value ?? "dine_in",
       guests: guests.value,
       note: note.value,
-      billItems: lines.value.map(({ product_id, price, qty, note: n, options }) => ({
+      billItems: lines.value.map(({ product_id, price, qty, note: n, options, discount_pct }) => ({
         product_id,
         price,
         qty,
         note: n,
         options,
+        discount_pct: discount_pct || 0,
       })),
       ...extra,
     };
@@ -205,6 +233,7 @@ export const useOrderStore = defineStore("order", () => {
         name: l.name,
         qty: l.qty,
         price: l.price,
+        discount_pct: l.discount_pct || 0,
         note: l.note,
         options: l.options,
       })),
@@ -246,6 +275,7 @@ export const useOrderStore = defineStore("order", () => {
     dirty,
     saving,
     subtotal,
+    discountTotal,
     tax,
     total,
     itemCount,
@@ -253,6 +283,7 @@ export const useOrderStore = defineStore("order", () => {
     addLine,
     changeQty,
     replaceLine,
+    setDiscount,
     removeLine,
     setTable,
     setOrderType,
