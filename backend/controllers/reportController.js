@@ -50,7 +50,7 @@ export const getDailyReport = async (date) => {
         );
 
         const expenses = await t.one(
-            `SELECT COALESCE(SUM(amount), 0)::float AS total FROM expense WHERE spent_on = $1::date;`,
+            `SELECT COALESCE(SUM(amount), 0)::float AS total FROM expense WHERE spent_on = $1::date AND category <> 'Bahan baku';`,
             [date]
         );
 
@@ -167,7 +167,8 @@ export const getSummaryReport = async (from, to) => {
             [from, to]
         );
 
-        const expensesTotal = expensesByCategory.reduce((sum, e) => sum + e.total, 0);
+        // Belanja bahan baku sudah terwakili HPP menu, jadi tidak dikurangkan lagi dari laba
+        const expensesTotal = expensesByCategory.filter((e) => e.category !== 'Bahan baku').reduce((sum, e) => sum + e.total, 0);
         const grossProfit = sales.net_sales - cogs.hpp;
         const netProfit = grossProfit - expensesTotal;
 

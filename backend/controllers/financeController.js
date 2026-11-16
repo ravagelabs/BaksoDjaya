@@ -13,7 +13,8 @@ const indexBy = (accounts) => Object.fromEntries(accounts.map((a) => [a.code, a]
 
 // Biaya (halaman Beranda) → akun
 const EXPENSE_ACCOUNT = {
-    'Bahan baku': '5-1100', 'Kemasan': '5-1200', 'Gaji karyawan': '6-1100', 'Sewa tempat': '6-1200',
+    // Belanja bahan baku masuk Persediaan; jadi beban (HPP) saat menu terjual, supaya tidak dihitung dua kali
+    'Bahan baku': '1-1600', 'Kemasan': '5-1200', 'Gaji karyawan': '6-1100', 'Sewa tempat': '6-1200',
     'Listrik & air': '6-1300', 'Gas': '6-1400', 'Transport': '6-1500', 'Marketing': '6-1600',
     'Perawatan': '6-1700', 'Lainnya': '6-9100',
 };
@@ -33,6 +34,16 @@ async function journalUntil(to, BY_CODE) {
          WHERE b.status = 'paid' AND b.payment_method IS NOT NULL
            AND (COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::date <= $1::date
          GROUP BY 1, 2 ORDER BY 1, 2;`,
+        [to]
+    );
+    // HPP per hari = jumlah terjual x HPP menu (sama dengan angka HPP di Beranda)
+    const cogs = await db.any(
+        `SELECT (COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::date::text AS date,
+                ROUND(SUM(bi.qty * COALESCE(p.hpp, 0)))::bigint AS total
+         FROM bill b JOIN bill_item bi ON bi.bill_id = b.id JOIN product p ON p.id = bi.product_id
+         WHERE b.status = 'paid'
+           AND (COALESCE(b.paid_at, b.created_at) AT TIME ZONE '${TZ}')::date <= $1::date
+         GROUP BY 1 ORDER BY 1;`,
         [to]
     );
     const expenses = await db.any(
@@ -57,6 +68,15 @@ async function journalUntil(to, BY_CODE) {
             key: `S-${s.date}-${s.method}`, date: s.date, source: 'penjualan',
             ref: 'Penjualan', description: `Penjualan ${PAYMENT_NAME[s.method] ?? s.method} (${s.count} transaksi)`,
             lines: [{ account: acct, debit: amt, credit: 0 }, { account: '4-1100', debit: 0, credit: amt }],
+        });
+    }
+    for (const c of cogs) {
+        const amt = Number(c.total);
+        if (!amt) continue;
+        entries.push({
+            key: `H-${c.date}`, date: c.date, source: 'hpp', ref: 'HPP',
+            description: 'HPP menu terjual',
+            lines: [{ account: '5-1100', debit: amt, credit: 0 }, { account: '1-1600', debit: 0, credit: amt }],
         });
     }
     for (const e of expenses) {
