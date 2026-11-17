@@ -98,6 +98,13 @@ watch(
       f.value = { date: today };
       useTemplate(JOURNAL_TEMPLATES[0]);
     }
+    const preset = ui.quickPreset;
+    ui.quickPreset = null;
+    if (preset) {
+      const t = JOURNAL_TEMPLATES.find((x) => x.key === preset.template);
+      if (t) useTemplate(t);
+      Object.assign(f.value, preset.values ?? {});
+    }
   }
 );
 

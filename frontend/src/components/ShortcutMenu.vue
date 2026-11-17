@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import {
-  ArrowLeftRight, BookOpen, ChartPie, Clock, FileDown, Landmark, Package, Printer, Receipt, Settings2, Tags, UserPlus, UtensilsCrossed,
+  ArrowLeftRight, BookOpen, CornerDownLeft, House, LayoutGrid, Search, ShoppingBag, Wallet, ChartPie, Clock, FileDown, Landmark, Package, Printer, Receipt, Settings2, Tags, UserPlus, UtensilsCrossed,
 } from "@lucide/vue";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,6 +28,61 @@ const ALL = [
   { id: "akun", label: "Tambah akun karyawan", icon: UserPlus, run: () => router.push({ path: "/pengaturan", query: { bagian: "akun", aksi: "tambah" } }) },
 ];
 const DEFAULT = ["biaya", "harian", "keuangan"];
+
+// ---- Kotak perintah cepat (⌘K / Ctrl+K, atau "Cari perintah" di menu R) ----
+const go = (action, values, template) => {
+  ui.quickPreset = { template, values };
+  ui.quickAction = action;
+};
+const PAGES = [
+  { id: "x-setor", label: "Setor tunai ke BCA", icon: Landmark, run: () => go("transfer", { from: "1-1100", to: "1-1200", description: "Setor tunai ke BCA" }) },
+  { id: "x-petty", label: "Isi ulang petty cash", icon: Wallet, run: () => go("transfer", { from: "1-1100", to: "1-1101", description: "Isi ulang petty cash" }) },
+  { id: "x-belanja", label: "Catat belanja bahan baku", icon: Package, run: () => go("biaya", { category: "Bahan baku", name: "Belanja bahan" }) },
+  { id: "x-gofood", label: "GoFood sudah cair", icon: Landmark, run: () => go("jurnal", {}, "gofood") },
+  { id: "x-grabfood", label: "GrabFood sudah cair", icon: Landmark, run: () => go("jurnal", {}, "grabfood") },
+  { id: "p-beranda", label: "Buka Beranda", icon: House, run: () => router.push("/beranda") },
+  { id: "p-kasir", label: "Buka Kasir", icon: ShoppingBag, run: () => router.push("/kasir") },
+  { id: "p-transaksi", label: "Buka Transaksi", icon: Receipt, run: () => router.push("/transaksi") },
+  { id: "p-kasbank", label: "Lihat mutasi kas & bank", icon: Wallet, run: () => router.push("/keuangan?laporan=cash") },
+  { id: "p-pengaturan", label: "Buka Pengaturan", icon: LayoutGrid, run: () => router.push("/pengaturan") },
+];
+const paletteOpen = ref(false);
+const query = ref("");
+const active = ref(0);
+const inputEl = ref(null);
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+const KEY_HINT = isMac ? "⌘K" : "Ctrl K";
+const results = computed(() => {
+  const q = query.value.trim().toLowerCase();
+  const all = [...ALL.filter((a) => a.id !== "keuangan"), ...PAGES, ALL.find((a) => a.id === "keuangan")];
+  return q ? all.filter((a) => a.label.toLowerCase().includes(q)) : all;
+});
+async function openPalette() {
+  query.value = "";
+  active.value = 0;
+  paletteOpen.value = true;
+  await nextTick();
+  inputEl.value?.focus();
+}
+function runResult(it) {
+  if (!it) return;
+  paletteOpen.value = false;
+  it.run();
+}
+function onPaletteKey(e) {
+  const n = results.value.length;
+  if (e.key === "ArrowDown") { e.preventDefault(); active.value = (active.value + 1) % Math.max(n, 1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); active.value = (active.value - 1 + n) % Math.max(n, 1); }
+  else if (e.key === "Enter") { e.preventDefault(); runResult(results.value[active.value]); }
+}
+function onGlobalKey(e) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    paletteOpen.value ? (paletteOpen.value = false) : openPalette();
+  }
+}
+onMounted(() => window.addEventListener("keydown", onGlobalKey));
+onUnmounted(() => window.removeEventListener("keydown", onGlobalKey));
 const KEY = "ravage.shortcuts";
 
 function readSaved() {
@@ -83,6 +138,11 @@ async function runDaily(mode) {
       <img src="/brand/ravage-icon-silver.png" alt="" class="h-6 w-auto brightness-[1.6]" />
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" side="top" :side-offset="10" class="w-64">
+      <DropdownMenuItem class="h-11 gap-3 text-[15px]" @select="openPalette()">
+        <Search class="size-4" /> Cari perintah
+        <kbd class="ml-auto rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{{ KEY_HINT }}</kbd>
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
       <DropdownMenuItem v-for="it in items" :key="it.id" class="h-11 gap-3 text-[15px]" @select="it.run()">
         <component :is="it.icon" class="size-4" /> {{ it.label }}
       </DropdownMenuItem>
@@ -93,6 +153,43 @@ async function runDaily(mode) {
       </DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>
+
+  <!-- Kotak perintah cepat -->
+  <Dialog v-model:open="paletteOpen">
+    <DialogContent class="top-[18%] translate-y-0 gap-0 overflow-hidden p-0 sm:max-w-lg" :show-close-button="false">
+      <DialogTitle class="sr-only">Cari perintah</DialogTitle>
+      <DialogDescription class="sr-only">Ketik untuk mencari, Enter untuk menjalankan.</DialogDescription>
+      <label class="flex items-center gap-3 border-b px-4">
+        <Search class="size-5 shrink-0 text-muted-foreground" />
+        <input
+          ref="inputEl"
+          v-model="query"
+          type="text"
+          placeholder="Ketik perintah, mis. biaya, setor, laporan..."
+          class="h-14 min-w-0 flex-1 bg-transparent text-base outline-none"
+          @input="active = 0"
+          @keydown="onPaletteKey"
+        />
+        <kbd class="hidden rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground sm:block">Esc</kbd>
+      </label>
+      <ul class="max-h-[50dvh] overflow-y-auto p-2" role="listbox">
+        <li v-for="(it, i) in results" :key="it.id" role="option" :aria-selected="i === active">
+          <button
+            type="button"
+            class="flex h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-[15px]"
+            :class="i === active ? 'bg-muted font-semibold' : ''"
+            @mousemove="active = i"
+            @click="runResult(it)"
+          >
+            <component :is="it.icon" class="size-[18px] shrink-0 text-muted-foreground" />
+            <span class="flex-1 truncate">{{ it.label }}</span>
+            <CornerDownLeft v-if="i === active" class="size-4 text-muted-foreground" />
+          </button>
+        </li>
+        <li v-if="!results.length" class="px-3 py-6 text-center text-[15px] text-muted-foreground">Tidak ada perintah "{{ query }}".</li>
+      </ul>
+    </DialogContent>
+  </Dialog>
 
   <!-- Atur shortcut: tambah / kurangi -->
   <Dialog v-model:open="editing">

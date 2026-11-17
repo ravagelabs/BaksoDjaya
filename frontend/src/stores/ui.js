@@ -9,6 +9,8 @@ export const useUiStore = defineStore("ui", () => {
   const endShiftRequest = ref(0);
   // Aksi cepat dari tombol + (biaya, transfer, aset, kasbank, jurnal); null = tertutup
   const quickAction = ref(null);
+  // Isian awal untuk aksi cepat (mis. dari Beranda "Setor ke BCA"): { template?, values }
+  const quickPreset = ref(null);
   // Naik 1 setiap ada data keuangan baru, supaya Beranda & Keuangan memuat ulang
   const financeVersion = ref(0);
   let seq = 0;
@@ -22,5 +24,5 @@ export const useUiStore = defineStore("ui", () => {
   }
 
   return {
-    endShiftRequest, quickAction, financeVersion, toasts, toast, user };
+    endShiftRequest, quickAction, quickPreset, financeVersion, toasts, toast, user };
 });

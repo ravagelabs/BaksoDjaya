@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, watch } from "vue";
-import { Download, FileText, Plus, Trash2, TriangleAlert } from "@lucide/vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
+import { ArrowRight, Banknote, Bike, Check, ChevronDown, CircleAlert, Package, Plus, Tags, Trash2, Wallet } from "@lucide/vue";
+import { useRouter } from "vue-router";
 import { printReport } from "@/lib/pdf";
 import { assetUrl } from "@/lib/format";
 import { useSettingsStore } from "@/stores/settings";
@@ -53,6 +54,7 @@ const report = ref(null);
 const expenses = ref([]);
 const categories = ref([]);
 const cashAccounts = ref([]); // saldo Kas & Bank (akun utama saja)
+const balance = ref(null); // neraca per akhir periode (akun utama saja): stok bahan, piutang
 const loading = ref(false);
 const error = ref("");
 
@@ -73,6 +75,9 @@ async function load() {
     api(`/finance/report?type=cash&${q}`)
       .then((c) => (cashAccounts.value = c.data.accounts))
       .catch(() => (cashAccounts.value = []));
+    api(`/finance/report?type=bs&${q}`)
+      .then((b) => (balance.value = b.data))
+      .catch(() => (balance.value = null));
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -114,6 +119,92 @@ const bars = computed(() => {
     pct: (d.sales / max) * 100,
     peak: d.sales > 0 && d.sales === max,
   }));
+});
+
+// ---- Ringkasan atas: angka utama, tombol kontekstual, "Perlu dicek" ----
+const router = useRouter();
+const hasFinance = computed(() => cashAccounts.value.length > 0);
+const cashOf = (code) => cashAccounts.value.find((a) => a.code === code)?.closing ?? 0;
+const assetOf = (code) => Number(balance.value?.assets.find((a) => a.code === code)?.amount ?? 0);
+const tunai = computed(() => cashOf("1-1100"));
+const otherCash = computed(() => cashAccounts.value.filter((a) => a.code !== "1-1100"));
+const shortRp = (n) => (Math.abs(n) >= 1e6 ? `${(n / 1e6).toLocaleString("id-ID", { maximumFractionDigits: 1 })} jt` : number.format(n));
+
+function quick(action, values = {}, template) {
+  ui.quickPreset = { template, values };
+  ui.quickAction = action;
+}
+const TUNAI_LIMIT = 500000; // tunai di atas ini disarankan disetor
+
+const checks = computed(() => {
+  const r = report.value;
+  if (!r) return [];
+  const list = [];
+  if (r.items_without_hpp)
+    list.push({ key: "hpp", icon: Tags, tone: "warning", title: `${r.items_without_hpp} menu terjual belum ada HPP`, detail: "Laba terlihat lebih besar dari sebenarnya.", action: "Isi HPP", run: () => router.push({ path: "/pengaturan", query: { bagian: "menu" } }) });
+  if (balance.value) {
+    const stok = assetOf("1-1600");
+    if (stok < 0)
+      list.push({ key: "stok", icon: Package, tone: "warning", title: `Stok bahan minus ${formatRp(Math.abs(stok))}`, detail: "Ada belanja bahan yang belum dicatat, atau HPP menu terlalu tinggi.", action: "Catat belanja", run: () => quick("biaya", { category: "Bahan baku", name: "Belanja bahan" }) });
+    for (const [code, name, tpl] of [["1-1400", "GoFood", "gofood"], ["1-1500", "GrabFood", "grabfood"]]) {
+      const v = assetOf(code);
+      if (v > 0) list.push({ key: code, icon: Bike, tone: "info", title: `${name} ${formatRp(v)} belum cair`, detail: "Catat begitu uangnya masuk ke rekening.", action: "Sudah cair", run: () => quick("jurnal", { amount: number.format(v) }, tpl) });
+    }
+  }
+  if (hasFinance.value && tunai.value > TUNAI_LIMIT)
+    list.push({ key: "tunai", icon: Banknote, tone: "info", title: `Uang tunai menumpuk ${formatRp(tunai.value)}`, detail: "Lebih aman disetor ke bank.", action: "Setor ke BCA", run: () => quick("transfer", { from: "1-1100", to: "1-1200", amount: number.format(tunai.value), description: "Setor tunai ke BCA" }) });
+  return list;
+});
+
+// Tombol utama: bergantian antar aksi paling penting (berhenti saat disorot)
+const ctas = computed(() => {
+  const list = [];
+  if (hasFinance.value && tunai.value > TUNAI_LIMIT) list.push({ label: `Setor ${formatRp(tunai.value)} ke BCA`, run: checks.value.find((c) => c.key === "tunai").run });
+  list.push({ label: "Catat biaya", run: () => quick("biaya") });
+  if (report.value?.net_sales) list.push({ label: `${singleDay.value && to.value === todayISO() ? 'Laporan hari ini' : 'Unduh laporan'} · ${formatRp(report.value.net_sales)}`, run: () => exportPdf("pdf") });
+  return list;
+});
+const ctaIndex = ref(0);
+const ctaHold = ref(false);
+const cta = computed(() => ctas.value[ctaIndex.value % ctas.value.length]);
+let ctaTimer;
+onMounted(() => {
+  ctaTimer = setInterval(() => {
+    if (!ctaHold.value && ctas.value.length > 1 && !document.hidden) ctaIndex.value++;
+  }, 3500);
+});
+onUnmounted(() => clearInterval(ctaTimer));
+
+// Bagian yang dilipat: hanya ringkasan satu baris, buka kalau perlu (diingat di perangkat ini)
+const FOLD_KEY = "ravage.beranda.open";
+const opened = ref((() => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(FOLD_KEY) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+})());
+function toggleFold(k) {
+  const n = new Set(opened.value);
+  n.has(k) ? n.delete(k) : n.add(k);
+  opened.value = n;
+  try {
+    localStorage.setItem(FOLD_KEY, JSON.stringify([...n]));
+  } catch {
+    // penyimpanan perangkat tidak tersedia: tetap jalan
+  }
+}
+const folds = computed(() => {
+  const r = report.value;
+  if (!r) return {};
+  const top = r.top_products[0];
+  const pay = [...r.payments].sort((a, b) => b.total - a.total)[0];
+  return {
+    labarugi: `Laba bersih ${formatRp(r.net_profit)}`,
+    bayar: pay ? `${paymentLabel(pay.method)} paling banyak · ${pct(pay.total, r.net_sales)}%` : "Belum ada transaksi",
+    terlaris: top ? `${titleCase(top.name)} · ${top.qty} porsi` : "Belum ada penjualan",
+    biaya: expenses.value.length ? `${expenses.value.length} catatan · ${formatRp(expenses.value.reduce((t, e) => t + Number(e.amount), 0))}` : "Belum ada biaya",
+  };
 });
 
 // ---- Biaya operasional (dicatat lewat tombol + / Catat biaya) ----
@@ -278,222 +369,301 @@ async function exportCsv() {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto overscroll-contain px-4 py-5 md:px-8 md:py-7">
-    <div class="flex items-start justify-between gap-3">
-      <div class="min-w-0">
-        <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Beranda</h1>
-        <p class="mt-1 text-[15px] text-muted-foreground">{{ rangeLabel }} · {{ OUTLET_BRANCH }}</p>
-      </div>
-      <ExportMenu
-        :disabled="!report"
-        :items="[
-          { label: 'Unduh PDF', icon: 'pdf', action: () => exportPdf('pdf') },
-          { label: 'Cetak', icon: 'print', action: () => exportPdf('print') },
-          { label: exporting ? 'Menyiapkan...' : 'Unduh Excel (CSV)', icon: 'excel', action: exportCsv, disabled: exporting },
-        ]"
-      />
-    </div>
-
-    <!-- Periode -->
-    <div class="mt-5 flex flex-wrap items-center gap-2" role="group" aria-label="Periode laporan">
-      <button
-        v-for="p in PERIODS"
-        :key="p.key"
-        type="button"
-        class="h-11 rounded-full px-4 text-[15px] transition-colors"
-        :class="period === p.key ? 'bg-primary font-semibold text-primary-foreground' : 'bg-muted hover:bg-secondary'"
-        :aria-pressed="period === p.key"
-        @click="setPeriod(p.key)"
-      >
-        {{ p.label }}
-      </button>
-      <span v-if="period === 'custom'" class="flex flex-wrap items-center gap-2">
-        <input v-model="from" type="date" :max="todayISO()" aria-label="Dari tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
-        <span class="text-muted-foreground">s/d</span>
-        <input v-model="to" type="date" :max="todayISO()" aria-label="Sampai tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
-      </span>
-    </div>
-
-    <p v-if="error" class="mt-8 text-[15px] text-destructive">{{ error }}</p>
-    <p v-else-if="loading && !report" class="mt-8 text-[15px] text-muted-foreground">Memuat laporan...</p>
-
-    <template v-else-if="report">
-      <!-- Angka utama -->
-      <div class="mt-6 grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4" :class="loading ? 'opacity-60' : ''">
-        <div class="rounded-[20px] bg-muted/50 p-5 md:p-6">
-          <p class="text-[15px] text-muted-foreground">Penjualan</p>
-          <p class="tabular mt-2 whitespace-nowrap text-[21px] font-bold leading-none tracking-tight md:text-[32px]">{{ formatRp(report.net_sales) }}</p>
-          <p class="mt-3 text-sm text-muted-foreground">{{ report.transactions }} transaksi · rata-rata {{ formatRp(report.average_ticket) }}</p>
+  <div class="beranda h-full overflow-y-auto overscroll-contain">
+    <div class="mx-auto max-w-[1280px] px-4 py-5 md:px-8 md:py-7">
+      <!-- Judul + aksi utama -->
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Beranda</h1>
+          <p class="mt-1 text-[15px] text-muted-foreground">{{ rangeLabel }} · {{ OUTLET_BRANCH }}</p>
         </div>
-        <div class="rounded-[20px] bg-muted/50 p-5 md:p-6">
-          <p class="text-[15px] text-muted-foreground">Laba kotor</p>
-          <p class="tabular mt-2 whitespace-nowrap text-[21px] font-bold leading-none tracking-tight md:text-[32px]">{{ formatRp(report.gross_profit) }}</p>
-          <p class="mt-3 text-sm text-muted-foreground">Penjualan dikurangi HPP {{ formatRp(report.hpp) }}</p>
-        </div>
-        <div class="rounded-[20px] bg-muted/50 p-5 md:p-6">
-          <p class="text-[15px] text-muted-foreground">Biaya operasional</p>
-          <p class="tabular mt-2 whitespace-nowrap text-[21px] font-bold leading-none tracking-tight md:text-[32px]">{{ formatRp(report.expenses) }}</p>
-          <p class="mt-3 text-sm text-muted-foreground">{{ report.expenses_by_category.length }} kategori</p>
-        </div>
-        <div class="rounded-[20px] p-5 md:p-6" :class="report.net_profit < 0 ? 'bg-destructive/8' : 'bg-success-soft'">
-          <p class="text-[15px] text-muted-foreground">Laba bersih</p>
-          <p class="tabular mt-2 whitespace-nowrap text-[21px] font-bold leading-none tracking-tight md:text-[32px]" :class="report.net_profit < 0 ? 'text-destructive' : 'text-success'">
-            {{ formatRp(report.net_profit) }}
-          </p>
-          <p class="mt-3 text-sm text-muted-foreground">Margin {{ Math.round(report.net_margin * 100) }}% dari penjualan</p>
+        <div class="flex items-center gap-2">
+          <ExportMenu
+            :disabled="!report"
+            :items="[
+              { label: 'Unduh PDF', icon: 'pdf', action: () => exportPdf('pdf') },
+              { label: 'Cetak', icon: 'print', action: () => exportPdf('print') },
+              { label: exporting ? 'Menyiapkan...' : 'Unduh Excel (CSV)', icon: 'excel', action: exportCsv, disabled: exporting },
+            ]"
+          />
+          <button
+            v-if="report && cta"
+            type="button"
+            class="press flex h-11 min-w-0 items-center gap-2 overflow-hidden rounded-full bg-nav pr-4 pl-4 text-[15px] font-semibold text-nav-foreground shadow-sm"
+            @mouseenter="ctaHold = true"
+            @mouseleave="ctaHold = false"
+            @focus="ctaHold = true"
+            @blur="ctaHold = false"
+            @click="cta.run()"
+          >
+            <span class="relative grid min-w-0">
+              <Transition name="cta" mode="out-in">
+                <span :key="cta.label" class="truncate">{{ cta.label }}</span>
+              </Transition>
+            </span>
+            <ArrowRight class="size-4 shrink-0 opacity-70" />
+          </button>
         </div>
       </div>
 
-      <p v-if="report.items_without_hpp" class="mt-4 flex items-start gap-2 rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning">
-        <TriangleAlert class="mt-0.5 size-4 shrink-0" />
-        {{ report.items_without_hpp }} menu yang terjual belum punya HPP, jadi laba terlihat lebih besar dari sebenarnya.
-        Isi HPP di Pengaturan → Menu.
-      </p>
+      <!-- Periode -->
+      <div class="mt-5 flex flex-wrap items-center gap-2" role="group" aria-label="Periode laporan">
+        <button
+          v-for="p in PERIODS"
+          :key="p.key"
+          type="button"
+          class="h-11 rounded-full px-4 text-[15px] transition-colors"
+          :class="period === p.key ? 'bg-primary font-semibold text-primary-foreground' : 'glass-chip hover:bg-white'"
+          :aria-pressed="period === p.key"
+          @click="setPeriod(p.key)"
+        >
+          {{ p.label }}
+        </button>
+        <span v-if="period === 'custom'" class="flex flex-wrap items-center gap-2">
+          <input v-model="from" type="date" :max="todayISO()" aria-label="Dari tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
+          <span class="text-muted-foreground">s/d</span>
+          <input v-model="to" type="date" :max="todayISO()" aria-label="Sampai tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
+        </span>
+      </div>
 
-      <!-- Kas & Bank: saldo tiap akun di akhir periode -->
-      <section v-if="cashAccounts.length" class="mt-6">
-        <div class="flex items-baseline justify-between gap-3">
-          <h2 class="text-xl font-semibold md:text-2xl">Kas & Bank</h2>
-          <RouterLink to="/keuangan?laporan=cash" class="text-sm font-semibold text-primary">Lihat mutasi</RouterLink>
-        </div>
-        <div class="mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-          <div v-for="a in cashAccounts" :key="a.code" class="min-w-0 rounded-xl bg-muted/60 p-3 sm:p-4">
-            <p class="truncate text-sm text-muted-foreground">{{ a.name }}</p>
-            <p class="tabular mt-1 text-xl font-bold sm:text-2xl">{{ formatRp(a.closing) }}</p>
-            <p class="tabular mt-1 text-xs text-muted-foreground">
-              <span class="text-success">+{{ number.format(a.totalIn) }}</span> · <span class="text-destructive">−{{ number.format(a.totalOut) }}</span>
+      <p v-if="error" class="mt-8 text-[15px] text-destructive">{{ error }}</p>
+      <p v-else-if="loading && !report" class="mt-8 text-[15px] text-muted-foreground">Memuat laporan...</p>
+
+      <template v-else-if="report">
+        <!-- Tiga angka utama -->
+        <div class="mt-6 grid gap-3 sm:grid-cols-3 md:gap-4" :class="loading ? 'opacity-60' : ''">
+          <div class="glass rounded-[22px] p-5 md:p-6">
+            <p class="text-[15px] text-muted-foreground">Penjualan</p>
+            <p class="tabular mt-2 whitespace-nowrap text-[28px] font-bold leading-none tracking-tight md:text-[34px]">{{ formatRp(report.net_sales) }}</p>
+            <p class="mt-3 text-sm text-muted-foreground">{{ report.transactions }} transaksi · rata-rata {{ formatRp(report.average_ticket) }}</p>
+          </div>
+          <div class="glass rounded-[22px] p-5 md:p-6">
+            <p class="text-[15px] text-muted-foreground">Laba bersih</p>
+            <p class="tabular mt-2 whitespace-nowrap text-[28px] font-bold leading-none tracking-tight md:text-[34px]" :class="report.net_profit < 0 ? 'text-destructive' : 'text-success'">
+              {{ formatRp(report.net_profit) }}
+            </p>
+            <p class="mt-3 text-sm text-muted-foreground">HPP {{ formatRp(report.hpp) }} · biaya {{ formatRp(report.expenses) }}</p>
+          </div>
+          <div v-if="hasFinance" class="glass rounded-[22px] p-5 md:p-6">
+            <p class="flex items-center gap-1.5 text-[15px] text-muted-foreground"><Wallet class="size-4" /> Uang tunai</p>
+            <p class="tabular mt-2 whitespace-nowrap text-[28px] font-bold leading-none tracking-tight md:text-[34px]">{{ formatRp(tunai) }}</p>
+            <p class="tabular mt-3 truncate text-sm text-muted-foreground">
+              <span v-for="(a, i) in otherCash" :key="a.code">{{ i ? " · " : "" }}{{ a.name }} {{ shortRp(a.closing) }}</span>
             </p>
           </div>
-          <div class="min-w-0 rounded-xl bg-primary p-3 text-primary-foreground sm:p-4">
-            <p class="text-sm opacity-70">Total kas & bank</p>
-            <p class="tabular mt-1 text-xl font-bold sm:text-2xl">{{ formatRp(cashAccounts.reduce((t, a) => t + a.closing, 0)) }}</p>
+          <div v-else class="glass rounded-[22px] p-5 md:p-6">
+            <p class="text-[15px] text-muted-foreground">Laba kotor</p>
+            <p class="tabular mt-2 whitespace-nowrap text-[28px] font-bold leading-none tracking-tight md:text-[34px]">{{ formatRp(report.gross_profit) }}</p>
+            <p class="mt-3 text-sm text-muted-foreground">Penjualan dikurangi HPP</p>
           </div>
         </div>
-      </section>
 
-      <div class="mt-6 grid gap-5 lg:grid-cols-2">
-        <!-- Laba rugi -->
-        <section class="rounded-[20px] border p-5 md:p-7">
-          <h2 class="text-xl font-semibold md:text-2xl">Laba rugi</h2>
-          <p class="text-sm text-muted-foreground">{{ rangeLabel }}</p>
-          <dl class="tabular mt-5 grid gap-2.5 text-[15px]">
-            <div class="flex justify-between"><dt>Penjualan</dt><dd class="font-semibold">{{ formatRp(report.net_sales) }}</dd></div>
-            <div v-if="report.discount" class="flex justify-between text-sm text-muted-foreground">
-              <dt>Sudah termasuk diskon & gratis ({{ report.discount_items }} item)</dt><dd>{{ formatRp(report.discount) }}</dd>
+        <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          <!-- Grafik -->
+          <section class="glass rounded-[22px] p-5 md:p-6">
+            <div class="flex items-baseline justify-between gap-3">
+              <h2 class="text-lg font-semibold md:text-xl">{{ singleDay ? "Penjualan per jam" : "Penjualan per hari" }}</h2>
+              <span class="text-sm text-muted-foreground">ribuan rupiah</span>
             </div>
-            <div class="flex justify-between text-muted-foreground"><dt>HPP (bahan per porsi)</dt><dd>− {{ formatRp(report.hpp) }}</dd></div>
-            <div class="flex justify-between border-t pt-2.5 font-semibold"><dt>Laba kotor</dt><dd>{{ formatRp(report.gross_profit) }}</dd></div>
-
-            <dt class="mt-3 text-sm font-semibold text-muted-foreground">Biaya operasional</dt>
-            <div v-if="!report.expenses_by_category.length" class="text-sm text-muted-foreground">Belum ada biaya di periode ini.</div>
-            <div v-for="e in report.expenses_by_category" :key="e.category" class="flex justify-between text-muted-foreground">
-              <dt>{{ e.category }}</dt><dd>− {{ formatRp(e.total) }}</dd>
-            </div>
-            <div class="flex justify-between border-t pt-2.5"><dt>Total biaya</dt><dd>− {{ formatRp(report.expenses) }}</dd></div>
-
-            <div class="mt-1 flex items-baseline justify-between rounded-xl px-4 py-3" :class="report.net_profit < 0 ? 'bg-destructive/8 text-destructive' : 'bg-success-soft text-success'">
-              <dt class="text-lg font-semibold">Laba bersih</dt>
-              <dd class="text-2xl font-bold">{{ formatRp(report.net_profit) }}</dd>
-            </div>
-          </dl>
-          <p v-if="report.cancelled.count" class="mt-3 text-sm text-muted-foreground">
-            {{ report.cancelled.count }} pesanan dibatalkan ({{ formatRp(report.cancelled.total) }}) tidak dihitung.
-          </p>
-        </section>
-
-        <!-- Pembayaran dari mana -->
-        <section class="rounded-[20px] border p-5 md:p-7">
-          <h2 class="text-xl font-semibold md:text-2xl">Sumber pembayaran</h2>
-          <p class="text-sm text-muted-foreground">Uang masuk per metode</p>
-          <p v-if="!report.payments.length" class="mt-5 text-[15px] text-muted-foreground">Belum ada transaksi.</p>
-          <ul class="mt-5 flex flex-col gap-4">
-            <li v-for="p in report.payments" :key="p.method">
-              <div class="flex items-baseline justify-between gap-3">
-                <span class="text-[16px] font-semibold">{{ paymentLabel(p.method) }}</span>
-                <span class="tabular text-[16px] font-semibold">{{ formatRp(p.total) }}</span>
+            <div class="mt-5 flex h-48 items-end gap-1.5 md:gap-2" role="img" :aria-label="`Grafik penjualan ${rangeLabel}`">
+              <div v-for="(b, i) in bars" :key="b.key" class="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+                <span v-if="b.total && bars.length <= 16" class="tabular text-[11px] text-muted-foreground">{{ number.format(Math.round(b.total / 1000)) }}</span>
+                <div
+                  class="bar w-full max-w-12 origin-bottom rounded-md"
+                  :class="b.peak ? 'bg-cta' : 'bg-[#e9c9a8]'"
+                  :style="{ height: b.total ? `${Math.max(b.pct, 4)}%` : '3px' }"
+                  :title="`${b.label} · ${formatRp(b.total)}`"
+                />
+                <span class="tabular w-full text-center text-[11px] text-muted-foreground md:text-xs" :class="bars.length > 12 && i % 3 ? 'invisible md:visible' : ''">{{ b.label }}</span>
               </div>
-              <div class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted">
-                <div class="h-full rounded-full bg-primary" :style="{ width: `${Math.max(pct(p.total, report.net_sales), 2)}%` }" />
-              </div>
-              <p class="tabular mt-1 text-sm text-muted-foreground">{{ p.count }} transaksi · {{ pct(p.total, report.net_sales) }}%</p>
-            </li>
-          </ul>
-          <div v-if="report.order_types.length" class="mt-6 border-t pt-4">
-            <p class="text-sm font-semibold text-muted-foreground">Tipe pesanan</p>
-            <div v-for="o in report.order_types" :key="o.type" class="tabular mt-2 flex justify-between text-[15px]">
-              <span>{{ orderTypeLabel(o.type) }} · {{ o.count }} transaksi</span><span>{{ formatRp(o.total) }}</span>
             </div>
-          </div>
-        </section>
-      </div>
+          </section>
 
-      <div class="mt-5 grid gap-5 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)]">
-        <section class="rounded-[20px] border p-5 md:p-7">
-          <h2 class="text-xl font-semibold md:text-2xl">{{ singleDay ? "Penjualan per jam" : "Penjualan per hari" }}</h2>
-          <p class="mt-1 text-sm text-muted-foreground">Dalam ribuan rupiah</p>
-          <div class="mt-6 flex h-56 items-end gap-1.5 md:gap-2.5" role="img" :aria-label="`Grafik penjualan ${rangeLabel}`">
-            <div v-for="b in bars" :key="b.key" class="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
-              <span v-if="b.total && bars.length <= 16" class="tabular text-[11px] text-muted-foreground">{{ number.format(Math.round(b.total / 1000)) }}</span>
-              <div
-                class="w-full max-w-14 rounded-md"
-                :class="b.peak ? 'bg-primary' : 'bg-chart-2'"
-                :style="{ height: b.total ? `${Math.max(b.pct, 4)}%` : '3px' }"
-                :title="`${b.label} · ${formatRp(b.total)}`"
-              />
-              <span class="tabular w-full truncate text-center text-[11px] text-muted-foreground md:text-xs">{{ b.label }}</span>
+          <!-- Perlu dicek -->
+          <section class="glass rounded-[22px] p-5 md:p-6">
+            <div class="flex items-baseline justify-between gap-3">
+              <h2 class="text-lg font-semibold md:text-xl">Perlu dicek</h2>
+              <span v-if="checks.length" class="tabular rounded-full bg-cta px-2.5 py-0.5 text-xs font-semibold text-cta-foreground">{{ checks.length }}</span>
             </div>
-          </div>
-        </section>
-
-        <section class="rounded-[20px] bg-muted/50 p-5 md:p-7">
-          <h2 class="text-xl font-semibold md:text-2xl">Menu terlaris</h2>
-          <p v-if="!report.top_products.length" class="mt-5 text-[15px] text-muted-foreground">Belum ada penjualan.</p>
-          <ol class="mt-5 flex flex-col gap-3.5">
-            <li v-for="(p, i) in report.top_products" :key="p.name" class="flex items-baseline gap-3">
-              <span class="tabular w-5 shrink-0 text-sm text-muted-foreground">{{ i + 1 }}</span>
-              <span class="min-w-0 flex-1 truncate text-[15px] font-medium">{{ titleCase(p.name) }}</span>
-              <span class="tabular shrink-0 text-sm text-muted-foreground">{{ p.qty }} porsi</span>
-            </li>
-          </ol>
-        </section>
-      </div>
-
-      <!-- Biaya operasional -->
-      <section class="mt-5 rounded-[20px] border p-5 md:p-7">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 class="text-xl font-semibold md:text-2xl">Biaya operasional</h2>
-            <p class="text-sm text-muted-foreground">Catat pengeluaran supaya laba bersih akurat</p>
-          </div>
-          <Button class="h-11 rounded-xl px-4" @click="ui.quickAction = 'biaya'"><Plus /> Catat biaya</Button>
+            <p v-if="!checks.length" class="mt-5 flex items-center gap-2 text-[15px] text-success">
+              <Check class="size-5" /> Semua beres. Tidak ada yang perlu dicek.
+            </p>
+            <ul v-else class="mt-3 flex flex-col divide-y divide-black/5">
+              <li v-for="c in checks" :key="c.key" class="flex items-center gap-3 py-3">
+                <span class="flex size-9 shrink-0 items-center justify-center rounded-full" :class="c.tone === 'warning' ? 'bg-warning-soft text-warning' : 'bg-muted text-foreground'">
+                  <component :is="c.icon" class="size-[18px]" />
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-[15px] font-semibold leading-snug">{{ c.title }}</span>
+                  <span class="block text-sm text-muted-foreground">{{ c.detail }}</span>
+                </span>
+                <button type="button" class="press h-9 shrink-0 rounded-full bg-white px-3.5 text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-muted" @click="c.run()">
+                  {{ c.action }}
+                </button>
+              </li>
+            </ul>
+          </section>
         </div>
 
+        <!-- Kas & Bank -->
+        <section v-if="hasFinance" class="glass mt-4 rounded-[22px] p-5 md:p-6">
+          <div class="flex items-baseline justify-between gap-3">
+            <h2 class="text-lg font-semibold md:text-xl">Kas & Bank</h2>
+            <RouterLink to="/keuangan?laporan=cash" class="text-sm font-semibold text-cta">Lihat mutasi</RouterLink>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] sm:gap-3">
+            <div v-for="a in cashAccounts" :key="a.code" class="min-w-0 rounded-2xl bg-white/70 p-3 ring-1 ring-black/5 sm:p-4">
+              <p class="truncate text-sm text-muted-foreground">{{ a.name }}</p>
+              <p class="tabular mt-1 text-xl font-bold sm:text-2xl">{{ formatRp(a.closing) }}</p>
+              <p class="tabular mt-1 text-xs text-muted-foreground">
+                <span class="text-success">+{{ number.format(a.totalIn) }}</span> · <span class="text-destructive">−{{ number.format(a.totalOut) }}</span>
+              </p>
+            </div>
+            <div class="min-w-0 rounded-2xl bg-nav p-3 text-nav-foreground sm:p-4">
+              <p class="text-sm opacity-70">Total kas & bank</p>
+              <p class="tabular mt-1 text-xl font-bold sm:text-2xl">{{ formatRp(cashAccounts.reduce((t, a) => t + a.closing, 0)) }}</p>
+            </div>
+          </div>
+        </section>
 
-
-        <p v-if="!expenses.length" class="mt-5 text-[15px] text-muted-foreground">Belum ada biaya di periode ini.</p>
-        <ul v-else class="mt-4 flex flex-col divide-y">
-          <li v-for="e in expenses" :key="e.id" class="flex items-center gap-3 py-3">
-            <span class="tabular w-16 shrink-0 text-sm whitespace-nowrap text-muted-foreground">{{ dayMonth(e.spent_on) }}</span>
-            <span class="min-w-0 flex-1">
-              <span class="block truncate text-[15px] font-medium">{{ e.name }}</span>
-              <span class="mt-0.5 inline-block rounded-full bg-muted px-2 py-0.5 text-xs">{{ e.category }}</span>
-            </span>
-            <span class="tabular shrink-0 text-[15px] font-semibold">{{ formatRp(e.amount) }}</span>
-            <button
-              type="button"
-              class="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-              :aria-label="`Hapus ${e.name}`"
-              @click="removeExpense(e)"
-            >
-              <Trash2 class="size-4" />
+        <!-- Detail: dilipat jadi satu baris, buka kalau perlu -->
+        <div class="glass mt-4 overflow-hidden rounded-[22px]">
+          <div v-for="(sec, i) in [
+              { k: 'labarugi', t: 'Laba rugi' },
+              { k: 'bayar', t: 'Sumber pembayaran' },
+              { k: 'terlaris', t: 'Menu terlaris' },
+              { k: 'biaya', t: 'Biaya operasional' },
+            ]" :key="sec.k" :class="i ? 'border-t border-black/5' : ''">
+            <button type="button" class="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-white/50 md:px-6" :aria-expanded="opened.has(sec.k)" @click="toggleFold(sec.k)">
+              <span class="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline">
+                <span class="shrink-0 text-[16px] font-semibold sm:w-52">{{ sec.t }}</span>
+                <span class="tabular min-w-0 truncate text-[15px] text-muted-foreground">{{ folds[sec.k] }}</span>
+              </span>
+              <ChevronDown class="size-5 shrink-0 text-muted-foreground transition-transform duration-200 ease-(--ease-out)" :class="opened.has(sec.k) ? 'rotate-180' : ''" />
             </button>
-          </li>
-        </ul>
-      </section>
+            <Transition name="fold">
+              <div v-if="opened.has(sec.k)" class="px-5 pb-5 md:px-6">
+                <!-- Laba rugi -->
+                <dl v-if="sec.k === 'labarugi'" class="tabular grid max-w-xl gap-2.5 text-[15px]">
+                  <div class="flex justify-between"><dt>Penjualan</dt><dd class="font-semibold">{{ formatRp(report.net_sales) }}</dd></div>
+                  <div v-if="report.discount" class="flex justify-between text-sm text-muted-foreground">
+                    <dt>Sudah termasuk diskon & gratis ({{ report.discount_items }} item)</dt><dd>{{ formatRp(report.discount) }}</dd>
+                  </div>
+                  <div class="flex justify-between text-muted-foreground"><dt>HPP (bahan per porsi)</dt><dd>− {{ formatRp(report.hpp) }}</dd></div>
+                  <div class="flex justify-between border-t pt-2.5 font-semibold"><dt>Laba kotor</dt><dd>{{ formatRp(report.gross_profit) }}</dd></div>
+                  <div v-for="e in report.expenses_by_category.filter((x) => x.category !== 'Bahan baku')" :key="e.category" class="flex justify-between text-muted-foreground">
+                    <dt>{{ e.category }}</dt><dd>− {{ formatRp(e.total) }}</dd>
+                  </div>
+                  <div class="flex justify-between border-t pt-2.5"><dt>Total biaya</dt><dd>− {{ formatRp(report.expenses) }}</dd></div>
+                  <div class="mt-1 flex items-baseline justify-between rounded-xl px-4 py-3" :class="report.net_profit < 0 ? 'bg-destructive/8 text-destructive' : 'bg-success-soft text-success'">
+                    <dt class="text-lg font-semibold">Laba bersih</dt>
+                    <dd class="text-2xl font-bold">{{ formatRp(report.net_profit) }}</dd>
+                  </div>
+                  <p v-if="report.cancelled.count" class="text-sm text-muted-foreground">
+                    {{ report.cancelled.count }} pesanan dibatalkan ({{ formatRp(report.cancelled.total) }}) tidak dihitung.
+                  </p>
+                </dl>
 
-      <p class="mt-5 text-sm text-muted-foreground">
-        HPP dihitung dari HPP per menu di Pengaturan. Laba bersih = penjualan − HPP − biaya operasional, belum termasuk pajak.
-      </p>
-    </template>
+                <!-- Sumber pembayaran -->
+                <div v-else-if="sec.k === 'bayar'" class="grid max-w-xl gap-4">
+                  <p v-if="!report.payments.length" class="text-[15px] text-muted-foreground">Belum ada transaksi.</p>
+                  <div v-for="p in report.payments" :key="p.method">
+                    <div class="flex items-baseline justify-between gap-3">
+                      <span class="text-[16px] font-semibold">{{ paymentLabel(p.method) }}</span>
+                      <span class="tabular text-[16px] font-semibold">{{ formatRp(p.total) }}</span>
+                    </div>
+                    <div class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-black/5">
+                      <div class="h-full rounded-full bg-nav" :style="{ width: `${Math.max(pct(p.total, report.net_sales), 2)}%` }" />
+                    </div>
+                    <p class="tabular mt-1 text-sm text-muted-foreground">{{ p.count }} transaksi · {{ pct(p.total, report.net_sales) }}%</p>
+                  </div>
+                  <div v-if="report.order_types.length" class="border-t pt-3">
+                    <div v-for="o in report.order_types" :key="o.type" class="tabular mt-1 flex justify-between text-[15px]">
+                      <span>{{ orderTypeLabel(o.type) }} · {{ o.count }} transaksi</span><span>{{ formatRp(o.total) }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Menu terlaris -->
+                <ol v-else-if="sec.k === 'terlaris'" class="grid max-w-xl gap-3">
+                  <p v-if="!report.top_products.length" class="text-[15px] text-muted-foreground">Belum ada penjualan.</p>
+                  <li v-for="(p, n) in report.top_products" :key="p.name" class="flex items-baseline gap-3">
+                    <span class="tabular w-5 shrink-0 text-sm text-muted-foreground">{{ n + 1 }}</span>
+                    <span class="min-w-0 flex-1 truncate text-[15px] font-medium">{{ titleCase(p.name) }}</span>
+                    <span class="tabular shrink-0 text-sm text-muted-foreground">{{ p.qty }} porsi · {{ formatRp(p.total) }}</span>
+                  </li>
+                </ol>
+
+                <!-- Biaya -->
+                <div v-else-if="sec.k === 'biaya'">
+                  <p v-if="!expenses.length" class="text-[15px] text-muted-foreground">Belum ada biaya di periode ini.</p>
+                  <ul v-else class="flex flex-col divide-y divide-black/5">
+                    <li v-for="e in expenses" :key="e.id" class="flex items-center gap-3 py-2.5">
+                      <span class="tabular w-16 shrink-0 text-sm whitespace-nowrap text-muted-foreground">{{ dayMonth(e.spent_on) }}</span>
+                      <span class="min-w-0 flex-1">
+                        <span class="block truncate text-[15px] font-medium">{{ e.name }}</span>
+                        <span class="mt-0.5 inline-block rounded-full bg-black/5 px-2 py-0.5 text-xs">{{ e.category }}</span>
+                      </span>
+                      <span class="tabular shrink-0 text-[15px] font-semibold">{{ formatRp(e.amount) }}</span>
+                      <button
+                        type="button"
+                        class="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        :aria-label="`Hapus ${e.name}`"
+                        @click="removeExpense(e)"
+                      >
+                        <Trash2 class="size-4" />
+                      </button>
+                    </li>
+                  </ul>
+                  <Button class="mt-3 h-11 rounded-xl px-4" @click="quick('biaya')"><Plus /> Catat biaya</Button>
+                </div>
+              </div>
+            </Transition>
+          </div>
+        </div>
+
+        <p class="mt-4 text-sm text-muted-foreground">
+          Laba bersih = penjualan − HPP − biaya operasional. Belanja bahan baku masuk stok, jadi tidak dihitung dua kali.
+        </p>
+      </template>
+    </div>
   </div>
 </template>
+
+<style scoped>
+/* Latar hangat (warna kaldu) supaya panel kaca terasa; teks tetap di atas panel putih buram */
+.beranda {
+  background:
+    radial-gradient(1200px 520px at 85% -10%, rgb(245 196 140 / 0.45), transparent 60%),
+    radial-gradient(900px 480px at -10% 10%, rgb(217 72 15 / 0.10), transparent 60%),
+    #f6f3ee;
+}
+.glass {
+  background: rgb(255 255 255 / 0.72);
+  border: 1px solid rgb(255 255 255 / 0.8);
+  box-shadow: 0 1px 2px rgb(30 20 10 / 0.04), 0 8px 24px -12px rgb(60 30 10 / 0.12);
+}
+.glass-chip {
+  background: rgb(255 255 255 / 0.6);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.05);
+}
+@supports (backdrop-filter: blur(1px)) {
+  .glass { backdrop-filter: blur(18px) saturate(1.3); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass { background: #fff; backdrop-filter: none; }
+}
+
+/* Teks tombol utama bergeser naik saat berganti */
+.cta-enter-active, .cta-leave-active { transition: transform 220ms var(--ease-out), opacity 220ms var(--ease-out); }
+.cta-enter-from { transform: translateY(60%); opacity: 0; }
+.cta-leave-to { transform: translateY(-60%); opacity: 0; }
+
+/* Bagian dilipat: muncul halus (transform + opacity saja) */
+.fold-enter-active { transition: transform 220ms var(--ease-out), opacity 220ms var(--ease-out); }
+.fold-enter-from { transform: translateY(-6px); opacity: 0; }
+
+/* Batang grafik tumbuh dari bawah saat dimuat */
+.bar { animation: grow 300ms var(--ease-out) both; }
+@keyframes grow { from { transform: scaleY(0); } }
+</style>
