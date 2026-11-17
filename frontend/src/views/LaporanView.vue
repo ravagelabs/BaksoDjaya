@@ -376,13 +376,6 @@ async function exportCsv() {
               { label: exporting ? 'Menyiapkan...' : 'Unduh Excel (CSV)', icon: 'excel', action: exportCsv, disabled: exporting },
             ]"
           />
-          <button
-            type="button"
-            class="cta-main press flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-cta pr-4 pl-3.5 text-[15px] font-semibold text-cta-foreground shadow-sm shadow-cta/30"
-            @click="quick('biaya')"
-          >
-            <Plus class="cta-icon size-5" /> Catat biaya
-          </button>
         </div>
       </div>
 
@@ -608,10 +601,7 @@ async function exportCsv() {
 
 .seg { background: rgb(120 100 80 / 0.10); }
 
-/* Tombol utama: ikon + berputar seperempat saat disorot (delight kecil) */
-.cta-icon { transition: transform var(--dur-menu) var(--ease-out); }
 @media (hover: hover) {
-  .cta-main:hover .cta-icon { transform: rotate(90deg); }
   .fold-row:hover { background: rgb(255 255 255 / 0.5); }
 }
 
