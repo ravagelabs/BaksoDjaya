@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   ArrowLeftRight, BookOpen, CornerDownLeft, House, LayoutGrid, Search, ShoppingBag, Wallet, ChartPie, Clock, FileDown, Landmark, Package, Printer, Receipt, Settings2, Tags, UserPlus, UtensilsCrossed,
@@ -11,6 +11,7 @@ import { useUiStore } from "@/stores/ui";
 import { exportDailyReport } from "@/lib/dailyReport";
 
 // Shortcut ikon R (akun utama): isi menunya bisa ditambah/dikurangi sendiri, tersimpan di perangkat ini.
+const props = defineProps({ fab: { type: Boolean, default: true } }); // tombol R melayang (desktop)
 const ui = useUiStore();
 const router = useRouter();
 
@@ -62,8 +63,10 @@ async function openPalette() {
   active.value = 0;
   paletteOpen.value = true;
   await nextTick();
-  inputEl.value?.focus();
+  // di HP jangan langsung munculkan keyboard; daftar aksi sudah kelihatan
+  if (matchMedia("(hover: hover)").matches) inputEl.value?.focus();
 }
+watch(() => ui.paletteRequest, () => openPalette());
 function runResult(it) {
   if (!it) return;
   paletteOpen.value = false;
@@ -130,9 +133,9 @@ async function runDaily(mode) {
 </script>
 
 <template>
-  <DropdownMenu>
+  <DropdownMenu v-if="props.fab">
     <DropdownMenuTrigger
-      class="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex size-12 md:size-14 items-center justify-center rounded-full bg-nav shadow-lg shadow-black/30 ring-1 ring-white/10 outline-none transition-transform active:scale-95 focus-visible:ring-4 focus-visible:ring-cta/40 md:right-8 md:bottom-8"
+      class="fixed right-8 bottom-8 z-50 hidden size-14 md:flex items-center justify-center rounded-full bg-nav shadow-lg shadow-black/30 ring-1 ring-white/10 outline-none transition-transform active:scale-95 focus-visible:ring-4 focus-visible:ring-cta/40 md:right-8 md:bottom-8"
       aria-label="Shortcut"
     >
       <img src="/brand/ravage-icon-silver.png" alt="" class="h-6 w-auto brightness-[1.6]" />
@@ -165,7 +168,7 @@ async function runDaily(mode) {
           ref="inputEl"
           v-model="query"
           type="text"
-          placeholder="Ketik perintah, mis. biaya, setor, laporan..."
+          placeholder="Cari aksi"
           class="h-14 min-w-0 flex-1 bg-transparent text-base outline-none"
           @input="active = 0"
           @keydown="onPaletteKey"

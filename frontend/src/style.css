@@ -250,3 +250,5 @@
 /* Tab bar HP: ikon sedikit naik saat ditekan (umpan balik sentuh), instan saat pindah */
 .tab .tab-icon { transition: transform var(--dur-tekan, 120ms) var(--ease-out); }
 .tab:active .tab-icon { transform: scale(0.88); }
+.r-tab { transition: transform var(--dur-tekan) var(--ease-out); }
+.r-tab:active { transform: scale(0.92); }

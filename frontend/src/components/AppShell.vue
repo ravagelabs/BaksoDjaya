@@ -111,8 +111,11 @@ const NAV_ALL = [
 ];
 const NAV = computed(() => NAV_ALL.filter((item) => !item.manager || isManager.value));
 // HP: tab bar bawah maksimal 5. Akun utama: 4 utama + "Lainnya"; admin: 5 menu langsung.
-const TAB_MAIN = ["/beranda", "/kasir", "/transaksi", "/keuangan"];
+// Akun utama: Beranda, Kasir, [R di tengah], Keuangan, Lainnya
+const TAB_MAIN = ["/beranda", "/kasir", "/keuangan"];
 const tabs = computed(() => (NAV.value.length <= 5 ? NAV.value : NAV.value.filter((i) => TAB_MAIN.includes(i.to))));
+const tabsLeft = computed(() => (isManager.value ? tabs.value.slice(0, 2) : tabs.value));
+const tabsRight = computed(() => (isManager.value ? tabs.value.slice(2) : []));
 const moreTabs = computed(() => NAV.value.filter((i) => !tabs.value.includes(i)));
 const moreActive = computed(() => moreTabs.value.some((i) => route.path.startsWith(i.to)));
 const moreBadge = computed(() => moreTabs.value.reduce((t, i) => t + (badges.value[i.to] || 0), 0));
@@ -333,7 +336,31 @@ async function confirmLogout({ print = false } = {}) {
 
     <!-- HP: tab bar bawah ala iPhone (ikon + label pendek) -->
     <nav class="tabbar flex shrink-0 border-t border-black/5 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden" aria-label="Menu utama">
-      <RouterLink v-for="item in tabs" :key="item.to" v-slot="{ href, navigate, isActive }" :to="item.to" custom>
+      <RouterLink v-for="item in tabsLeft" :key="item.to" v-slot="{ href, navigate, isActive }" :to="item.to" custom>
+        <a
+          :href="href"
+          class="tab relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium outline-none"
+          :class="isActive ? 'text-cta' : 'text-[#8a847c]'"
+          :aria-current="isActive ? 'page' : undefined"
+          @click="navigate"
+        >
+          <component :is="item.icon" class="tab-icon size-6" :stroke-width="isActive ? 2.2 : 1.8" />
+          {{ item.label }}
+          <span v-if="badges[item.to]" class="tabular absolute top-1.5 left-1/2 ml-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{{ badges[item.to] }}</span>
+        </a>
+      </RouterLink>
+      <!-- Tombol R di tengah: buka aksi cepat (akun utama) -->
+      <div v-if="isManager" class="flex flex-1 items-start justify-center">
+        <button
+          type="button"
+          class="r-tab -mt-4 flex size-14 items-center justify-center rounded-full bg-nav shadow-lg shadow-black/25 ring-4 ring-white outline-none"
+          aria-label="Aksi cepat"
+          @click="ui.paletteRequest++"
+        >
+          <img src="/brand/ravage-icon-silver.png" alt="" class="h-6 w-auto brightness-[1.6]" />
+        </button>
+      </div>
+      <RouterLink v-for="item in tabsRight" :key="item.to" v-slot="{ href, navigate, isActive }" :to="item.to" custom>
         <a
           :href="href"
           class="tab relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium outline-none"
@@ -401,7 +428,7 @@ async function confirmLogout({ print = false } = {}) {
     </Dialog>
 
     <!-- Shortcut (akun utama): ikon R di pojok kanan bawah, isinya bisa diatur. Disembunyikan di Kasir/Pembayaran supaya tidak menutupi tombol Bayar. -->
-    <ShortcutMenu v-if="isManager && showFab" />
+    <ShortcutMenu v-if="isManager" :fab="showFab" />
 
     <QuickActions v-if="isManager" />
     <ToastHost />
