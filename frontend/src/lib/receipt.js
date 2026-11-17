@@ -1,5 +1,5 @@
 import { useCatalogStore } from "@/stores/catalog";
-import { rupiah, orderTypeLabel, PAYMENT_LABELS, OUTLET_NAME, BANK_ACCOUNT, optionsText, orderNo, lineTotal, discountLabel } from "@/lib/format";
+import { rupiah, orderTypeLabel, PAYMENT_LABELS, OUTLET_NAME, BANK_ACCOUNT, optionsText, orderNo, lineTotal, discountLabel, groupSold } from "@/lib/format";
 
 // ESC/POS builder: raw printer commands for a 58mm receipt (32 chars per line, Font A)
 // copyLabel: tulisan kecil di atas struk, mis. "PELANGGAN" / "DAPUR" saat dicetak 2 rangkap
@@ -505,6 +505,23 @@ export function buildShiftReport(s, { running = false } = {}) {
   cmd(0x1b, 0x45, 0x01);
   write(row("UANG DI LACI", rupiah.format(s.cash_in_drawer ?? (s.opening_cash ?? 0) + (s.cash ?? 0))));
   cmd(0x1b, 0x45, 0x00);
+  // Rekap menu terjual: per paket (tebal) lalu isinya, supaya dede tahu berapa yang laku
+  const sold = groupSold(s.items ?? []);
+  if (sold.length) {
+    write("-".repeat(W) + "\n");
+    cmd(0x1b, 0x61, 0x01);
+    cmd(0x1b, 0x45, 0x01);
+    write("MENU TERJUAL\n");
+    cmd(0x1b, 0x45, 0x00);
+    cmd(0x1b, 0x61, 0x00);
+    for (const g of sold) {
+      cmd(0x1b, 0x45, 0x01);
+      write(row(g.title.toUpperCase(), `${g.qty}`));
+      cmd(0x1b, 0x45, 0x00);
+      for (const v of g.variants) write(row(`  ${v.detail}`, `${v.qty}`));
+    }
+    write(row("TOTAL PORSI", `${sold.reduce((t, g) => t + g.qty, 0)}`));
+  }
   write("\n\nParaf kasir:\n\n\n" + "_".repeat(20) + "\n");
   cmd(0x1b, 0x64, 0x03);
   cmd(0x1d, 0x56, 0x42, 0x00);

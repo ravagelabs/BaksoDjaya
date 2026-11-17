@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, computed, watch, watchEffect, nextTick, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ArrowLeftRight, BookOpen, ChartPie, ChefHat, ChevronDown, Clock, Ellipsis, Hash, History, House, Settings, ShoppingBag, Landmark, LogOut, Package, Plus, Receipt, Undo2, UserPlus, UtensilsCrossed } from "@lucide/vue";
+import { ArrowLeftRight, BookOpen, ChartPie, ChefHat, ChevronDown, Clock, Ellipsis, Hash, History, House, Boxes, Settings, ShoppingBag, Landmark, LogOut, Package, Plus, Receipt, Undo2, UserPlus, UtensilsCrossed } from "@lucide/vue";
 import QuickActions from "@/components/QuickActions.vue";
 import ShortcutMenu from "@/components/ShortcutMenu.vue";
 import { Button } from "@/components/ui/button";
@@ -106,14 +106,15 @@ const NAV_ALL = [
   { to: "/dapur", label: "Dapur", icon: ChefHat },
   { to: "/transaksi", label: "Transaksi", icon: Receipt },
   { to: "/shift", label: "Shift", icon: Clock },
+  { to: "/stok", label: "Stok", icon: Boxes },
   { to: "/keuangan", label: "Keuangan", icon: ChartPie, manager: true },
   { to: "/pengaturan", label: "Pengaturan", icon: Settings, manager: true },
 ];
 const NAV = computed(() => NAV_ALL.filter((item) => !item.manager || isManager.value));
 // HP: tab bar bawah maksimal 5. Akun utama: 4 utama + "Lainnya"; admin: 5 menu langsung.
-// Akun utama: Beranda, Kasir, [R di tengah], Keuangan, Lainnya
-const TAB_MAIN = ["/beranda", "/kasir", "/keuangan"];
-const tabs = computed(() => (NAV.value.length <= 5 ? NAV.value : NAV.value.filter((i) => TAB_MAIN.includes(i.to))));
+// Akun utama: Beranda, Kasir, [R di tengah], Keuangan, Lainnya. Admin: Kasir, Nomor, Dapur, Stok, Lainnya.
+const TAB_MAIN = computed(() => (isManager.value ? ["/beranda", "/kasir", "/keuangan"] : ["/kasir", "/meja", "/dapur", "/stok"]));
+const tabs = computed(() => (NAV.value.length <= 5 ? NAV.value : NAV.value.filter((i) => TAB_MAIN.value.includes(i.to))));
 const tabsLeft = computed(() => (isManager.value ? tabs.value.slice(0, 2) : tabs.value));
 const tabsRight = computed(() => (isManager.value ? tabs.value.slice(2) : []));
 const moreTabs = computed(() => NAV.value.filter((i) => !tabs.value.includes(i)));

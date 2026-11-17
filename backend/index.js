@@ -14,6 +14,7 @@ import uploadsRouter, { UPLOAD_DIR } from './routes/uploads.js'
 import eventsRouter from './routes/events.js'
 import settingsRouter from './routes/settings.js'
 import financeRouter from './routes/finance.js'
+import stockRouter from './routes/stock.js'
 import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 import { requireAuth, requireRole, safeErrors } from './lib/http.js';
@@ -52,7 +53,7 @@ app.use(safeErrors);
 // Pengaturan toko (logo): GET publik untuk halaman login, PUT dicek di route
 app.use('/settings', settingsRouter);
 
-const API_PATHS = ['/finance', '/uploads', '/products', '/bills', '/customers', '/shifts', '/modifiers', '/tables', '/expenses', '/reports', '/events', '/users'];
+const API_PATHS = ['/finance', '/uploads', '/products', '/bills', '/customers', '/shifts', '/modifiers', '/tables', '/expenses', '/reports', '/events', '/users', '/stock'];
 app.use(API_PATHS, requireAuth);
 
 // Khusus pengelola (owner): ubah menu & foto, laporan/HPP, biaya, riwayat shift
@@ -86,6 +87,8 @@ app.use('/reports', reportsRouter);
 app.use('/users', usersRouter);
 
 app.use('/finance', financeRouter);
+
+app.use('/stock', stockRouter);
 
 // Update realtime untuk layar Dapur, Meja, dan Transaksi
 app.use('/events', eventsRouter);

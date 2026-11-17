@@ -326,6 +326,7 @@ export async function resetTransactions() {
             (SELECT count(*) FROM journal_entry)::int AS journals,
             (SELECT count(*) FROM shift WHERE ended_at IS NOT NULL)::int AS shifts;`);
         await t.none(`TRUNCATE bill_item, bill, customer RESTART IDENTITY;`);
+        await t.none(`DELETE FROM stock_move WHERE bill_id IS NOT NULL;`);
         await t.none(`TRUNCATE expense RESTART IDENTITY;`);
         await t.none(`TRUNCATE journal_line, journal_entry RESTART IDENTITY;`);
         await t.none(`DELETE FROM shift WHERE ended_at IS NOT NULL;`);

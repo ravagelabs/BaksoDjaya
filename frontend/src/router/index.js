@@ -12,6 +12,7 @@ const views = {
   laporan: () => import('@/views/LaporanView.vue'),
   keuangan: () => import('@/views/KeuanganView.vue'),
   pengaturan: () => import('@/views/PengaturanView.vue'),
+  stok: () => import('@/views/StokView.vue'),
 }
 
 const router = createRouter({
@@ -24,6 +25,7 @@ const router = createRouter({
     { path: '/transaksi', name: 'transaksi', component: views.transaksi },
     { path: '/transaksi/bayar', name: 'bayar', component: PembayaranView },
     { path: '/shift', name: 'shift', component: views.shift },
+    { path: '/stok', name: 'stok', component: views.stok },
     { path: '/beranda', name: 'beranda', component: views.laporan },
     { path: '/laporan', redirect: '/beranda' },
     { path: '/keuangan', name: 'keuangan', component: views.keuangan },

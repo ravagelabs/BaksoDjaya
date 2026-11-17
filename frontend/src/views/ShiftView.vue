@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from "vue";
 import { LogOut, Printer, RefreshCw, Trash2 } from "@lucide/vue";
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
+import SoldList from "@/components/SoldList.vue";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { formatRp, number, dateTime, paymentRows, todayISO } from "@/lib/format";
@@ -173,8 +174,9 @@ async function removeShift() {
           <p v-if="current.cash_expense" class="flex justify-between gap-3">
             <span class="text-muted-foreground">{{ current.cash_expense > 0 ? "− Biaya & uang keluar dari kas" : "+ Uang masuk ke kas" }}</span><span>{{ formatRp(Math.abs(current.cash_expense)) }}</span>
           </p>
-          <p class="mt-1 flex justify-between gap-3 border-t pt-2 font-semibold"><span>Uang di laci seharusnya</span><span class="text-lg">{{ formatRp(current.cash_in_drawer ?? 0) }}</span></p>
+          <p class="mt-1 flex justify-between gap-3 border-t pt-2 font-semibold"><span>Uang di laci seharusnya</span><span class="text-lg whitespace-nowrap">{{ formatRp(current.cash_in_drawer ?? 0) }}</span></p>
         </div>
+        <SoldList :items="current.items" class="mt-4 rounded-xl bg-card px-4 py-3" />
       </section>
 
       <!-- Riwayat -->
@@ -247,6 +249,7 @@ async function removeShift() {
                 <dd class="font-semibold">{{ number.format(r.value) }}</dd>
               </div>
             </dl>
+            <SoldList v-if="openId === s.id" :items="s.items" class="mx-5 mb-4 rounded-xl bg-muted/40 px-4 py-3" />
           </li>
         </ul>
       </section>

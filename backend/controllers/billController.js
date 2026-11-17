@@ -1,4 +1,5 @@
 import db, { pgp } from "../db/db.js";
+import { deductForBill, restoreForBill } from "./stockController.js";
 
 const TZ = 'Asia/Jakarta';
 const ORDER_TYPES = ['dine_in', 'pickup', 'delivery'];
@@ -121,8 +122,8 @@ export const getKitchenQueue = async () => {
 // Batalkan pesanan (hanya akun utama). Pesanan keluar dari dapur, nomornya kembali,
 // dan tidak dihitung di penjualan. Data tetap tersimpan dengan siapa dan kapan dibatalkan.
 // kitchenOnly: admin hanya boleh membatalkan pesanan yang masih di antrean dapur
-export const cancelBill = async (billId, userId, kitchenOnly = false) => {
-    const bill = await db.oneOrNone(
+export const cancelBill = async (billId, userId, kitchenOnly = false) => db.tx(async (t) => {
+    const bill = await t.oneOrNone(
         `UPDATE bill
          SET status = 'cancelled',
              kitchen_status = NULL,
@@ -139,8 +140,10 @@ export const cancelBill = async (billId, userId, kitchenOnly = false) => {
             ? 'Admin hanya bisa membatalkan pesanan yang belum selesai. Minta akun utama untuk menghapus transaksi ini.'
             : 'Pesanan tidak ditemukan atau sudah dibatalkan.');
     }
+    // Stok yang sudah terpotong saat dibayar dikembalikan
+    await restoreForBill(t, billId, userId);
     return bill;
-};
+});
 
 export const setKitchenStatus = async (billId, kitchenStatus) => {
     if (!KITCHEN_STATUSES.includes(kitchenStatus)) {
@@ -313,6 +316,9 @@ export const finalizeBill = async (billId, fields, paymentMethod, billItems) => 
         if (!finalizedBill) {
             throw new Error(`Finalization failed: Bill #${billId} was not found or is already completed/cancelled.`);
         }
+
+        // Potong stok barang sesuai pemakaian tiap menu
+        await deductForBill(t, billId, h.employeeId);
 
         const items = await t.any(
             `SELECT * FROM bill_item WHERE bill_id = $1 ORDER BY id ASC;`,

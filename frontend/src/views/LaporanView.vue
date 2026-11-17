@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, watch } from "vue";
-import { Banknote, Bike, ChevronDown, ChevronRight, CircleAlert, Package, Plus, Tags, Trash2, Wallet } from "@lucide/vue";
+import { Banknote, Bike, Boxes, ChevronDown, ChevronRight, CircleAlert, Package, Plus, Tags, Trash2, Wallet } from "@lucide/vue";
 import { useRouter } from "vue-router";
 import { printReport } from "@/lib/pdf";
 import { assetUrl } from "@/lib/format";
@@ -54,7 +54,8 @@ const report = ref(null);
 const expenses = ref([]);
 const categories = ref([]);
 const cashAccounts = ref([]); // saldo Kas & Bank (akun utama saja)
-const balance = ref(null); // neraca per akhir periode (akun utama saja): stok bahan, piutang
+const balance = ref(null);
+const stock = ref([]); // stok barang: peringatan hampir habis // neraca per akhir periode (akun utama saja): stok bahan, piutang
 const loading = ref(false);
 const error = ref("");
 
@@ -75,6 +76,9 @@ async function load() {
     api(`/finance/report?type=cash&${q}`)
       .then((c) => (cashAccounts.value = c.data.accounts))
       .catch(() => (cashAccounts.value = []));
+    api("/stock")
+      .then((r) => (stock.value = r.data))
+      .catch(() => (stock.value = []));
     api(`/finance/report?type=bs&${q}`)
       .then((b) => (balance.value = b.data))
       .catch(() => (balance.value = null));
@@ -140,6 +144,9 @@ const checks = computed(() => {
   const r = report.value;
   if (!r) return [];
   const list = [];
+  const low = stock.value.filter((x) => x.qty <= x.min_qty);
+  if (low.length)
+    list.push({ key: "stokbarang", icon: Boxes, tone: "warning", title: low.length === 1 ? `${low[0].name} ${low[0].qty <= 0 ? "habis" : `sisa ${low[0].qty} ${low[0].unit}`}` : `${low.length} barang hampir habis`, action: "Lihat stok", run: () => router.push("/stok") });
   if (r.items_without_hpp)
     list.push({ key: "hpp", icon: Tags, tone: "warning", title: `${r.items_without_hpp} menu terjual belum ada HPP`, action: "Isi HPP", run: () => router.push({ path: "/pengaturan", query: { bagian: "menu" } }) });
   if (balance.value) {

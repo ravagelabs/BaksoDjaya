@@ -17,6 +17,18 @@ const SUMMARY = (from, to) => `
       AND COALESCE(b.paid_at, b.created_at) >= ${from}
       AND COALESCE(b.paid_at, b.created_at) <= ${to}`;
 
+// Menu terjual dalam rentang shift: nama menu + jumlah porsi + nilai (untuk rekap akhir shift)
+const ITEMS = (from, to) => `
+    SELECT COALESCE(json_agg(x ORDER BY x.name), '[]') AS items FROM (
+        SELECT p.name, SUM(bi.qty)::int AS qty,
+               SUM(ROUND(bi.qty * bi.price * (100 - bi.discount_pct) / 100.0))::float AS total
+        FROM bill b JOIN bill_item bi ON bi.bill_id = b.id JOIN product p ON p.id = bi.product_id
+        WHERE b.status = 'paid'
+          AND COALESCE(b.paid_at, b.created_at) >= ${from}
+          AND COALESCE(b.paid_at, b.created_at) <= ${to}
+        GROUP BY p.name
+    ) x`;
+
 // Modal awal kasir (uang receh di laci) untuk shift baru
 export const OPENING_CASH = 300000;
 
@@ -37,11 +49,12 @@ const CASH_EXPENSE = (from, to) => `
 const SHIFT_SELECT = `
     SELECT s.id, s.created_at, s.ended_at, s.employee_id, u.name AS employee_name,
            s.opening_cash::float AS opening_cash, sm.*, ce.cash_expense,
-           (s.opening_cash + sm.cash - ce.cash_expense)::float AS cash_in_drawer
+           (s.opening_cash + sm.cash - ce.cash_expense)::float AS cash_in_drawer, it.items
     FROM shift s
     LEFT JOIN "user" u ON u.id = s.employee_id
     CROSS JOIN LATERAL (${SUMMARY('s.created_at', 's.ended_at')}) sm
-    CROSS JOIN LATERAL (${CASH_EXPENSE('s.created_at', 's.ended_at')}) ce`;
+    CROSS JOIN LATERAL (${CASH_EXPENSE('s.created_at', 's.ended_at')}) ce
+    CROSS JOIN LATERAL (${ITEMS('s.created_at', 's.ended_at')}) it`;
 
 // employeeId = null: semua shift (akun utama). Selain itu hanya shift milik karyawan tersebut.
 // from/to: tanggal (YYYY-MM-DD, zona Asia/Jakarta) mulai shift; kosong = 30 shift terakhir
@@ -62,7 +75,8 @@ export const getShift = async (id) => db.oneOrNone(`${SHIFT_SELECT} WHERE s.id =
 export const getRunningSummary = async (from, to) => {
     const sm = await db.one(`${SUMMARY('$1::timestamptz', '$2::timestamptz')};`, [from, to]);
     const ce = await db.one(`${CASH_EXPENSE('$1::timestamptz', '$2::timestamptz')};`, [from, to]);
-    return { ...sm, ...ce, opening_cash: OPENING_CASH, cash_in_drawer: OPENING_CASH + sm.cash - ce.cash_expense };
+    const it = await db.one(`${ITEMS('$1::timestamptz', '$2::timestamptz')};`, [from, to]);
+    return { ...sm, ...ce, ...it, opening_cash: OPENING_CASH, cash_in_drawer: OPENING_CASH + sm.cash - ce.cash_expense };
 };
 
 export const addShift = async (createdAt, endedAt, employeeId) => {

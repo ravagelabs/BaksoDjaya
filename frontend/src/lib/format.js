@@ -106,3 +106,20 @@ export const assetUrl = (src) => (src && src.startsWith("/uploads/") ? `${API_UR
 // Total satu baris setelah diskon per item (0-100%, 100 = gratis)
 export const lineTotal = (l) => Math.round((Number(l.price) || 0) * (Number(l.qty) || 0) * (1 - (Number(l.discount_pct) || 0) / 100));
 export const discountLabel = (pct) => (Number(pct) >= 100 ? "Gratis" : `Diskon ${pct}%`);
+
+// Rekap menu terjual: dikelompokkan per nama menu (mis. "Paket Siji" 12 porsi), isinya per pilihan.
+// items: [{ name, qty, total }] dari laporan shift. Urut dari yang paling banyak terjual.
+export const groupSold = (items = []) => {
+  const map = new Map();
+  for (const it of items) {
+    const { title, detail } = splitName(it.name);
+    const g = map.get(title) ?? { title, qty: 0, total: 0, variants: [] };
+    g.qty += it.qty;
+    g.total += it.total ?? 0;
+    if (detail) g.variants.push({ detail, qty: it.qty });
+    map.set(title, g);
+  }
+  return [...map.values()]
+    .map((g) => ({ ...g, variants: g.variants.sort((a, b) => b.qty - a.qty) }))
+    .sort((a, b) => b.qty - a.qty);
+};
