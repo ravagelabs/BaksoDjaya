@@ -199,6 +199,10 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);     /* masuk / keluar */
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* pindah di layar */
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);  /* drawer ala iOS */
+  --dur-tekan: 120ms;
+  --dur-kecil: 160ms;
+  --dur-menu: 200ms;
+  --dur-sheet: 280ms;
 }
 /* Tekan tombol: menyusut tipis 120ms sebagai feedback (hanya transform) */
 @layer utilities {
@@ -243,3 +247,6 @@
     }
   }
 }
+/* Tab bar HP: ikon sedikit naik saat ditekan (umpan balik sentuh), instan saat pindah */
+.tab .tab-icon { transition: transform var(--dur-tekan, 120ms) var(--ease-out); }
+.tab:active .tab-icon { transform: scale(0.88); }

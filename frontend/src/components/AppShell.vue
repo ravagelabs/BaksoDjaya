@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, computed, watch, watchEffect, nextTick, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ArrowLeftRight, BookOpen, ChevronDown, History, Landmark, LogOut, Package, Plus, Receipt, Undo2, UserPlus, UtensilsCrossed } from "@lucide/vue";
+import { ArrowLeftRight, BookOpen, ChartPie, ChefHat, ChevronDown, Clock, Ellipsis, Hash, History, House, Settings, ShoppingBag, Landmark, LogOut, Package, Plus, Receipt, Undo2, UserPlus, UtensilsCrossed } from "@lucide/vue";
 import QuickActions from "@/components/QuickActions.vue";
 import ShortcutMenu from "@/components/ShortcutMenu.vue";
 import { Button } from "@/components/ui/button";
@@ -100,16 +100,22 @@ const isManager = computed(() => MANAGER_ROLES.includes(props.user.role));
 
 // Akun utama mulai dari Beranda (ringkasan bisnis); admin langsung Kasir
 const NAV_ALL = [
-  { to: "/beranda", label: "Beranda", manager: true },
-  { to: "/kasir", label: "Kasir" },
-  { to: "/meja", label: "Nomor" },
-  { to: "/dapur", label: "Dapur" },
-  { to: "/transaksi", label: "Transaksi" },
-  { to: "/shift", label: "Shift" },
-  { to: "/keuangan", label: "Keuangan", manager: true },
-  { to: "/pengaturan", label: "Pengaturan", manager: true },
+  { to: "/beranda", label: "Beranda", icon: House, manager: true },
+  { to: "/kasir", label: "Kasir", icon: ShoppingBag },
+  { to: "/meja", label: "Nomor", icon: Hash },
+  { to: "/dapur", label: "Dapur", icon: ChefHat },
+  { to: "/transaksi", label: "Transaksi", icon: Receipt },
+  { to: "/shift", label: "Shift", icon: Clock },
+  { to: "/keuangan", label: "Keuangan", icon: ChartPie, manager: true },
+  { to: "/pengaturan", label: "Pengaturan", icon: Settings, manager: true },
 ];
 const NAV = computed(() => NAV_ALL.filter((item) => !item.manager || isManager.value));
+// HP: tab bar bawah maksimal 5. Akun utama: 4 utama + "Lainnya"; admin: 5 menu langsung.
+const TAB_MAIN = ["/beranda", "/kasir", "/transaksi", "/keuangan"];
+const tabs = computed(() => (NAV.value.length <= 5 ? NAV.value : NAV.value.filter((i) => TAB_MAIN.includes(i.to))));
+const moreTabs = computed(() => NAV.value.filter((i) => !tabs.value.includes(i)));
+const moreActive = computed(() => moreTabs.value.some((i) => route.path.startsWith(i.to)));
+const moreBadge = computed(() => moreTabs.value.reduce((t, i) => t + (badges.value[i.to] || 0), 0));
 
 // Kasir yang membuka halaman pengelola lewat URL langsung diarahkan ke Kasir
 watch(
@@ -249,12 +255,12 @@ async function confirmLogout({ print = false } = {}) {
 
 <template>
   <div class="flex h-dvh flex-col overflow-hidden bg-card pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
-    <header class="flex shrink-0 flex-wrap items-center gap-x-6 bg-nav px-4 text-nav-foreground md:h-14 md:flex-nowrap md:px-6">
-      <RouterLink to="/kasir" class="flex h-14 shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-white/50">
+    <header class="flex h-12 shrink-0 items-center gap-x-6 bg-nav px-4 pt-[env(safe-area-inset-top)] text-nav-foreground box-content md:h-14 md:px-6">
+      <RouterLink to="/kasir" class="flex h-12 shrink-0 origin-left scale-[0.85] md:h-14 md:scale-100 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-white/50">
         <BrandLogo variant="dark" />
       </RouterLink>
 
-      <nav ref="navEl" class="relative order-last -mx-4 flex h-12 w-[calc(100%+2rem)] items-stretch gap-1 overflow-x-auto border-t border-white/10 px-2 [scrollbar-width:none] md:order-none md:mx-0 md:h-auto md:w-auto md:flex-1 md:justify-center-safe md:self-stretch md:border-t-0 md:px-0" aria-label="Menu utama">
+      <nav ref="navEl" class="relative hidden items-stretch gap-1 [scrollbar-width:none] md:flex md:flex-1 md:justify-center-safe md:self-stretch" aria-label="Menu utama">
         <RouterLink
           v-for="item in NAV"
           :key="item.to"
@@ -294,7 +300,7 @@ async function confirmLogout({ print = false } = {}) {
           v-if="settings.logo"
           :src="assetUrl(settings.logo)"
           :alt="OUTLET_NAME"
-          class="h-9 w-auto max-w-32 object-contain"
+          class="h-7 w-auto max-w-28 object-contain md:h-9 md:max-w-32"
         />
         <span v-else class="hidden text-[15px] font-medium text-white lg:inline">{{ OUTLET_NAME }}</span>
         <DropdownMenu>
@@ -324,6 +330,39 @@ async function confirmLogout({ print = false } = {}) {
     <main class="min-h-0 flex-1 overflow-hidden">
       <RouterView />
     </main>
+
+    <!-- HP: tab bar bawah ala iPhone (ikon + label pendek) -->
+    <nav class="tabbar flex shrink-0 border-t border-black/5 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden" aria-label="Menu utama">
+      <RouterLink v-for="item in tabs" :key="item.to" v-slot="{ href, navigate, isActive }" :to="item.to" custom>
+        <a
+          :href="href"
+          class="tab relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium outline-none"
+          :class="isActive ? 'text-cta' : 'text-[#8a847c]'"
+          :aria-current="isActive ? 'page' : undefined"
+          @click="navigate"
+        >
+          <component :is="item.icon" class="tab-icon size-6" :stroke-width="isActive ? 2.2 : 1.8" />
+          {{ item.label }}
+          <span v-if="badges[item.to]" class="tabular absolute top-1.5 left-1/2 ml-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{{ badges[item.to] }}</span>
+        </a>
+      </RouterLink>
+      <DropdownMenu v-if="moreTabs.length">
+        <DropdownMenuTrigger
+          class="tab relative flex h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium outline-none"
+          :class="moreActive ? 'text-cta' : 'text-[#8a847c]'"
+        >
+          <Ellipsis class="tab-icon size-6" :stroke-width="moreActive ? 2.2 : 1.8" />
+          Lainnya
+          <span v-if="moreBadge" class="tabular absolute top-1.5 left-1/2 ml-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{{ moreBadge }}</span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="top" :side-offset="8" class="w-56">
+          <DropdownMenuItem v-for="item in moreTabs" :key="item.to" class="h-12 gap-3 text-[16px]" @select="router.push(item.to)">
+            <component :is="item.icon" class="size-5" /> {{ item.label }}
+            <span v-if="badges[item.to]" class="tabular ml-auto rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">{{ badges[item.to] }}</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </nav>
 
     <ShiftPopup
       v-model:open="showShift"

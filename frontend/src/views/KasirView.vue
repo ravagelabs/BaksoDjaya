@@ -245,7 +245,7 @@ function pickTypeAndPay(type) {
           <input
             v-model="query"
             type="search"
-            placeholder="Cari menu atau kode produk..."
+            placeholder="Cari menu"
             class="h-12 w-full rounded-xl bg-muted pr-4 pl-11 text-base outline-none placeholder:text-muted-foreground focus:ring-3 focus:ring-ring/20"
           />
         </label>

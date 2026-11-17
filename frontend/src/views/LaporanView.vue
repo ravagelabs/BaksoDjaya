@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from "vue";
-import { ArrowRight, Banknote, Bike, Check, ChevronDown, CircleAlert, Package, Plus, Tags, Trash2, Wallet } from "@lucide/vue";
+import { ref, computed, onMounted, watch } from "vue";
+import { Banknote, Bike, ChevronDown, ChevronRight, CircleAlert, Package, Plus, Tags, Trash2, Wallet } from "@lucide/vue";
 import { useRouter } from "vue-router";
 import { printReport } from "@/lib/pdf";
 import { assetUrl } from "@/lib/format";
@@ -141,39 +141,22 @@ const checks = computed(() => {
   if (!r) return [];
   const list = [];
   if (r.items_without_hpp)
-    list.push({ key: "hpp", icon: Tags, tone: "warning", title: `${r.items_without_hpp} menu terjual belum ada HPP`, detail: "Laba terlihat lebih besar dari sebenarnya.", action: "Isi HPP", run: () => router.push({ path: "/pengaturan", query: { bagian: "menu" } }) });
+    list.push({ key: "hpp", icon: Tags, tone: "warning", title: `${r.items_without_hpp} menu terjual belum ada HPP`, action: "Isi HPP", run: () => router.push({ path: "/pengaturan", query: { bagian: "menu" } }) });
   if (balance.value) {
     const stok = assetOf("1-1600");
     if (stok < 0)
-      list.push({ key: "stok", icon: Package, tone: "warning", title: `Stok bahan minus ${formatRp(Math.abs(stok))}`, detail: "Ada belanja bahan yang belum dicatat, atau HPP menu terlalu tinggi.", action: "Catat belanja", run: () => quick("biaya", { category: "Bahan baku", name: "Belanja bahan" }) });
+      list.push({ key: "stok", icon: Package, tone: "warning", title: `Stok bahan minus ${formatRp(Math.abs(stok))}`, action: "Catat belanja", run: () => quick("biaya", { category: "Bahan baku", name: "Belanja bahan" }) });
     for (const [code, name, tpl] of [["1-1400", "GoFood", "gofood"], ["1-1500", "GrabFood", "grabfood"]]) {
       const v = assetOf(code);
-      if (v > 0) list.push({ key: code, icon: Bike, tone: "info", title: `${name} ${formatRp(v)} belum cair`, detail: "Catat begitu uangnya masuk ke rekening.", action: "Sudah cair", run: () => quick("jurnal", { amount: number.format(v) }, tpl) });
+      if (v > 0) list.push({ key: code, icon: Bike, tone: "info", title: `${name} ${formatRp(v)} belum cair`, action: "Sudah cair", run: () => quick("jurnal", { amount: number.format(v) }, tpl) });
     }
   }
   if (hasFinance.value && tunai.value > TUNAI_LIMIT)
-    list.push({ key: "tunai", icon: Banknote, tone: "info", title: `Uang tunai menumpuk ${formatRp(tunai.value)}`, detail: "Lebih aman disetor ke bank.", action: "Setor ke BCA", run: () => quick("transfer", { from: "1-1100", to: "1-1200", amount: number.format(tunai.value), description: "Setor tunai ke BCA" }) });
+    list.push({ key: "tunai", icon: Banknote, tone: "info", title: `Uang tunai menumpuk ${formatRp(tunai.value)}`, action: "Setor ke BCA", run: () => quick("transfer", { from: "1-1100", to: "1-1200", amount: number.format(tunai.value), description: "Setor tunai ke BCA" }) });
   return list;
 });
 
-// Tombol utama: bergantian antar aksi paling penting (berhenti saat disorot)
-const ctas = computed(() => {
-  const list = [];
-  if (hasFinance.value && tunai.value > TUNAI_LIMIT) list.push({ label: `Setor ${formatRp(tunai.value)} ke BCA`, run: checks.value.find((c) => c.key === "tunai").run });
-  list.push({ label: "Catat biaya", run: () => quick("biaya") });
-  if (report.value?.net_sales) list.push({ label: `${singleDay.value && to.value === todayISO() ? 'Laporan hari ini' : 'Unduh laporan'} · ${formatRp(report.value.net_sales)}`, run: () => exportPdf("pdf") });
-  return list;
-});
-const ctaIndex = ref(0);
-const ctaHold = ref(false);
-const cta = computed(() => ctas.value[ctaIndex.value % ctas.value.length]);
-let ctaTimer;
-onMounted(() => {
-  ctaTimer = setInterval(() => {
-    if (!ctaHold.value && ctas.value.length > 1 && !document.hidden) ctaIndex.value++;
-  }, 3500);
-});
-onUnmounted(() => clearInterval(ctaTimer));
+
 
 // Bagian yang dilipat: hanya ringkasan satu baris, buka kalau perlu (diingat di perangkat ini)
 const FOLD_KEY = "ravage.beranda.open";
@@ -372,10 +355,10 @@ async function exportCsv() {
   <div class="beranda h-full overflow-y-auto overscroll-contain">
     <div class="mx-auto max-w-[1280px] px-4 py-5 md:px-8 md:py-7">
       <!-- Judul + aksi utama -->
-      <div class="flex flex-wrap items-start justify-between gap-3">
+      <div class="flex items-center justify-between gap-3">
         <div class="min-w-0">
-          <h1 class="text-[28px] font-bold leading-tight md:text-[32px]">Beranda</h1>
-          <p class="mt-1 text-[15px] text-muted-foreground">{{ rangeLabel }} · {{ OUTLET_BRANCH }}</p>
+          <h1 class="text-[26px] font-bold leading-tight md:text-[32px]">Beranda</h1>
+          <p class="mt-0.5 truncate text-sm text-muted-foreground md:text-[15px]">{{ rangeLabel }}</p>
         </div>
         <div class="flex items-center gap-2">
           <ExportMenu
@@ -387,154 +370,101 @@ async function exportCsv() {
             ]"
           />
           <button
-            v-if="report && cta"
             type="button"
-            class="press flex h-11 min-w-0 items-center gap-2 overflow-hidden rounded-full bg-nav pr-4 pl-4 text-[15px] font-semibold text-nav-foreground shadow-sm"
-            @mouseenter="ctaHold = true"
-            @mouseleave="ctaHold = false"
-            @focus="ctaHold = true"
-            @blur="ctaHold = false"
-            @click="cta.run()"
+            class="cta-main press flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-cta pr-4 pl-3.5 text-[15px] font-semibold text-cta-foreground shadow-sm shadow-cta/30"
+            @click="quick('biaya')"
           >
-            <span class="relative grid min-w-0">
-              <Transition name="cta" mode="out-in">
-                <span :key="cta.label" class="truncate">{{ cta.label }}</span>
-              </Transition>
-            </span>
-            <ArrowRight class="size-4 shrink-0 opacity-70" />
+            <Plus class="cta-icon size-5" /> Catat biaya
           </button>
         </div>
       </div>
 
-      <!-- Periode -->
-      <div class="mt-5 flex flex-wrap items-center gap-2" role="group" aria-label="Periode laporan">
-        <button
-          v-for="p in PERIODS"
-          :key="p.key"
-          type="button"
-          class="h-11 rounded-full px-4 text-[15px] transition-colors"
-          :class="period === p.key ? 'bg-primary font-semibold text-primary-foreground' : 'glass-chip hover:bg-white'"
-          :aria-pressed="period === p.key"
-          @click="setPeriod(p.key)"
-        >
-          {{ p.label }}
-        </button>
-        <span v-if="period === 'custom'" class="flex flex-wrap items-center gap-2">
-          <input v-model="from" type="date" :max="todayISO()" aria-label="Dari tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
-          <span class="text-muted-foreground">s/d</span>
-          <input v-model="to" type="date" :max="todayISO()" aria-label="Sampai tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
-        </span>
+      <!-- Periode: kontrol segmen, satu baris (geser di HP) -->
+      <div class="-mx-4 mt-4 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:px-0">
+        <div class="seg inline-flex items-center gap-0.5 rounded-full p-1" role="group" aria-label="Periode laporan">
+          <button
+            v-for="p in PERIODS"
+            :key="p.key"
+            type="button"
+            class="h-9 shrink-0 rounded-full px-3.5 text-[15px] whitespace-nowrap transition-[background-color,box-shadow,color] duration-(--dur-kecil) ease-(--ease-out) md:h-10 md:px-4"
+            :class="period === p.key ? 'bg-white font-semibold text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
+            :aria-pressed="period === p.key"
+            @click="setPeriod(p.key)"
+          >
+            {{ p.label }}
+          </button>
+        </div>
+      </div>
+      <div v-if="period === 'custom'" class="mt-3 flex flex-wrap items-center gap-2">
+        <input v-model="from" type="date" :max="todayISO()" aria-label="Dari tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
+        <span class="text-muted-foreground">s/d</span>
+        <input v-model="to" type="date" :max="todayISO()" aria-label="Sampai tanggal" class="h-11 rounded-xl border bg-card px-3 text-[15px] outline-none focus:border-primary" />
       </div>
 
       <p v-if="error" class="mt-8 text-[15px] text-destructive">{{ error }}</p>
       <p v-else-if="loading && !report" class="mt-8 text-[15px] text-muted-foreground">Memuat laporan...</p>
 
       <template v-else-if="report">
-        <!-- Tiga angka utama -->
-        <div class="mt-6 grid gap-3 sm:grid-cols-3 md:gap-4" :class="loading ? 'opacity-60' : ''">
-          <div class="glass rounded-[22px] p-5 md:p-6">
-            <p class="text-[15px] text-muted-foreground">Penjualan</p>
-            <p class="tabular mt-2 whitespace-nowrap text-[28px] font-bold leading-none tracking-tight md:text-[34px]">{{ formatRp(report.net_sales) }}</p>
-            <p class="mt-3 text-sm text-muted-foreground">{{ report.transactions }} transaksi · rata-rata {{ formatRp(report.average_ticket) }}</p>
+        <!-- Angka utama: penjualan besar, dua pendamping (HP: berdampingan) -->
+        <div class="rise mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4" :class="loading ? 'opacity-60' : ''">
+          <div class="glass col-span-2 rounded-[22px] p-5 md:col-span-1 md:p-6">
+            <p class="text-sm text-muted-foreground md:text-[15px]">Penjualan</p>
+            <p class="tabular mt-1.5 whitespace-nowrap text-[32px] font-bold leading-none tracking-tight md:text-[34px]">{{ formatRp(report.net_sales) }}</p>
+            <p class="mt-2.5 text-sm text-muted-foreground">{{ report.transactions }} transaksi</p>
           </div>
-          <div class="glass rounded-[22px] p-5 md:p-6">
-            <p class="text-[15px] text-muted-foreground">Laba bersih</p>
-            <p class="tabular mt-2 whitespace-nowrap text-[28px] font-bold leading-none tracking-tight md:text-[34px]" :class="report.net_profit < 0 ? 'text-destructive' : 'text-success'">
+          <div class="glass min-w-0 rounded-[22px] p-4 md:p-6">
+            <p class="text-sm text-muted-foreground md:text-[15px]">Laba bersih</p>
+            <p class="tabular mt-1.5 truncate text-[21px] font-bold leading-none tracking-tight md:text-[34px]" :class="report.net_profit < 0 ? 'text-destructive' : 'text-success'">
               {{ formatRp(report.net_profit) }}
             </p>
-            <p class="mt-3 text-sm text-muted-foreground">HPP {{ formatRp(report.hpp) }} · biaya {{ formatRp(report.expenses) }}</p>
+            <p class="mt-2.5 hidden text-sm text-muted-foreground md:block">HPP {{ formatRp(report.hpp) }} · biaya {{ formatRp(report.expenses) }}</p>
           </div>
-          <div v-if="hasFinance" class="glass rounded-[22px] p-5 md:p-6">
-            <p class="flex items-center gap-1.5 text-[15px] text-muted-foreground"><Wallet class="size-4" /> Uang tunai</p>
-            <p class="tabular mt-2 whitespace-nowrap text-[28px] font-bold leading-none tracking-tight md:text-[34px]">{{ formatRp(tunai) }}</p>
-            <p class="tabular mt-3 truncate text-sm text-muted-foreground">
-              <span v-for="(a, i) in otherCash" :key="a.code">{{ i ? " · " : "" }}{{ a.name }} {{ shortRp(a.closing) }}</span>
-            </p>
-          </div>
-          <div v-else class="glass rounded-[22px] p-5 md:p-6">
-            <p class="text-[15px] text-muted-foreground">Laba kotor</p>
-            <p class="tabular mt-2 whitespace-nowrap text-[28px] font-bold leading-none tracking-tight md:text-[34px]">{{ formatRp(report.gross_profit) }}</p>
-            <p class="mt-3 text-sm text-muted-foreground">Penjualan dikurangi HPP</p>
+          <div class="glass min-w-0 rounded-[22px] p-4 md:p-6">
+            <p class="text-sm text-muted-foreground md:text-[15px]">{{ hasFinance ? "Uang tunai" : "Laba kotor" }}</p>
+            <p class="tabular mt-1.5 truncate text-[21px] font-bold leading-none tracking-tight md:text-[34px]">{{ formatRp(hasFinance ? tunai : report.gross_profit) }}</p>
           </div>
         </div>
 
-        <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-          <!-- Grafik -->
-          <section class="glass rounded-[22px] p-5 md:p-6">
-            <div class="flex items-baseline justify-between gap-3">
-              <h2 class="text-lg font-semibold md:text-xl">{{ singleDay ? "Penjualan per jam" : "Penjualan per hari" }}</h2>
-              <span class="text-sm text-muted-foreground">ribuan rupiah</span>
+        <!-- Grafik -->
+        <section class="rise glass mt-3 rounded-[22px] p-5 md:mt-4 md:p-6" style="--d: 1">
+          <h2 class="text-lg font-semibold md:text-xl">{{ singleDay ? "Per jam" : "Per hari" }}</h2>
+          <div class="mt-4 flex h-36 items-end gap-1.5 md:h-48 md:gap-2" role="img" :aria-label="`Grafik penjualan ${rangeLabel}`">
+            <div v-for="(b, i) in bars" :key="b.key" class="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
+              <span v-if="b.total && bars.length <= 16" class="tabular hidden text-[11px] text-muted-foreground md:block">{{ number.format(Math.round(b.total / 1000)) }}rb</span>
+              <div
+                class="bar w-full max-w-12 origin-bottom rounded-md"
+                :class="b.peak ? 'bg-cta' : 'bg-[#e9c9a8]'"
+                :style="{ height: b.total ? `${Math.max(b.pct, 4)}%` : '3px' }"
+                :title="`${b.label} · ${formatRp(b.total)}`"
+              />
+              <span class="tabular w-full text-center text-[11px] text-muted-foreground md:text-xs" :class="bars.length > 8 && i % 3 ? 'invisible md:visible' : ''">{{ b.label.replace('.00', '') }}</span>
             </div>
-            <div class="mt-5 flex h-48 items-end gap-1.5 md:gap-2" role="img" :aria-label="`Grafik penjualan ${rangeLabel}`">
-              <div v-for="(b, i) in bars" :key="b.key" class="flex h-full min-w-0 flex-1 flex-col items-center justify-end gap-2">
-                <span v-if="b.total && bars.length <= 16" class="tabular text-[11px] text-muted-foreground">{{ number.format(Math.round(b.total / 1000)) }}</span>
-                <div
-                  class="bar w-full max-w-12 origin-bottom rounded-md"
-                  :class="b.peak ? 'bg-cta' : 'bg-[#e9c9a8]'"
-                  :style="{ height: b.total ? `${Math.max(b.pct, 4)}%` : '3px' }"
-                  :title="`${b.label} · ${formatRp(b.total)}`"
-                />
-                <span class="tabular w-full text-center text-[11px] text-muted-foreground md:text-xs" :class="bars.length > 12 && i % 3 ? 'invisible md:visible' : ''">{{ b.label }}</span>
-              </div>
-            </div>
-          </section>
-
-          <!-- Perlu dicek -->
-          <section class="glass rounded-[22px] p-5 md:p-6">
-            <div class="flex items-baseline justify-between gap-3">
-              <h2 class="text-lg font-semibold md:text-xl">Perlu dicek</h2>
-              <span v-if="checks.length" class="tabular rounded-full bg-cta px-2.5 py-0.5 text-xs font-semibold text-cta-foreground">{{ checks.length }}</span>
-            </div>
-            <p v-if="!checks.length" class="mt-5 flex items-center gap-2 text-[15px] text-success">
-              <Check class="size-5" /> Semua beres. Tidak ada yang perlu dicek.
-            </p>
-            <ul v-else class="mt-3 flex flex-col divide-y divide-black/5">
-              <li v-for="c in checks" :key="c.key" class="flex items-center gap-3 py-3">
-                <span class="flex size-9 shrink-0 items-center justify-center rounded-full" :class="c.tone === 'warning' ? 'bg-warning-soft text-warning' : 'bg-muted text-foreground'">
-                  <component :is="c.icon" class="size-[18px]" />
-                </span>
-                <span class="min-w-0 flex-1">
-                  <span class="block text-[15px] font-semibold leading-snug">{{ c.title }}</span>
-                  <span class="block text-sm text-muted-foreground">{{ c.detail }}</span>
-                </span>
-                <button type="button" class="press h-9 shrink-0 rounded-full bg-white px-3.5 text-sm font-semibold shadow-sm ring-1 ring-black/5 hover:bg-muted" @click="c.run()">
-                  {{ c.action }}
-                </button>
-              </li>
-            </ul>
-          </section>
-        </div>
+          </div>
+        </section>
 
         <!-- Kas & Bank -->
-        <section v-if="hasFinance" class="glass mt-4 rounded-[22px] p-5 md:p-6">
-          <div class="flex items-baseline justify-between gap-3">
+        <section v-if="hasFinance" class="rise glass mt-3 rounded-[22px] p-5 md:mt-4 md:p-6" style="--d: 2">
+          <RouterLink to="/keuangan?laporan=cash" class="flex items-baseline justify-between gap-3">
             <h2 class="text-lg font-semibold md:text-xl">Kas & Bank</h2>
-            <RouterLink to="/keuangan?laporan=cash" class="text-sm font-semibold text-cta">Lihat mutasi</RouterLink>
-          </div>
-          <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(180px,1fr))] sm:gap-3">
-            <div v-for="a in cashAccounts" :key="a.code" class="min-w-0 rounded-2xl bg-white/70 p-3 ring-1 ring-black/5 sm:p-4">
+            <span class="tabular flex items-center gap-1 text-[15px] font-semibold">{{ formatRp(cashAccounts.reduce((t, a) => t + a.closing, 0)) }} <ChevronRight class="size-4 text-muted-foreground" /></span>
+          </RouterLink>
+          <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fit,minmax(170px,1fr))] sm:gap-3">
+            <div v-for="a in cashAccounts" :key="a.code" class="min-w-0 rounded-2xl bg-white/70 px-3.5 py-3 ring-1 ring-black/5 sm:p-4">
               <p class="truncate text-sm text-muted-foreground">{{ a.name }}</p>
-              <p class="tabular mt-1 text-xl font-bold sm:text-2xl">{{ formatRp(a.closing) }}</p>
-              <p class="tabular mt-1 text-xs text-muted-foreground">
-                <span class="text-success">+{{ number.format(a.totalIn) }}</span> · <span class="text-destructive">−{{ number.format(a.totalOut) }}</span>
-              </p>
-            </div>
-            <div class="min-w-0 rounded-2xl bg-nav p-3 text-nav-foreground sm:p-4">
-              <p class="text-sm opacity-70">Total kas & bank</p>
-              <p class="tabular mt-1 text-xl font-bold sm:text-2xl">{{ formatRp(cashAccounts.reduce((t, a) => t + a.closing, 0)) }}</p>
+              <p class="tabular mt-0.5 truncate text-lg font-bold sm:text-2xl">{{ formatRp(a.closing) }}</p>
             </div>
           </div>
         </section>
 
         <!-- Detail: dilipat jadi satu baris, buka kalau perlu -->
-        <div class="glass mt-4 overflow-hidden rounded-[22px]">
+        <div class="rise glass mt-3 overflow-hidden rounded-[22px] md:mt-4" style="--d: 3">
           <div v-for="(sec, i) in [
               { k: 'labarugi', t: 'Laba rugi' },
               { k: 'bayar', t: 'Sumber pembayaran' },
               { k: 'terlaris', t: 'Menu terlaris' },
               { k: 'biaya', t: 'Biaya operasional' },
             ]" :key="sec.k" :class="i ? 'border-t border-black/5' : ''">
-            <button type="button" class="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-white/50 md:px-6" :aria-expanded="opened.has(sec.k)" @click="toggleFold(sec.k)">
+            <button type="button" class="fold-row flex w-full items-center gap-3 px-5 py-3.5 text-left md:px-6 md:py-4" :aria-expanded="opened.has(sec.k)" @click="toggleFold(sec.k)">
               <span class="flex min-w-0 flex-1 flex-col sm:flex-row sm:items-baseline">
                 <span class="shrink-0 text-[16px] font-semibold sm:w-52">{{ sec.t }}</span>
                 <span class="tabular min-w-0 truncate text-[15px] text-muted-foreground">{{ folds[sec.k] }}</span>
@@ -622,9 +552,24 @@ async function exportCsv() {
           </div>
         </div>
 
-        <p class="mt-4 text-sm text-muted-foreground">
-          Laba bersih = penjualan − HPP − biaya operasional. Belanja bahan baku masuk stok, jadi tidak dihitung dua kali.
-        </p>
+        <!-- Perlu dicek (paling bawah) -->
+        <section v-if="checks.length" class="rise glass mt-3 rounded-[22px] p-5 md:mt-4 md:p-6" style="--d: 4">
+          <h2 class="flex items-center gap-2 text-lg font-semibold md:text-xl">
+            Perlu dicek
+            <span class="tabular rounded-full bg-cta/10 px-2 py-0.5 text-xs font-semibold text-cta">{{ checks.length }}</span>
+          </h2>
+          <ul class="mt-2 flex flex-col divide-y divide-black/5">
+            <li v-for="c in checks" :key="c.key" class="flex items-center gap-3 py-3">
+              <span class="flex size-9 shrink-0 items-center justify-center rounded-full" :class="c.tone === 'warning' ? 'bg-warning-soft text-warning' : 'bg-black/5 text-foreground'">
+                <component :is="c.icon" class="size-[18px]" />
+              </span>
+              <span class="min-w-0 flex-1 text-[15px] font-medium leading-snug">{{ c.title }}</span>
+              <button type="button" class="press h-9 shrink-0 rounded-full bg-black/5 px-3.5 text-sm font-semibold text-foreground" @click="c.run()">
+                {{ c.action }}
+              </button>
+            </li>
+          </ul>
+        </section>
       </template>
     </div>
   </div>
@@ -654,10 +599,22 @@ async function exportCsv() {
   .glass { background: #fff; backdrop-filter: none; }
 }
 
-/* Teks tombol utama bergeser naik saat berganti */
-.cta-enter-active, .cta-leave-active { transition: transform 220ms var(--ease-out), opacity 220ms var(--ease-out); }
-.cta-enter-from { transform: translateY(60%); opacity: 0; }
-.cta-leave-to { transform: translateY(-60%); opacity: 0; }
+.seg { background: rgb(120 100 80 / 0.10); }
+
+/* Tombol utama: ikon + berputar seperempat saat disorot (delight kecil) */
+.cta-icon { transition: transform var(--dur-menu) var(--ease-out); }
+@media (hover: hover) {
+  .cta-main:hover .cta-icon { transform: rotate(90deg); }
+  .fold-row:hover { background: rgb(255 255 255 / 0.5); }
+}
+
+/* Kartu muncul berurutan saat halaman dibuka (stagger 50ms, maks 5) */
+.rise { animation: rise 260ms var(--ease-out) both; animation-delay: calc(var(--d, 0) * 50ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) {
+  .rise { animation-name: fade; }
+  @keyframes fade { from { opacity: 0; } }
+}
 
 /* Bagian dilipat: muncul halus (transform + opacity saja) */
 .fold-enter-active { transition: transform 220ms var(--ease-out), opacity 220ms var(--ease-out); }

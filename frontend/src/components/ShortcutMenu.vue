@@ -132,7 +132,7 @@ async function runDaily(mode) {
 <template>
   <DropdownMenu>
     <DropdownMenuTrigger
-      class="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50 flex size-14 items-center justify-center rounded-full bg-nav shadow-lg shadow-black/30 ring-1 ring-white/10 outline-none transition-transform active:scale-95 focus-visible:ring-4 focus-visible:ring-cta/40 md:right-8 md:bottom-8"
+      class="fixed right-[calc(1rem+env(safe-area-inset-right))] bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 flex size-12 md:size-14 items-center justify-center rounded-full bg-nav shadow-lg shadow-black/30 ring-1 ring-white/10 outline-none transition-transform active:scale-95 focus-visible:ring-4 focus-visible:ring-cta/40 md:right-8 md:bottom-8"
       aria-label="Shortcut"
     >
       <img src="/brand/ravage-icon-silver.png" alt="" class="h-6 w-auto brightness-[1.6]" />
