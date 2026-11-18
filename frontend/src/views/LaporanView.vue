@@ -144,9 +144,12 @@ const checks = computed(() => {
   const r = report.value;
   if (!r) return [];
   const list = [];
-  const low = stock.value.filter((x) => x.qty <= x.min_qty);
+  const uncounted = stock.value.filter((x) => !x.counted);
+  if (uncounted.length)
+    list.push({ key: "stokhitung", icon: Boxes, tone: "warning", title: `${uncounted.length} barang belum diisi jumlah stoknya`, action: "Isi stok", run: () => router.push("/stok") });
+  const low = stock.value.filter((x) => x.counted && x.qty <= x.min_qty);
   if (low.length)
-    list.push({ key: "stokbarang", icon: Boxes, tone: "warning", title: low.length === 1 ? `${low[0].name} ${low[0].qty <= 0 ? "habis" : `sisa ${low[0].qty} ${low[0].unit}`}` : `${low.length} barang hampir habis`, action: "Lihat stok", run: () => router.push("/stok") });
+    list.push({ key: "stokbarang", icon: Boxes, tone: "warning", title: low.length === 1 ? `${low[0].name} ${low[0].qty <= 0 ? "habis" : `tinggal ${low[0].qty} ${low[0].unit}`}` : `${low.length} barang hampir habis`, action: "Lihat stok", run: () => router.push("/stok") });
   if (r.items_without_hpp)
     list.push({ key: "hpp", icon: Tags, tone: "warning", title: `${r.items_without_hpp} menu terjual belum ada HPP`, action: "Isi HPP", run: () => router.push({ path: "/pengaturan", query: { bagian: "menu" } }) });
   if (balance.value) {

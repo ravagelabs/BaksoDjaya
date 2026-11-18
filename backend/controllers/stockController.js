@@ -8,10 +8,17 @@ export const listItems = async () =>
         `SELECT s.id, s.name, s.unit, s.qty::float AS qty, s.min_qty::float AS min_qty,
                 COALESCE((SELECT json_agg(json_build_object('product_id', ps.product_id, 'qty', ps.qty::float))
                           FROM product_stock ps WHERE ps.stock_item_id = s.id), '[]') AS usage,
-                COALESCE((SELECT SUM(-m.qty) FROM stock_move m
-                          WHERE m.stock_item_id = s.id AND m.kind IN ('jual', 'batal')
-                            AND (m.created_at AT TIME ZONE 'Asia/Jakarta')::date = (now() AT TIME ZONE 'Asia/Jakarta')::date), 0)::float AS sold_today
+                EXISTS (SELECT 1 FROM stock_move m WHERE m.stock_item_id = s.id AND m.kind IN ('masuk', 'koreksi')) AS counted,
+                t.in_today, t.sold_today, t.out_today
          FROM stock_item s
+         CROSS JOIN LATERAL (
+             SELECT COALESCE(SUM(m.qty) FILTER (WHERE m.kind = 'masuk'), 0)::float AS in_today,
+                    COALESCE(SUM(-m.qty) FILTER (WHERE m.kind IN ('jual', 'batal')), 0)::float AS sold_today,
+                    COALESCE(SUM(-m.qty) FILTER (WHERE m.kind = 'keluar'), 0)::float AS out_today
+             FROM stock_move m
+             WHERE m.stock_item_id = s.id
+               AND (m.created_at AT TIME ZONE 'Asia/Jakarta')::date = (now() AT TIME ZONE 'Asia/Jakarta')::date
+         ) t
          WHERE s.archived_at IS NULL
          ORDER BY s.name;`
     );

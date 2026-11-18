@@ -51,7 +51,7 @@ async function saveMove() {
   try {
     await api(`/stock/${d.item.id}/moves`, { method: "POST", body: { kind: d.kind, qty: Number(moveQty.value), reason: moveReason.value || undefined } });
     const n = qtyText(Number(moveQty.value));
-    ui.toast(d.kind === "masuk" ? `${d.item.name} +${n}` : d.kind === "keluar" ? `${d.item.name} −${n}` : `${d.item.name} jadi ${n}`);
+    ui.toast(d.kind === "masuk" ? `${d.item.name} +${n}` : d.kind === "keluar" ? `${d.item.name} −${n}` : `${d.item.name} sisa ${n}`);
     moveDlg.value = null;
     await load();
   } catch (e) {
@@ -147,7 +147,7 @@ async function openHistory(item) {
     ui.toast(e.message, "error");
   }
 }
-const KIND_LABEL = { masuk: "Masuk", jual: "Terjual", keluar: "Keluar", batal: "Batal", koreksi: "Hitung ulang" };
+const KIND_LABEL = { masuk: "Masuk", jual: "Terjual", keluar: "Keluar", batal: "Batal", koreksi: "Hitung stok" };
 
 // ---- Hapus ----
 const delItem = ref(null);
@@ -184,25 +184,45 @@ async function removeItem() {
           v-for="(it, i) in items"
           :key="it.id"
           class="row-in rounded-[20px] border bg-card p-4 md:p-5"
-          :class="status(it) === 'habis' ? 'border-destructive/40' : status(it) === 'tipis' ? 'border-warning/50' : ''"
           :style="{ '--d': Math.min(i, 5) }"
         >
           <div class="flex items-start gap-3">
             <button type="button" class="min-w-0 flex-1 text-left" @click="openHistory(it)">
-              <p class="truncate text-[17px] font-semibold">{{ it.name }}</p>
-              <p class="mt-0.5 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
-                <span v-if="it.sold_today">Terjual hari ini {{ qtyText(it.sold_today) }}</span>
-                <span v-if="!it.usage.length" class="text-warning">Belum dipakai menu</span>
-                <span v-if="status(it) === 'habis'" class="font-semibold text-destructive">Habis</span>
-                <span v-else-if="status(it) === 'tipis'" class="font-semibold text-warning">Hampir habis</span>
+              <p class="flex items-center gap-2">
+                <span class="truncate text-[17px] font-semibold">{{ it.name }}</span>
+                <span v-if="it.counted && status(it) === 'habis'" class="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-semibold text-destructive">Habis</span>
+                <span v-else-if="it.counted && status(it) === 'tipis'" class="shrink-0 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning">Hampir habis</span>
+              </p>
+              <p v-if="it.in_today || it.sold_today || it.out_today" class="tabular mt-1 flex flex-wrap gap-x-3 text-sm text-muted-foreground">
+                <template v-if="it.in_today || it.sold_today || it.out_today">
+                  <span v-if="it.in_today" class="text-success">Masuk {{ qtyText(it.in_today) }}</span>
+                  <span v-if="it.sold_today">Terjual {{ qtyText(it.sold_today) }}</span>
+                  <span v-if="it.out_today">Keluar {{ qtyText(it.out_today) }}</span>
+                  <span class="text-muted-foreground/70">hari ini</span>
+                </template>
               </p>
             </button>
-            <p class="tabular shrink-0 text-right">
-              <span class="text-[28px] font-bold leading-none" :class="it.qty < 0 ? 'text-destructive' : ''">{{ qtyText(it.qty) }}</span>
-              <span class="ml-1 text-sm text-muted-foreground">{{ it.unit }}</span>
-            </p>
+            <div v-if="it.counted" class="shrink-0 text-right">
+              <p class="text-xs font-medium text-muted-foreground">Sisa</p>
+              <p class="tabular leading-none">
+                <Transition name="num" mode="out-in">
+                  <span :key="it.qty" class="inline-block text-[32px] font-bold" :class="it.qty <= 0 ? 'text-destructive' : ''">{{ qtyText(Math.max(it.qty, 0)) }}</span>
+                </Transition>
+                <span class="ml-1 text-sm text-muted-foreground">{{ it.unit }}</span>
+              </p>
+            </div>
           </div>
-          <div class="mt-3 flex items-center gap-2">
+
+          <!-- Belum pernah dihitung: minta isi jumlah dulu, jangan tampilkan angka minus -->
+          <button
+            v-if="!it.counted"
+            type="button"
+            class="press mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-cta text-[15px] font-semibold text-cta-foreground"
+            @click="openMove(it, 'koreksi')"
+          >
+            <ClipboardCheck class="size-5" /> Isi jumlah stok sekarang
+          </button>
+          <div v-else class="mt-3 flex items-center gap-2">
             <Button variant="secondary" class="h-11 flex-1 rounded-xl bg-success-soft text-[15px] text-success hover:bg-success-soft" @click="openMove(it, 'masuk')"><Plus /> Masuk</Button>
             <Button variant="secondary" class="h-11 flex-1 rounded-xl text-[15px]" @click="openMove(it, 'keluar')"><Minus /> Keluar</Button>
             <DropdownMenu>
@@ -210,10 +230,10 @@ async function removeItem() {
                 <Ellipsis class="size-5" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" class="w-56">
+                <DropdownMenuItem class="h-11 gap-3 text-[15px]" @select="openMove(it, 'koreksi')"><ClipboardCheck class="size-4" /> Hitung stok</DropdownMenuItem>
                 <DropdownMenuItem class="h-11 gap-3 text-[15px]" @select="openHistory(it)"><History class="size-4" /> Riwayat</DropdownMenuItem>
                 <template v-if="isOwner">
                   <DropdownMenuItem class="h-11 gap-3 text-[15px]" @select="openUsage(it)"><SlidersHorizontal class="size-4" /> Atur pemakaian</DropdownMenuItem>
-                  <DropdownMenuItem class="h-11 gap-3 text-[15px]" @select="openMove(it, 'koreksi')"><ClipboardCheck class="size-4" /> Hitung ulang</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem class="h-11 gap-3 text-[15px] text-destructive" @select="delItem = it"><Trash2 class="size-4" /> Hapus barang</DropdownMenuItem>
                 </template>
@@ -229,14 +249,14 @@ async function removeItem() {
       <DialogContent v-if="moveDlg" class="p-6 sm:max-w-sm sm:p-7">
         <DialogHeader>
           <DialogTitle class="text-2xl font-bold">
-            {{ moveDlg.kind === "masuk" ? "Stok masuk" : moveDlg.kind === "keluar" ? "Keluarkan stok" : "Hitung ulang" }}
+            {{ moveDlg.kind === "masuk" ? "Stok masuk" : moveDlg.kind === "keluar" ? "Keluarkan stok" : "Hitung stok" }}
           </DialogTitle>
-          <DialogDescription class="text-[15px]">{{ moveDlg.item.name }} · sekarang {{ qtyText(moveDlg.item.qty) }} {{ moveDlg.item.unit }}</DialogDescription>
+          <DialogDescription class="text-[15px]">{{ moveDlg.item.name }}<template v-if="moveDlg.item.counted"> · sisa {{ qtyText(Math.max(moveDlg.item.qty, 0)) }} {{ moveDlg.item.unit }}</template></DialogDescription>
         </DialogHeader>
-        <form class="grid gap-4" @submit.prevent="saveMove">
-          <label class="grid gap-1.5 text-sm font-semibold">{{ moveDlg.kind === "koreksi" ? "Jumlah hasil hitung" : "Jumlah" }}
-            <span class="flex items-center gap-2">
-              <input v-model="moveQty" type="number" inputmode="decimal" min="0" step="any" autofocus class="tabular h-14 min-w-0 flex-1 rounded-xl border bg-card px-4 text-2xl font-bold outline-none focus:border-primary" />
+        <form class="grid min-w-0 gap-4" @submit.prevent="saveMove">
+          <label class="grid min-w-0 gap-1.5 text-sm font-semibold">{{ moveDlg.kind === "koreksi" ? "Jumlah yang ada sekarang" : "Jumlah" }}
+            <span class="flex min-w-0 items-center gap-2">
+              <input v-model="moveQty" type="number" inputmode="decimal" min="0" step="any" autofocus class="no-spin tabular h-14 w-0 min-w-0 flex-1 rounded-xl border bg-card px-4 text-2xl font-bold outline-none focus:border-primary" />
               <span class="text-base font-normal text-muted-foreground">{{ moveDlg.item.unit }}</span>
             </span>
           </label>
@@ -349,7 +369,7 @@ async function removeItem() {
       <DialogContent v-if="histItem" class="flex max-h-[85dvh] flex-col p-6 sm:max-w-md sm:p-7">
         <DialogHeader>
           <DialogTitle class="text-2xl font-bold">{{ histItem.name }}</DialogTitle>
-          <DialogDescription class="text-[15px]">Sekarang {{ qtyText(histItem.qty) }} {{ histItem.unit }}</DialogDescription>
+          <DialogDescription class="text-[15px]">Sisa {{ qtyText(Math.max(histItem.qty, 0)) }} {{ histItem.unit }}</DialogDescription>
         </DialogHeader>
         <ul class="-mx-2 min-h-0 flex-1 divide-y overflow-y-auto px-2">
           <li v-if="!moves.length" class="py-6 text-center text-[15px] text-muted-foreground">Belum ada riwayat.</li>
@@ -376,6 +396,14 @@ async function removeItem() {
 </template>
 
 <style scoped>
+.no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.no-spin { -moz-appearance: textfield; }
+
+/* Angka sisa berganti: yang lama naik pudar, yang baru masuk dari bawah */
+.num-enter-active, .num-leave-active { transition: transform var(--dur-kecil) var(--ease-out), opacity var(--dur-kecil) var(--ease-out); }
+.num-enter-from { transform: translateY(40%); opacity: 0; }
+.num-leave-to { transform: translateY(-40%); opacity: 0; }
+
 /* Baris muncul berurutan saat halaman dibuka (stagger 40ms, maks 6) */
 .row-in { animation: row-in 240ms var(--ease-out) both; animation-delay: calc(var(--d, 0) * 40ms); }
 @keyframes row-in { from { opacity: 0; transform: translateY(6px); } }

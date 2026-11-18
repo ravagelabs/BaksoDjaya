@@ -2,7 +2,7 @@ import express from 'express';
 import { listItems, createItem, updateItem, archiveItem, setUsage, addMove, listMoves } from '../controllers/stockController.js';
 
 // Stok: semua akun bisa melihat, menambah barang, dan mencatat masuk/keluar.
-// Ubah pemakaian per menu, hitung ulang, dan hapus barang: akun utama saja.
+// Hitung stok (samakan dengan jumlah asli) boleh semua akun; ubah pemakaian & hapus barang: akun utama saja.
 const router = express.Router();
 const ownerOnly = (req, res) => {
     if (req.user?.role === 'owner') return false;
@@ -42,7 +42,6 @@ router.put('/:id/usage', wrap(async (req, res) => {
 }));
 router.get('/:id/moves', wrap(async (req, res) => res.json({ data: await listMoves(idOf(req)) })));
 router.post('/:id/moves', wrap(async (req, res) => {
-    if (req.body?.kind === 'koreksi' && ownerOnly(req, res)) return;
     await addMove(idOf(req), req.body ?? {}, req.user?.id);
     res.status(201).json({ message: 'ok' });
 }));
