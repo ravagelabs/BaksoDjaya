@@ -19,10 +19,13 @@ import { auth } from './auth.js';
 import { toNodeHandler } from 'better-auth/node';
 import { requireAuth, requireRole, safeErrors } from './lib/http.js';
 import { runMigrations } from './lib/migrate.js';
+import agentRouter from './lib/agent.js';
 import path from "path";
 import { fileURLToPath } from "url";
 
 const app = express();
+
+app.disable('x-powered-by');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +52,10 @@ app.all('/api/auth/*splat', toNodeHandler(auth));
 
 // Semua endpoint di bawah ini: pesan error aman + wajib login
 app.use(safeErrors);
+
+// Bot agen (header X-Agent-Key): hanya POST /expenses dan GET /reports/daily.
+// Harus di atas requireAuth. Request tanpa header ini lanjut ke alur login biasa.
+app.use(agentRouter);
 
 // Pengaturan toko (logo): GET publik untuk halaman login, PUT dicek di route
 app.use('/settings', settingsRouter);
