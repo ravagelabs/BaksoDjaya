@@ -21,7 +21,6 @@ import { requireAuth, requireRole, safeErrors } from './lib/http.js';
 import { runMigrations } from './lib/migrate.js';
 import path from "path";
 import { fileURLToPath } from "url";
-import { requireAuth } from './lib/requireAuth.js';
 
 const app = express();
 
@@ -43,10 +42,9 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
 
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Foto menu yang di-upload dari halaman Pengaturan (file statis tetap publik agar <img> bisa tampil)
+// Foto menu yang di-upload dari halaman Pengaturan
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '30d', immutable: true }));
 
-// Rute bawaan Better Auth (login, logout, session, dll). Harus di atas express.json()
 app.all('/api/auth/*splat', toNodeHandler(auth));
 
 // Semua endpoint di bawah ini: pesan error aman + wajib login
@@ -65,26 +63,26 @@ app.use(['/products', '/modifiers'], requireRole(undefined, WRITE));
 app.use(['/reports', '/expenses', '/users', '/finance'], requireRole());
 // Batalkan pesanan: akun utama semua pesanan; admin hanya pesanan yang masih di dapur (dicek di route)
 // /shifts: semua akun (karyawan hanya melihat shift miliknya, dicek di route)
-// Upload foto: hanya user yang sudah login
-app.use('/uploads', requireAuth, uploadsRouter);
+
+app.use('/uploads', uploadsRouter);
 
 app.use(express.json());
 
-app.use('/products', requireAuth, productsRouter);
+app.use('/products', productsRouter);
 
-app.use('/bills', requireAuth, billsRouter);
+app.use('/bills', billsRouter);
 
-app.use('/customers', requireAuth, customersRouter);
+app.use('/customers', customersRouter);
 
-app.use('/shifts', requireAuth, shiftsRouter);
+app.use('/shifts', shiftsRouter);
 
-app.use('/modifiers', requireAuth, modifiersRouter);
+app.use('/modifiers', modifiersRouter);
 
-app.use('/tables', requireAuth, tablesRouter);
+app.use('/tables', tablesRouter);
 
-app.use('/expenses', requireAuth, expensesRouter);
+app.use('/expenses', expensesRouter);
 
-app.use('/reports', requireAuth, reportsRouter);
+app.use('/reports', reportsRouter);
 
 app.use('/users', usersRouter);
 
@@ -93,7 +91,7 @@ app.use('/finance', financeRouter);
 app.use('/stock', stockRouter);
 
 // Update realtime untuk layar Dapur, Meja, dan Transaksi
-app.use('/events', requireAuth, eventsRouter);
+app.use('/events', eventsRouter);
 
 app.get('{*splat}', (req, res) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
