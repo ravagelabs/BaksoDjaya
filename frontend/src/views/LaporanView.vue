@@ -211,56 +211,86 @@ async function removeExpense(e) {
   }
 }
 
-// ---- PDF Beranda (A4, kop logo): isi Beranda dirangkum dalam satu laporan ----
-function exportPdf(mode = "pdf") {
+// ---- PDF Beranda (A4, kop logo): laporan owner, semua yang perlu diketahui dalam satu file ----
+async function exportPdf(mode = "pdf") {
   const r = report.value;
   if (!r) return;
   const acctName = (code) => cashAccounts.value.find((a) => a.code === code)?.name ?? "-";
   const sum = (cells) => ({ className: "sum", cells });
   const multi = !singleDay.value;
-  // Mutasi kas & bank selain penjualan (penjualan sudah ada di tabel pembayaran)
-  const moves = cashAccounts.value.flatMap((a) =>
-    a.rows.filter((x) => x.ref !== "Penjualan").map((x) => ({ ...x, account: a.name }))
-  ).sort((x, y) => x.date.localeCompare(y.date));
-  const kasTotal = (k) => cashAccounts.value.reduce((t, a) => t + a[k], 0);
+  const sumOf = (k) => cashAccounts.value.reduce((t, a) => t + a[k], 0);
+  const expTotal = expenses.value.reduce((t, e) => t + Number(e.amount), 0);
+
+  // Pendapatan lain (selisih kas, penyesuaian saldo) dari laporan jurnal
+  let otherIncome = 0;
+  try {
+    const pl = (await api(`/finance/report?type=pl&from=${from.value}&to=${to.value}`)).data;
+    otherIncome = Number(pl.revenue.find((x) => x.code === "4-9100")?.amount ?? 0);
+  } catch {
+    otherIncome = 0;
+  }
+
+  const receivable = assetOf("1-1400") + assetOf("1-1500");
+  const inventory = assetOf("1-1600");
+  const hppPct = pct(r.hpp, r.net_sales);
+
+  // Stok bahan: sisa kalau sudah dihitung, kalau belum tampil pemakaian
+  const stockRows = stock.value.map((x) => {
+    const qty = Number(x.qty);
+    if (!x.counted) return [x.name, "Belum dihitung", `Terpakai ${number.format(Math.max(0, -qty))} ${x.unit}`];
+    const state = qty <= 0 ? "Habis" : qty <= x.min_qty ? "Hampir habis" : "Aman";
+    return [x.name, `${number.format(Math.max(0, qty))} ${x.unit}`, state];
+  });
+
+  const todo = checks.value.filter((c) => c.key !== "stok").map((c) => c.title);
+  if (inventory < 0) todo.push(`Persediaan bahan minus ${formatRp(Math.abs(inventory))}: belanja bahan belum seluruhnya tercatat, atau HPP menu terlalu tinggi.`);
+  if (hppPct >= 55) todo.push(`HPP ${hppPct}% dari penjualan tergolong tinggi. Periksa harga modal tiap menu.`);
+  if (r.discount) todo.push(`Diskon ${formatRp(r.discount)} (${r.discount_items} item) sudah dikurangkan dari penjualan.`);
+  if (r.cancelled.count) todo.push(`${r.cancelled.count} pesanan dibatalkan (${formatRp(r.cancelled.total)}) tidak dihitung.`);
+
+  const moves = cashAccounts.value
+    .flatMap((a) => a.rows.filter((x) => x.ref !== "Penjualan").map((x) => ({ ...x, account: a.name })))
+    .sort((x, y) => x.date.localeCompare(y.date));
 
   printReport(
     {
-      title: "Laporan Usaha",
+      title: "Laporan Owner",
       period: rangeLabel.value,
       logo: settings.logo ? new URL(assetUrl(settings.logo), location.origin).href : "",
       sections: [
         {
-          heading: "Laba rugi",
+          heading: "Ringkasan",
           rows: [
             { label: "Penjualan", value: r.net_sales, note: `${r.transactions} transaksi` },
-            ...(r.discount ? [{ label: "Sudah termasuk diskon", value: -r.discount, indent: 1 }] : []),
-            { label: "Harga pokok penjualan (HPP)", value: -r.hpp },
-            { label: "Laba kotor", value: r.gross_profit, total: true },
-            { label: "Biaya operasional", value: -r.expenses },
-            { label: "LABA (RUGI) BERSIH", value: r.net_profit, grand: true },
+            { label: "Laba bersih usaha", value: r.net_profit, bold: true, note: r.net_sales ? `${Math.round(r.net_margin * 1000) / 10}% dari penjualan` : "" },
+            ...(hasFinance.value ? [{ label: "Uang kas & bank", value: sumOf("closing") }] : []),
+            ...(receivable ? [{ label: "Belum cair (GoFood + GrabFood)", value: receivable }] : []),
+            ...(balance.value ? [{ label: "Persediaan bahan", value: inventory }] : []),
           ],
         },
-        ...(cashAccounts.value.length
+        {
+          heading: "Laba rugi",
+          rows: [
+            { label: "Penjualan", value: r.net_sales, note: r.discount ? `sudah termasuk diskon ${formatRp(r.discount)}` : "" },
+            { label: "Harga pokok penjualan (HPP)", value: -r.hpp, note: r.net_sales ? `${hppPct}% dari penjualan` : "" },
+            { label: "Laba kotor", value: r.gross_profit, total: true },
+            { label: "Biaya operasional", value: -r.expenses },
+            ...r.expenses_by_category.map((e) => ({ label: e.category, value: -e.total, indent: 1 })),
+            { label: "Laba bersih usaha", value: r.net_profit, total: true },
+            ...(otherIncome ? [{ label: "Pendapatan lain", value: otherIncome, note: "selisih kas dan penyesuaian saldo" }] : []),
+            { label: "LABA (RUGI) BERSIH", value: r.net_profit + otherIncome, grand: true },
+          ],
+        },
+        ...(multi
           ? [{
-              heading: "Kas & bank",
+              heading: "Penjualan per hari",
               table: {
-                columns: ["Akun", "Awal", "Masuk", "Keluar", "Akhir"],
-                align: ["left", "right", "right", "right", "right"],
+                columns: ["Tanggal", "Penjualan", "Biaya"],
+                align: ["left", "right", "right"],
                 rows: [
-                  ...cashAccounts.value.map((a) => [a.name, a.opening, a.totalIn, a.totalOut, a.closing]),
-                  sum(["Total", kasTotal("opening"), kasTotal("totalIn"), kasTotal("totalOut"), kasTotal("closing")]),
+                  ...r.daily.filter((d) => d.sales || d.expenses).map((d) => [dayMonth(d.date), d.sales, d.expenses || ""]),
+                  sum(["Total", r.net_sales, r.expenses || ""]),
                 ],
-              },
-            }]
-          : []),
-        ...(moves.length
-          ? [{
-              heading: "Mutasi kas & bank (selain penjualan)",
-              table: {
-                columns: [...(multi ? ["Tgl"] : []), "Keterangan", "Akun", "Masuk", "Keluar"],
-                align: [...(multi ? ["left"] : []), "left", "left", "right", "right"],
-                rows: moves.map((x) => [...(multi ? [dayMonth(x.date)] : []), x.description, x.account, x.in || "", x.out || ""]),
               },
             }]
           : []),
@@ -276,19 +306,6 @@ function exportPdf(mode = "pdf") {
           },
         },
         {
-          heading: "Pengeluaran",
-          table: {
-            columns: [...(multi ? ["Tgl"] : []), "Untuk", "Kategori", "Dibayar dari", "Jumlah"],
-            align: [...(multi ? ["left"] : []), "left", "left", "left", "right"],
-            rows: expenses.value.length
-              ? [
-                  ...expenses.value.map((e) => [...(multi ? [dayMonth(e.spent_on)] : []), e.name, e.category, acctName(e.paid_from), e.amount]),
-                  sum([...(multi ? [""] : []), "Total", "", "", expenses.value.reduce((t, e) => t + Number(e.amount), 0)]),
-                ]
-              : [],
-          },
-        },
-        {
           heading: "Menu terlaris",
           table: {
             columns: ["#", "Menu", "Porsi", "Penjualan"],
@@ -296,11 +313,72 @@ function exportPdf(mode = "pdf") {
             rows: r.top_products.map((p, i) => [String(i + 1), titleCase(p.name), String(p.qty), p.total]),
           },
         },
+        ...(cashAccounts.value.length
+          ? [{
+              heading: "Kas, bank & piutang",
+              table: {
+                columns: ["Akun", "Awal", "Masuk", "Keluar", "Akhir"],
+                align: ["left", "right", "right", "right", "right"],
+                rows: [
+                  ...cashAccounts.value.map((a) => [a.name, a.opening, a.totalIn, a.totalOut, a.closing]),
+                  sum(["Total", sumOf("opening"), sumOf("totalIn"), sumOf("totalOut"), sumOf("closing")]),
+                  ...(assetOf("1-1400") ? [["Piutang GoFood", "", "", "", assetOf("1-1400")]] : []),
+                  ...(assetOf("1-1500") ? [["Piutang GrabFood", "", "", "", assetOf("1-1500")]] : []),
+                ],
+              },
+            }]
+          : []),
+        ...(moves.length
+          ? [{
+              heading: "Mutasi kas & bank (selain penjualan)",
+              table: {
+                columns: [...(multi ? ["Tgl"] : []), "Keterangan", "Akun", "Masuk", "Keluar"],
+                align: [...(multi ? ["left"] : []), "left", "left", "right", "right"],
+                rows: moves.map((x) => [...(multi ? [dayMonth(x.date)] : []), x.description, x.account, x.in || "", x.out || ""]),
+              },
+            }]
+          : []),
+        ...(balance.value
+          ? [{
+              heading: "Posisi keuangan",
+              rows: [
+                { label: "Uang kas & bank", value: sumOf("closing") },
+                { label: "Piutang GoFood + GrabFood", value: receivable },
+                { label: "Persediaan bahan", value: inventory },
+                { label: "Total harta", value: balance.value.totalAssets, total: true },
+                { label: "Modal pemilik", value: balance.value.equity.reduce((t, x) => t + Number(x.amount), 0) },
+                { label: "Laba berjalan", value: balance.value.retainedProfit },
+              ],
+            }]
+          : []),
+        {
+          heading: "Pengeluaran",
+          table: {
+            columns: [...(multi ? ["Tgl"] : []), "Untuk", "Kategori", "Dibayar dari", "Jumlah"],
+            align: [...(multi ? ["left"] : []), "left", "left", "left", "right"],
+            rows: expenses.value.length
+              ? [
+                  ...expenses.value.map((e) => [...(multi ? [dayMonth(e.spent_on)] : []), e.name, e.category, acctName(e.paid_from), e.amount]),
+                  sum([...(multi ? [""] : []), "Total", "", "", expTotal]),
+                ]
+              : [],
+          },
+        },
+        ...(stockRows.length
+          ? [{
+              heading: "Stok bahan",
+              table: { columns: ["Barang", "Sisa", "Keterangan"], align: ["left", "left", "left"], rows: stockRows },
+            }]
+          : []),
+        ...(todo.length
+          ? [{
+              heading: "Perlu dicek",
+              table: { columns: ["Catatan"], align: ["left"], rows: todo.map((t, i) => [`${i + 1}. ${t}`]) },
+            }]
+          : []),
       ],
       note:
-        (expenses.value.some((e) => e.category === "Bahan baku") ? "Belanja bahan baku masuk persediaan dan tidak mengurangi laba lagi, karena sudah dihitung lewat HPP. " : "") +
-        (r.items_without_hpp ? `Catatan: ${r.items_without_hpp} menu terjual belum memiliki HPP, laba terlihat lebih besar dari sebenarnya. ` : "") +
-        (r.cancelled.count ? `${r.cancelled.count} pesanan dibatalkan (Rp ${number.format(r.cancelled.total)}) tidak dihitung.` : ""),
+        (expenses.value.some((e) => e.category === "Bahan baku") ? "Belanja bahan baku masuk persediaan dan tidak mengurangi laba lagi, karena sudah dihitung lewat HPP." : ""),
     },
     mode
   );
